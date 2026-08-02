@@ -1,0 +1,122 @@
+{
+  "id": "app-launch-video",
+  "name": "App Launch Video With Voice",
+  "description": "Turn a verified product brief into an idea-to-app-builder video project with Edge TTS clip narration.",
+  "createdAt": "2026-08-02T00:00:00.000Z",
+  "updatedAt": "2026-08-02T15:43:44.138Z",
+  "icon": "AudioLines",
+  "color": "#15803d",
+  "tagCatalog": [
+    "DB",
+    "ENV",
+    "FS"
+  ],
+  "tags": [
+    "video",
+    "voice"
+  ],
+  "nodes": [
+    {
+      "id": "node-brief",
+      "type": "content-brief",
+      "title": "Product Brief",
+      "icon": "FileInput",
+      "x": 60,
+      "y": 180,
+      "color": "#0f766e",
+      "config": {
+        "topic": "Forge, an AI app builder that turns an idea into a working product",
+        "audience": "Solo founders and small product teams who can describe a product but cannot ship one alone",
+        "objective": "Convince the viewer that a described idea can become a real, deployable product in one session",
+        "centralThesis": "Building was the bottleneck; describing the product is now enough to ship one.",
+        "targetLanguage": "English",
+        "targetDurationSeconds": 60,
+        "sourceNotes": "Replace these placeholders with your own verified evidence before running.\nProduct documentation: https://example.com/forge/docs\nLaunch announcement: https://example.com/forge/launch",
+        "factualBoundaries": "Only describe capabilities documented in the linked sources. No pricing, customer names, benchmarks, or availability dates.",
+        "requiredPoints": "Ideas outnumber shipped products.\nBuilding used to require a team.\nThe builder produces a real application with auth and a database.\nChanges are made by describing them.",
+        "forbiddenClaims": "No claims of being the best or fastest tool.\nNo invented user counts, revenue, or funding.\nNo comparisons to named competitors."
+      }
+    },
+    {
+      "id": "node-storyboard",
+      "type": "clip-storyboard",
+      "title": "Storyboard",
+      "icon": "Clapperboard",
+      "x": 293,
+      "y": 280,
+      "color": "#c2410c",
+      "tags": [
+        "ENV"
+      ],
+      "config": {
+        "slug": "forge-app-launch",
+        "language": "English",
+        "tone": "confident product launch",
+        "minClips": 8,
+        "maxClips": 12,
+        "minComponentTypes": 6,
+        "targetDurationSeconds": 60,
+        "durationTolerance": 0.25,
+        "temperature": 0.6,
+        "systemPrompt": "You are a storyboard director for a local motion-graphics video renderer. You return one JSON document and nothing else: no Markdown fences, no commentary. Every claim in the narration must be supported by the upstream brief."
+      }
+    },
+    {
+      "id": "node-project",
+      "type": "app-video-project",
+      "title": "Builder Project",
+      "icon": "FolderTree",
+      "x": 526,
+      "y": 180,
+      "color": "#0369a1",
+      "tags": [
+        "FS"
+      ],
+      "config": {
+        "builderProjectsDir": "idea-to-app-builder/projects",
+        "overwrite": true,
+        "writeDescription": true
+      }
+    },
+    {
+      "id": "node-narration",
+      "type": "edge-tts-narration",
+      "title": "Clip Narration",
+      "icon": "AudioLines",
+      "x": 759,
+      "y": 260,
+      "color": "#15803d",
+      "tags": [
+        "FS"
+      ],
+      "config": {
+        "voice": "en-US-EmmaMultilingualNeural",
+        "rate": "+6%",
+        "volume": "+0%",
+        "pitch": "+0Hz",
+        "writeCombined": true,
+        "writeToProject": true,
+        "concurrency": 2,
+        "timeoutMs": 60000,
+        "durationTolerance": 0.35
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-node-brief-node-storyboard",
+      "fromNodeId": "node-brief",
+      "toNodeId": "node-storyboard"
+    },
+    {
+      "id": "edge-node-storyboard-node-project",
+      "fromNodeId": "node-storyboard",
+      "toNodeId": "node-project"
+    },
+    {
+      "id": "edge-node-project-node-narration",
+      "fromNodeId": "node-project",
+      "toNodeId": "node-narration"
+    }
+  ]
+}

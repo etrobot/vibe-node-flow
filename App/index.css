@@ -1,0 +1,345 @@
+/* ===========================================================
+ * VibeNodeFlow — Design System
+ * ===========================================================
+ * Cursor-inspired warm-cream editorial palette.
+ * Hairline-only depth, scarce Cursor Orange voltage,
+ * JetBrains Mono on every code surface.
+ * =========================================================== */
+
+@import "tailwindcss";
+
+/* ── Design Tokens ──────────────────────────────────────── */
+@theme {
+  /* ---- Surface & Background ---- */
+  --color-surface-canvas:   #f7f7f4;  /* Warm cream page floor */
+  --color-surface-canvas-soft: #fafaf7;  /* IDE-pane background */
+  --color-surface-card:    #ffffff;
+  --color-surface-strong:  #e6e5e0;  /* Badges, tag pills */
+
+  /* ---- Brand Voltage (Cursor Orange) — use scarcely ---- */
+  --color-primary:      #f54e00;  /* Cursor Orange — CTAs, wordmark */
+  --color-primary-active: #d04200;  /* Press state */
+  --color-primary-light: #fef0e8;  /* Tinted background for orange */
+
+  /* ---- Text ---- */
+  --color-black:      #000000;  /* Pure black — buttons, selected node borders */
+  --color-ink:        #26251e;  /* Warm near-black — display, body emphasis */
+  --color-body:       #5a5852;  /* Default running text */
+  --color-body-strong:#26251e;  /* Same as ink */
+  --color-muted:      #807d72;  /* Sub-titles */
+  --color-muted-soft: #a09c92;  /* Disabled text */
+  --color-on-primary: #ffffff;  /* White on Cursor Orange */
+
+  /* ---- Hairlines (no shadows) ---- */
+  --color-hairline:       #e6e5e0;  /* 1px divider */
+  --color-hairline-soft:  #efeee8;  /* Lighter divider */
+  --color-hairline-strong:#cfcdc4;  /* Stronger panel outline */
+
+  /* ---- Semantic ---- */
+  --color-semantic-error:   #cf2d56;
+  --color-semantic-success: #1f8a65;
+  --color-semantic-warning: #c08532;
+
+  /* ---- Timeline pastels (node status indicators only) ---- */
+  --color-timeline-thinking: #dfa88f;  /* Peach */
+  --color-timeline-grep:     #9fc9a2;  /* Mint */
+  --color-timeline-read:     #9fbbe0;  /* Pastel blue */
+  --color-timeline-edit:     #c0a8dd;  /* Lavender */
+  --color-timeline-done:     #c08532;  /* Warm gold */
+
+  /* ---- Border Radius ---- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;    /* Buttons, form inputs */
+  --radius-lg: 12px;   /* Cards, IDE panes */
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
+
+  /* ---- Elevation (hairline-only, no shadows) ---- */
+
+  /* ---- Font ---- */
+  --font-sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-display: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+}
+
+/* ── Base Layer ─────────────────────────────────────────── */
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background-color: var(--color-surface-canvas);
+    color: var(--color-body);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+  }
+
+  /* Display styles — magazine voice, weight 400 with negative letter-spacing */
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--color-ink);
+    font-weight: 400;
+  }
+}
+
+/* ── Component Classes ──────────────────────────────────── */
+@layer components {
+  /* --- Card container (hairline border, no shadow) --- */
+  .card-panel {
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-lg);
+  }
+  .card-panel-sm {
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-lg);
+  }
+
+  /* --- Panel header row (flex, border-bottom) --- */
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-hairline-soft);
+  }
+
+  /* --- Pill input --- */
+  .input-pill {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    color: var(--color-ink);
+    outline: none;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+  .input-pill:focus {
+    border-color: var(--color-primary);
+    background-color: var(--color-surface-card);
+  }
+  .input-pill::placeholder {
+    color: var(--color-muted);
+  }
+
+  /* --- Rounded input (card radius) --- */
+  .input-rounded {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-lg);
+    font-size: 0.75rem;
+    color: var(--color-ink);
+    outline: none;
+    transition: border-color 0.2s, background-color 0.2s;
+  }
+  .input-rounded:focus {
+    border-color: var(--color-primary);
+    background-color: var(--color-surface-card);
+  }
+  .input-rounded::placeholder {
+    color: var(--color-muted);
+  }
+
+  /* --- Tab switch (pill-shaped toggle group) --- */
+  .tab-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem;
+    background-color: var(--color-surface-canvas-soft);
+    border: 1px solid var(--color-hairline);
+    border-radius: var(--radius-pill);
+  }
+  .tab-switch-btn {
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-muted);
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .tab-switch-btn:hover {
+    color: var(--color-ink);
+  }
+  .tab-switch-btn.active {
+    background-color: var(--color-surface-card);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline-strong);
+  }
+
+  /* --- Ghost icon button --- */
+  .btn-ghost {
+    padding: 0.375rem;
+    border-radius: var(--radius-lg);
+    color: var(--color-muted);
+    transition: color 0.15s, background-color 0.15s;
+    cursor: pointer;
+  }
+  .btn-ghost:hover {
+    color: var(--color-ink);
+    background-color: var(--color-surface-canvas-soft);
+  }
+
+  /* --- Code block (cream card bg, ink text, JetBrains Mono) --- */
+  .code-block {
+    padding: 0.625rem;
+    border-radius: var(--radius-lg);
+    background-color: var(--color-surface-card);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.625;
+    overflow-x: auto;
+    border: 1px solid var(--color-hairline);
+  }
+
+  /* --- Status badge (pill) --- */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.625rem;
+    font-weight: 600;
+  }
+  .status-badge-success {
+    background-color: color-mix(in srgb, var(--color-timeline-grep) 25%, transparent);
+    color: #1a6b4e;
+    border: 1px solid color-mix(in srgb, var(--color-timeline-grep) 40%, transparent);
+  }
+  .status-badge-error {
+    background-color: color-mix(in srgb, var(--color-semantic-error) 8%, transparent);
+    color: var(--color-semantic-error);
+    border: 1px solid color-mix(in srgb, var(--color-semantic-error) 20%, transparent);
+  }
+  .status-badge-warning {
+    background-color: color-mix(in srgb, var(--color-semantic-warning) 12%, transparent);
+    color: #94651f;
+    border: 1px solid color-mix(in srgb, var(--color-semantic-warning) 28%, transparent);
+  }
+  .status-badge-neutral {
+    background-color: var(--color-surface-canvas);
+    color: var(--color-muted);
+    border: 1px solid var(--color-hairline);
+  }
+
+  /* --- Modal overlay (ink-tinted backdrop) --- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: color-mix(in srgb, var(--color-black) 40%, transparent);
+    backdrop-filter: blur(4px);
+  }
+
+  /* --- Ink feature band --- */
+  .band-dark {
+    background-color: var(--color-black);
+    color: var(--color-on-primary);
+  }
+  .band-dark-secondary {
+    color: var(--color-muted);
+  }
+
+  /* --- Cursor Orange primary button --- */
+  .btn-primary {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    border: 1px solid var(--color-primary);
+    transition: background-color 0.15s;
+  }
+  .btn-primary:hover {
+    background-color: var(--color-primary-active);
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* ── Utility Classes ────────────────────────────────────── */
+@layer utilities {
+  /* Ambient background motion for the cinematic stage */
+  @keyframes creatorAmbientSpin {
+    to { rotate: 360deg; }
+  }
+  .creator-ambient-gradient {
+    animation: creatorAmbientSpin 24s linear infinite;
+  }
+  .creator-ambient-ring {
+    transform: translate(-50%, -50%);
+    animation: creatorAmbientSpin 60s linear infinite;
+  }
+
+  /* Marching Ants Animation for SVG Edges */
+  @keyframes marchingAnts {
+    0%   { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -24; }
+  }
+  .ant-line-running {
+    stroke-dasharray: 6 6;
+    animation: marchingAnts 0.5s linear infinite;
+  }
+  .ant-line-active {
+    stroke-dasharray: 8 6;
+    animation: marchingAnts 1.2s linear infinite;
+  }
+
+  /* Grid pattern background */
+  .bg-grid-pattern {
+    background-size: 24px 24px;
+    background-image: radial-gradient(circle, var(--color-hairline) 1px, transparent 1px);
+  }
+
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--color-hairline);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--color-hairline-strong);
+  }
+
+  /* Button pill active scale */
+  .btn-pill {
+    border-radius: var(--radius-pill);
+    padding: 7px 16px;
+    font-weight: 500;
+    letter-spacing: 0;
+    transition: all 0.15s ease;
+  }
+  .btn-pill:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Toast animation */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+}

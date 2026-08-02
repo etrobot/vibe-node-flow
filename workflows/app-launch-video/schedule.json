@@ -1,0 +1,5 @@
+{
+  "enabled": false,
+  "cron": "0 9 * * *",
+  "timezone": "Asia/Shanghai"
+}

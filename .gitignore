@@ -1,0 +1,15 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Run store + generated assets (entire data/ is gitignored)
+data/
+
+# Workflow definitions are git-syncable (workflows/ lives at project root)
+workflows/*/assets/
+workflows/*/nodes/

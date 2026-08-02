@@ -1,0 +1,14 @@
+import type { NodeModule } from '@/App/types.node-module';
+import { DEFAULT_APP_VIDEO_PROJECT_CONFIG } from './config';
+
+export const appVideoProjectModule: NodeModule = {
+  type: 'app-video-project',
+  label: 'App Video Project',
+  menuLabel: 'App Video Project',
+  description: 'Materialize a validated storyboard as an idea-to-app-builder project: chapters.json plus chapter/chapter-N.json.',
+  icon: 'FolderTree',
+  color: '#0369a1',
+  badge: 'Project',
+  menuOrder: 30,
+  createConfig: () => ({ ...DEFAULT_APP_VIDEO_PROJECT_CONFIG }),
+};
