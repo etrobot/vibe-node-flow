@@ -182,6 +182,7 @@ Prompt file paths are relative to the workflow directory and cannot escape it. V
   "color": "#1e293b",
   "tagCatalog": ["DB", "ENV", "FS"],
   "tags": ["content", "video"],
+  "laneLabels": ["Research", "Generation"],
   "nodes": [/* FlowNode[] */],
   "edges": [/* FlowEdge[] */]
 }
@@ -195,6 +196,7 @@ Each node in `nodes`:
   "type": "content-brief",
   "title": "Research Brief",
   "icon": "FileText",
+  "lane": "Research",
   "color": "#3b82f6",
   "x": 400,
   "y": 200,
@@ -233,7 +235,9 @@ Each edge in `edges`:
 
 9. **Schedule is optional.** If `schedule.json` exists, it must contain `{ enabled, cron, timezone }`. Cron expressions are validated with node-cron; timezones must be valid IANA identifiers. Overlapping scheduled runs of the same workflow are skipped.
 
-10. **Credentials are server-only.** API keys, base URLs, and model names are read from `.env` and are never stored in workflow JSON or browser state.
+10. **Lane is required.** Every node must declare its lane name. The host normalizes that lane to a canvas column and snaps its `x/y` coordinates when the workflow is loaded or saved.
+
+11. **Credentials are server-only.** API keys, base URLs, and model names are read from `.env` and are never stored in workflow JSON or browser state.
 
 ### Adding a Node Plugin
 

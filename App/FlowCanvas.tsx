@@ -310,8 +310,13 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     };
   };
 
-  // Column count equals total number of nodes
-  const columnCount = nodes.length;
+  // Render enough columns for both nodes and explicitly named lanes. A node
+  // whose lane name maps to a later column must still have a visible guide.
+  const columnCount = Math.max(
+    nodes.length,
+    laneLabels?.length ?? 0,
+    ...nodes.map((node) => columnIndexOf(node.x) + 1),
+  );
 
   // Reusable vertical guide line helper
   const renderGuideLine = (key: string, x: number, dashArray?: string) => (

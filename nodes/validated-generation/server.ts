@@ -19,7 +19,7 @@ import {
   type GenerationQualityMode,
   type ValidatedGenerationConfig,
 } from './config.ts';
-import { validateContentQuality } from './validation.ts';
+
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -139,6 +139,72 @@ function substitutePrompt(
 
 function validationMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+interface QualityReport {
+  mode: GenerationQualityMode;
+  errors: string[];
+  warnings: string[];
+  metrics: Record<string, string | number>;
+}
+
+function validateContentQuality(
+  mode: GenerationQualityMode,
+  content: string,
+  options: {
+    reference?: string;
+    minWords: number;
+    maxWords: number;
+    requireRichVisuals: boolean;
+    minComponentTypes: number;
+  },
+): QualityReport {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const metrics: Record<string, string | number> = {};
+
+  const words = content.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+  metrics.wordCount = wordCount;
+
+  if (wordCount < options.minWords) {
+    errors.push(`Content has ${wordCount} words, below the minimum of ${options.minWords}.`);
+  }
+  if (wordCount > options.maxWords) {
+    warnings.push(`Content has ${wordCount} words, exceeding the maximum of ${options.maxWords}.`);
+  }
+
+  if (options.requireRichVisuals) {
+    const hasImage = /!\[.*?\]\(.*?\)/.test(content) || /<img[\s>]/i.test(content);
+    const hasVideo = /<video[\s>]/i.test(content) || /\[.*?\]\(.*?\.mp4\)/.test(content);
+    if (!hasImage && !hasVideo) {
+      warnings.push('Content lacks rich visual elements (images or videos).');
+    }
+    metrics.hasRichVisuals = (hasImage || hasVideo) ? 'yes' : 'no';
+  }
+
+  if (mode === 'script' || mode === 'video-spec') {
+    const componentPatterns = [
+      /<Scene[\s>]/i,
+      /<Component[\s>]/i,
+      /<Overlay[\s>]/i,
+      /<Transition[\s>]/i,
+      /<Caption[\s>]/i,
+      /<Audio[\s>]/i,
+      /<Voiceover[\s>]/i,
+      /<Narration[\s>]/i,
+      /<TitleCard[\s>]/i,
+      /<LowerThird[\s>]/i,
+      /# /,
+    ];
+    const matchedTypes = componentPatterns.filter((p) => p.test(content)).length;
+    metrics.componentTypes = matchedTypes;
+    if (matchedTypes < options.minComponentTypes) {
+      errors.push(`Content has ${matchedTypes} component types, below the minimum of ${options.minComponentTypes}.`);
+    }
+  }
+
+  return { mode, errors, warnings, metrics };
 }
 
 async function auditCandidate(

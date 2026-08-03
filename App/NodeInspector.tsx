@@ -519,6 +519,9 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                   <span className="font-mono bg-surface-canvas-soft px-1.5 py-0.5 rounded border border-hairline-soft leading-none">
                     {activeModule.badge}
                   </span>
+                  <span className="font-mono bg-surface-canvas-soft px-1.5 py-0.5 rounded border border-hairline-soft leading-none">
+                    {node.lane}
+                  </span>
 
                   {node.status === 'success' ? (
                     <span className="status-badge status-badge-success py-0 px-1.5 text-[10px]">

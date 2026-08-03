@@ -16,6 +16,7 @@ import {
   normalizeNodeTag,
   uniqueNodeTags,
 } from '../lib/workflow-tags';
+import { columnIndexOf, columnX, snapY } from '../lib/canvas-layout';
 
 export default function App() {
   // Navigation View State
@@ -283,13 +284,26 @@ export default function App() {
   };
 
   const handleUpdateNodePosition = (id: string, x: number, y: number) => {
-    const newNodes = nodes.map((n) => (n.id === id ? { ...n, x, y } : n));
+    const column = columnIndexOf(x);
+    const lane = laneLabels[column]?.trim() || `Lane ${column + 1}`;
+    const newNodes = nodes.map((n) => (
+      n.id === id ? { ...n, x: columnX(column), y: snapY(y), lane } : n
+    ));
     setNodes(newNodes);
     syncCanvasToWorkflow(newNodes, edges);
   };
 
   const handleUpdateNode = (updatedNode: FlowNode) => {
-    const newNodes = nodes.map((n) => (n.id === updatedNode.id ? updatedNode : n));
+    const current = nodes.find((n) => n.id === updatedNode.id);
+    const column = columnIndexOf(updatedNode.x ?? current?.x ?? 0);
+    const lane = updatedNode.lane?.trim() || current?.lane || laneLabels[column] || `Lane ${column + 1}`;
+    const normalizedNode = {
+      ...updatedNode,
+      x: columnX(column),
+      y: snapY(updatedNode.y ?? current?.y ?? 0),
+      lane,
+    };
+    const newNodes = nodes.map((n) => (n.id === updatedNode.id ? normalizedNode : n));
     setNodes(newNodes);
     syncCanvasToWorkflow(newNodes, edges);
   };
@@ -305,22 +319,27 @@ export default function App() {
     syncCanvasToWorkflow(newNodes, edges, nextTagCatalog);
   };
 
-  // Commit an edited lane label for the given canvas column index. Stores the
-  // label at its column position; defaults ("Lane N") are not persisted.
+  // Commit an edited lane label for the given canvas column index and keep
+  // every node in that column's required lane property in sync.
   const handleUpdateLaneLabel = (colIndex: number, label: string) => {
-    setLaneLabels((prev) => {
-      const next = [...prev];
-      // Trim trailing default entries so we don't persist "Lane N" placeholders
-      while (next.length > colIndex && next[next.length - 1] === `Lane ${next.length}`) {
-        next.pop();
-      }
-      // Pad up to colIndex if needed (entries between are treated as defaults)
-      while (next.length < colIndex) {
-        next.push(`Lane ${next.length + 1}`);
-      }
-      next[colIndex] = label;
-      return next;
-    });
+    const nextLabel = label.trim() || `Lane ${colIndex + 1}`;
+    const nextLaneLabels = [...laneLabels];
+    while (nextLaneLabels.length < colIndex) {
+      nextLaneLabels.push(`Lane ${nextLaneLabels.length + 1}`);
+    }
+    nextLaneLabels[colIndex] = nextLabel;
+    const newNodes = nodes.map((node) => (
+      columnIndexOf(node.x) === colIndex ? { ...node, lane: nextLabel } : node
+    ));
+    setLaneLabels(nextLaneLabels);
+    setNodes(newNodes);
+    if (activeWorkflowId) {
+      setWorkflows((prev) => prev.map((workflow) => (
+        workflow.id === activeWorkflowId
+          ? { ...workflow, nodes: newNodes, laneLabels: nextLaneLabels }
+          : workflow
+      )));
+    }
   };
 
   const handleAddNodeTag = (nodeId: string, rawTag: string) => {

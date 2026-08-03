@@ -13,6 +13,8 @@ export interface FlowNode {
   type: NodeType;
   title: string;
   icon: string; // Lucide icon name
+  /** Lane name used to place the node in the canvas column. */
+  lane: string;
   color?: string; // optional theme color (hex)
   x: number;
   y: number;

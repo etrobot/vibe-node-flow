@@ -10,6 +10,7 @@ function flowNode(id: string, type = "content-brief", title = id, y = 0, config:
     type,
     title,
     icon: "Puzzle",
+    lane: "Lane 1",
     x: 0,
     y,
     config,

@@ -46,8 +46,8 @@ test('storage upgrades legacy workflows with the default tag catalog and persist
         type: 'content-brief',
         title: 'Node A',
         icon: 'Puzzle',
-        x: 60,
-        y: 80,
+        x: 75,
+        y: 87,
         tags: ['CRM'],
         config: {},
       }],
@@ -84,11 +84,17 @@ test('storage upgrades legacy workflows with the default tag catalog and persist
     assert.deepEqual(loaded.tagCatalog, [...DEFAULT_NODE_TAG_CATALOG, 'CRM']);
     assert.deepEqual(loaded.tags, ['workflow-metadata']);
     assert.deepEqual(loaded.nodes[0].tags, ['CRM']);
+    assert.equal(loaded.nodes[0].lane, 'Lane 1');
+    assert.equal(loaded.nodes[0].x, 60);
+    assert.equal(loaded.nodes[0].y, 80);
 
     const persisted = JSON.parse(fs.readFileSync(path.join(workflowDir, 'workflow.json'), 'utf8'));
     assert.deepEqual(persisted.tagCatalog, [...DEFAULT_NODE_TAG_CATALOG, 'CRM']);
     assert.deepEqual(persisted.tags, ['workflow-metadata']);
     assert.deepEqual(persisted.nodes[0].tags, ['CRM']);
+    assert.equal(persisted.nodes[0].lane, 'Lane 1');
+    assert.equal(persisted.nodes[0].x, 60);
+    assert.equal(persisted.nodes[0].y, 80);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
