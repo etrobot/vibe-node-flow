@@ -1,9 +1,9 @@
 {
   "id": "app-launch-video",
   "name": "App Launch Video With Voice",
-  "description": "Turn a verified product brief into an idea-to-app-builder video project with Edge TTS clip narration.",
+  "description": "Turn a verified product brief into an idea-to-app-builder video project, narrate every clip with Edge TTS, and render the finished MP4.",
   "createdAt": "2026-08-02T00:00:00.000Z",
-  "updatedAt": "2026-08-02T16:18:10.510Z",
+  "updatedAt": "2026-08-04T04:48:09.508Z",
   "icon": "AudioLines",
   "color": "#15803d",
   "tagCatalog": [
@@ -15,12 +15,20 @@
     "video",
     "voice"
   ],
+  "laneLabels": [
+    "Lane 1",
+    "Lane 2",
+    "Lane 3",
+    "Lane 4",
+    "Lane 5"
+  ],
   "nodes": [
     {
       "id": "node-brief",
       "type": "content-brief",
       "title": "Product Brief",
       "icon": "FileInput",
+      "lane": "Lane 1",
       "x": 60,
       "y": 180,
       "color": "#0f766e",
@@ -42,8 +50,9 @@
       "type": "clip-storyboard",
       "title": "Storyboard",
       "icon": "Clapperboard",
+      "lane": "Lane 2",
       "x": 293,
-      "y": 280,
+      "y": 180,
       "color": "#c2410c",
       "tags": [
         "ENV"
@@ -66,6 +75,7 @@
       "type": "app-video-project",
       "title": "Builder Project",
       "icon": "FolderTree",
+      "lane": "Lane 3",
       "x": 526,
       "y": 180,
       "color": "#0369a1",
@@ -83,8 +93,9 @@
       "type": "edge-tts-narration",
       "title": "Clip Narration",
       "icon": "AudioLines",
+      "lane": "Lane 4",
       "x": 759,
-      "y": 260,
+      "y": 180,
       "color": "#15803d",
       "tags": [
         "FS"
@@ -99,6 +110,35 @@
         "concurrency": 2,
         "timeoutMs": 60000,
         "durationTolerance": 0.35
+      }
+    },
+    {
+      "id": "node-render",
+      "type": "app-video-render",
+      "title": "Video Render",
+      "icon": "Film",
+      "lane": "Lane 5",
+      "x": 992,
+      "y": 180,
+      "color": "#7c3aed",
+      "tags": [
+        "FS"
+      ],
+      "config": {
+        "builderDir": "idea-to-app-builder",
+        "slug": "",
+        "resolution": "1080p",
+        "fps": 30,
+        "crf": 18,
+        "x264Preset": "medium",
+        "audioBitrate": "192k",
+        "narration": true,
+        "music": true,
+        "musicVolume": 0.18,
+        "validateProject": true,
+        "cleanIntermediates": true,
+        "timeoutMs": 1800000,
+        "dryRun": false
       }
     }
   ],
@@ -117,6 +157,11 @@
       "id": "edge-node-project-node-narration",
       "fromNodeId": "node-project",
       "toNodeId": "node-narration"
+    },
+    {
+      "id": "edge-node-narration-node-render",
+      "fromNodeId": "node-narration",
+      "toNodeId": "node-render"
     }
   ]
 }

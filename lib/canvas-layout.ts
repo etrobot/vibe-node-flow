@@ -5,7 +5,7 @@
 /** Left padding before the first column (px). */
 export const LEFT_MARGIN = 60;
 /** Top padding before the first row (px). */
-export const TOP_MARGIN = 80;
+export const TOP_MARGIN = 48;
 /** Rendered width of a single node card (px). */
 export const NODE_WIDTH = 153;
 /** Rendered height of a single node card (px). */

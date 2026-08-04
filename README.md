@@ -12,7 +12,7 @@ The framework has three clear responsibilities:
 - **Node:** owns its configuration, business logic, input parsing, validation, model calls, retries, output contract, and UI.
 - **Edge:** carries data between nodes. It is not a condition, router, or business-rule container.
 
-This keeps the graph declarative and nodes reusable. The host does not inspect JSON, schemas, prompts, or domain data. The receiving node decides whether its input is acceptable.
+This keeps the graph declarative and nodes reusable. The host does not inspect JSON, schemas, prompts, or domain data. The receiving node decides whether its input is acceptable — a Chain of Responsibility pattern where each node is the sole authority over its own contract.
 
 ```text
 nodes/<name>/
@@ -56,6 +56,25 @@ Production:
 npm run build
 NODE_ENV=production npm start
 ```
+
+The model client reads `BASE_URL`, `API_KEY`, and `LLM_MODEL` from `.env`. Credentials are server-only and are never stored in workflow JSON or browser state.
+
+### Single Executable Deployment (Recommended)
+
+Build a self-contained executable with Node.js SEA (Single Executable Application):
+
+```sh
+pnpm run pack
+```
+
+This produces `dist/vibe-node-flow` — a single binary that bundles the server and frontend. It defaults to port **39741** (an uncommon port to avoid conflicts). Override with the `PORT` environment variable:
+
+```sh
+./dist/vibe-node-flow                # listens on 39741
+PORT=8080 ./dist/vibe-node-flow      # listens on 8080
+```
+
+Prerequisites: Node.js ≥ 20 (for `--experimental-sea-config` support). On macOS, `codesign` is used to re-sign the binary after blob injection.
 
 The model client reads `BASE_URL`, `API_KEY`, and `LLM_MODEL` from `.env`. Credentials are server-only and are never stored in workflow JSON or browser state.
 
@@ -249,13 +268,17 @@ Each edge in `edges`:
 6. Directory names starting with `.` or `_` are skipped by the plugin scanner.
 7. Restart `npm run dev` so the plugin is discovered.
 
-### Validation and Error Semantics
+### Validation and Error Semantics (Chain of Responsibility)
+
+Node validation follows the **Chain of Responsibility** pattern: each node is a handler that inspects its own input, decides whether to accept or reject it, and either processes it or signals a problem — without the host ever interpreting the data. The chain flows from upstream output → edge → receiving node, where the receiving node is the sole authority on whether its input is acceptable.
 
 - Throw `NodeInputError` when upstream input is missing or unacceptable.
 - Throw `NodeValidationError` when the output violates the node's own contract.
 - Both are recorded as `warning` (⚠️); sibling branches continue running.
 - A regular thrown `Error` is recorded as `error`; the branch stops.
 - A wave continues only when at least one node succeeds. If every node in a wave is `warning` or `error`, the workflow stops as failed.
+
+This keeps validation decentralized and nodes reusable — no central schema registry, no host-level type checking. Each node owns its contract end-to-end.
 
 ## Installed Nodes
 
@@ -266,18 +289,19 @@ Each edge in `edges`:
 | `clip-storyboard` | Brief → renderer-ready clip JSON, validated against the builder contract. |
 | `app-video-project` | Storyboard → `chapters.json` and `chapter/chapter-N.json` project files. |
 | `edge-tts-narration` | Clip `speech` → per-clip MP3 via the Microsoft Edge Read Aloud service. |
+| `app-video-render` | Builder project → MP4, with clip narration mixed onto the timeline. |
 
 Each node directory carries a `NODE.md` describing its contract, configuration, and failure behavior.
 
 ## Example: App Launch Video With Voice
 
-`workflows/app-launch-video/` chains four nodes into a narrated video project:
+`workflows/app-launch-video/` chains five nodes from a brief to a finished MP4:
 
 ```text
-content-brief → clip-storyboard → app-video-project → edge-tts-narration
+content-brief → clip-storyboard → app-video-project → edge-tts-narration → app-video-render
 ```
 
-The storyboard contract mirrors `data/idea-to-app-builder`, so the generated project works with that builder's own tooling:
+The storyboard contract mirrors `data/idea-to-app-builder`, so the generated project also works with that builder's own tooling by hand:
 
 ```sh
 cd data/idea-to-app-builder
@@ -286,6 +310,17 @@ npm run render-video -- --project forge-app-launch
 ```
 
 `edge-tts-narration` is a Node.js port of the Microsoft Edge "Read Aloud" protocol — the same service the Python `edge-tts` package uses. It needs no API key, no Python runtime, and no extra dependency: the WebSocket client comes from `undici`. It writes `clip-NN.mp3` per clip plus a stitched `narration.mp3` into the run's assets, copies them into `<project>/voice/`, and reports word-level timings so narration length can be checked against each clip's planned duration.
+
+`app-video-render` drives the same builder toolchain from inside the workflow. It renders silent (`--no-audio`) and mixes the audio itself, because the builder supports exactly one looped background track — wrong for narration, which has to sit at each clip's own start offset and must not repeat. Clip offsets are read from the project's `chapter-N.json` files rather than from the storyboard, so timings edited by hand in the builder preview are respected. The finished MP4 lands in the project's `renders/` directory and is copied into the run's assets, where the node's output view plays it.
+
+That node needs the builder's own toolchain, which is a separate git-ignored install:
+
+```sh
+cd data/idea-to-app-builder && npm install   # playwright-core and vite
+brew install ffmpeg                          # concatenation and the audio mix
+```
+
+It also needs a local Chrome, Edge, Brave, or Chromium, because every frame is a `page.screenshot()`. Set `dryRun: true` on the node to check all of that and print the exact commands without starting a render.
 
 The `.env` keys `EDGE_TTS_PROXY` and `EDGE_TTS_DISABLE_PROXY` control network routing. When Microsoft starts rejecting the handshake, bump `CHROMIUM_FULL_VERSION` in `nodes/edge-tts-narration/edge-tts.ts`.
 

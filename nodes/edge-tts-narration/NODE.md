@@ -20,12 +20,12 @@ Because the output stream is constant bitrate, clip duration is derived from byt
 ## Input And Output
 
 - Input: exactly one upstream node emitting either the `app-video-project` manifest or a storyboard document. Both are JSON objects with a `clips` array carrying `speech`.
-- Output: JSON manifest with the voice settings, per-clip file name, playable URL, byte size, measured duration, planned duration, start offset, and word boundaries.
-- Side effects: writes `clip-NN.mp3` per clip, an optional stitched `narration.mp3`, and `narration.json` into the run's asset directory. When the upstream manifest names a project directory, the same audio is copied into `<project>/voice/`.
+- Output: JSON manifest with the voice settings, per-clip file name, playable URL, byte size, measured duration, planned duration, start offset, and word boundaries. It also carries `audioDir` (where the MP3s always exist) and passes `builderProjectDir` through, so `app-video-render` can find both the audio and the project it belongs to.
+- Side effects: writes `clip-NN.mp3` per clip, an optional stitched `narration.mp3`, and `narration.json` into the run's asset directory. When the upstream manifest names project directories, the same audio is copied into `<project>/voice/` for each of them — the run's own project copy and the builder workspace copy — so the builder project stays renderable by hand.
 
 ## Configuration
 
-`voice` takes a Microsoft short name such as `en-US-EmmaMultilingualNeural`. `rate`, `volume`, and `pitch` accept signed prosody values (`+8%`, `-10%`, `-20Hz`). `concurrency` bounds parallel synthesis, `timeoutMs` bounds one request, `writeCombined` controls the stitched track, and `writeToProject` controls the copy into the builder project. `durationTolerance` sets how far spoken audio may exceed the storyboard's planned clip length before the node warns.
+`voice` takes a Microsoft short name such as `en-US-EmmaMultilingualNeural`. `rate`, `volume`, and `pitch` accept signed prosody values (`+8%`, `-10%`, `-20Hz`). `concurrency` bounds parallel synthesis, `timeoutMs` bounds one request, `writeCombined` controls the stitched track, and `writeToProject` controls the copies into the project directories. `durationTolerance` sets how far spoken audio may exceed the storyboard's planned clip length before the node warns.
 
 Set `EDGE_TTS_PROXY` (or the standard `HTTPS_PROXY`/`HTTP_PROXY`) when the service needs an HTTP proxy; `EDGE_TTS_DISABLE_PROXY=1` forces a direct connection. SOCKS proxies are ignored because undici speaks HTTP CONNECT only.
 

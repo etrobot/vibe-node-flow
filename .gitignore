@@ -1,6 +1,8 @@
 node_modules/
 build/
 dist/
+*.blob
+sea-prep.blob
 coverage/
 .DS_Store
 *.log

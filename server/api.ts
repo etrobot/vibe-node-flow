@@ -51,8 +51,9 @@ export function registerApiRoutes(app: Express): void {
     res.json({ plugins: listNodePlugins(), diagnostics: listNodePluginDiagnostics() });
   });
 
-  // Generated narration is immutable per asset id. Express sendFile handles
-  // byte-range requests, which keeps seeking in the HTML audio element smooth.
+  // Generated narration and video are immutable per asset id. Express sendFile
+  // handles byte-range requests, which keeps seeking in the HTML audio and
+  // video elements smooth.
   app.get(
     "/api/workflows/:id/assets/:assetId/:file",
     wrap(async (req, res) => {
@@ -61,6 +62,7 @@ export function registerApiRoutes(app: Express): void {
         "narration-timestamps.json",
         "narration.mp3",
         "narration.json",
+        "render.json",
         "video-spec.json",
         "video.mp4",
       ]);

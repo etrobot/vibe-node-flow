@@ -8,6 +8,28 @@
 
 @import "tailwindcss";
 
+/* Shared by the app preview and the standalone video renderer. The renderer
+ * emits this class directly, so it must live in the host stylesheet rather
+ * than only in the fast-launch reference app. */
+@layer utilities {
+  .text-gradient-sweep {
+    background: linear-gradient(
+      120deg,
+      var(--theme-primary, #8b5cf6) 15%,
+      var(--theme-secondary, #c084fc) 35%,
+      #ffffff 50%,
+      var(--theme-secondary, #c084fc) 65%,
+      var(--theme-accent, #06b6d4) 85%
+    );
+    background-size: 200% auto;
+    background-position: var(--text-sweep-position, 50%) center;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+
 /* ── Design Tokens ──────────────────────────────────────── */
 @theme {
   /* ---- Surface & Background ---- */

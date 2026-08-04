@@ -822,7 +822,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 
       {/* Fullscreen Custom Node Panel Modal */}
       {showFullPanelModal && node && activeModule && createPortal(
-        <div className="fixed inset-0 z-[70] flex flex-col bg-black/92 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex flex-col bg-black/50">
           <header className="flex items-center justify-between gap-3 px-4 py-1.5 md:px-6">
             <div className="flex items-center gap-2 min-w-0">
               <span

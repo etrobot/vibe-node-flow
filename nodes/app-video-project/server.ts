@@ -19,8 +19,6 @@ import { DEFAULT_APP_VIDEO_PROJECT_CONFIG, type AppVideoProjectConfig } from './
 function normalizeConfig(value: unknown): AppVideoProjectConfig {
   const raw = value && typeof value === 'object' ? value as Partial<AppVideoProjectConfig> : {};
   return {
-    builderProjectsDir: String(raw.builderProjectsDir ?? DEFAULT_APP_VIDEO_PROJECT_CONFIG.builderProjectsDir).trim(),
-    overwrite: raw.overwrite === undefined ? DEFAULT_APP_VIDEO_PROJECT_CONFIG.overwrite : Boolean(raw.overwrite),
     writeDescription: raw.writeDescription === undefined
       ? DEFAULT_APP_VIDEO_PROJECT_CONFIG.writeDescription
       : Boolean(raw.writeDescription),
@@ -106,19 +104,6 @@ export function buildDescription(document: StoryboardDocument, seconds: number):
   ].join('\n');
 }
 
-/** Resolve the builder workspace, refusing any path outside the data directory. */
-function resolveBuilderDir(relative: string, slug: string): string {
-  if (path.isAbsolute(relative)) {
-    throw new NodeValidationError('builderProjectsDir must be relative to the data directory.');
-  }
-  const root = path.resolve(DATA_DIR);
-  const target = path.resolve(root, relative, slug);
-  if (!target.startsWith(`${root}${path.sep}`)) {
-    throw new NodeValidationError(`builderProjectsDir escapes the data directory: ${relative}`);
-  }
-  return target;
-}
-
 async function writeProject(
   projectDir: string,
   document: StoryboardDocument,
@@ -127,7 +112,7 @@ async function writeProject(
   seconds: number,
 ): Promise<void> {
   const chapterDir = path.join(projectDir, 'chapter');
-  if (config.overwrite) await fs.rm(chapterDir, { recursive: true, force: true });
+  await fs.rm(chapterDir, { recursive: true, force: true });
   await fs.mkdir(chapterDir, { recursive: true });
 
   await fs.writeFile(
@@ -173,27 +158,14 @@ async function execute({ node, input, assetsDir }: NodePluginContext): Promise<N
     `Estimated runtime: ${seconds.toFixed(1)}s.`,
   ];
 
-  let builderProjectDir: string | null = null;
-  if (config.builderProjectsDir) {
-    builderProjectDir = resolveBuilderDir(config.builderProjectsDir, slug);
-    const exists = await fs.stat(builderProjectDir).then(() => true).catch(() => false);
-    if (exists && !config.overwrite) {
-      throw new NodeValidationError(
-        `Builder project already exists and overwrite is disabled: ${builderProjectDir}`,
-      );
-    }
-    await fs.mkdir(builderProjectDir, { recursive: true });
-    await writeProject(builderProjectDir, document, files, config, seconds);
-    logs.push(`Mirrored the project to the builder workspace at ${builderProjectDir}.`);
-    logs.push(`Preview or render it with: npm run validate-project -- ${slug}`);
-  }
-
   const manifest = {
     slug,
+    // Keep the source document in the manifest so downstream render nodes and
+    // historical run views can reconstruct the interactive preview.
+    document,
     title: document.title,
     hue: document.hue,
     projectDir: runProjectDir,
-    builderProjectDir,
     chapterFiles: files.map((entry) => entry.file),
     clipCount: document.clips.length,
     estimatedSeconds: Number(seconds.toFixed(1)),

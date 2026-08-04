@@ -81,7 +81,11 @@ function clipSeconds(clip: any): number | undefined {
  * Accept either the project manifest from `app-video-project` or a raw
  * storyboard document, so this node can also sit directly after generation.
  */
-export function readNarrationSource(raw: string): { clips: NarrationClip[]; projectDir: string | null; slug: string | null } {
+export function readNarrationSource(raw: string): {
+  clips: NarrationClip[];
+  projectDir: string | null;
+  slug: string | null;
+} {
   const trimmed = String(raw ?? '').trim();
   if (!trimmed) throw new NodeInputError('Edge TTS Narration received an empty upstream output.');
 
@@ -263,6 +267,8 @@ async function execute({ node, input, assetsDir, workflowId }: NodePluginContext
     combinedUrl: config.writeCombined
       ? `/api/workflows/${workflowId}/assets/${assetId}/narration.mp3`
       : null,
+    /** Where the clip MP3s always exist. */
+    audioDir: outputDir,
     projectVoiceDir: null as string | null,
     clips: entries,
   };
