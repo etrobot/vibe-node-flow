@@ -3,7 +3,7 @@
   "name": "App Launch Video With Voice",
   "description": "Turn a verified product brief into an idea-to-app-builder video project, narrate every clip with Edge TTS, and render the finished MP4.",
   "createdAt": "2026-08-02T00:00:00.000Z",
-  "updatedAt": "2026-08-04T04:48:09.508Z",
+  "updatedAt": "2026-08-05T04:35:06.205Z",
   "icon": "AudioLines",
   "color": "#15803d",
   "tagCatalog": [
@@ -52,7 +52,7 @@
       "icon": "Clapperboard",
       "lane": "Lane 2",
       "x": 293,
-      "y": 180,
+      "y": 140,
       "color": "#c2410c",
       "tags": [
         "ENV"

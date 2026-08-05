@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent} from 'react';
-import {CalendarRange, Pause, Play, RotateCcw} from 'lucide-react';
+import {CalendarRange, Pause, Play, RotateCcw, Volume2, VolumeX} from 'lucide-react';
 import type {Clip, ClipsDocument} from './clipTypes';
 import {
   clamp,
@@ -16,6 +16,8 @@ import {getThemeColors} from './theme';
 
 export interface InteractivePlayerProps {
   document: ClipsDocument;
+  /** Combined Edge TTS narration for the preview timeline, when available. */
+  audioSrc?: string | null;
 }
 
 interface TimedClip {
@@ -112,12 +114,16 @@ function getTimedChapters(document: ClipsDocument, clips: TimedClip[], totalDura
   });
 }
 
-export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
+export const InteractivePlayer = ({document, audioSrc = null}: InteractivePlayerProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const lastVolumeRef = useRef(1);
   const [foregroundScale, setForegroundScale] = useState(1);
   const animationFrameRef = useRef<number | null>(null);
   const lastTickRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const playerRef = useRef<HTMLDivElement | null>(null);
   const previewViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -163,9 +169,47 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
   }, [currentTime, timedChapters]);
 
   const seek = useCallback((nextTime: number) => {
-    setCurrentTime(clamp(nextTime, 0, totalDuration));
+    const clampedTime = clamp(nextTime, 0, totalDuration);
+    setCurrentTime(clampedTime);
+    if (audioRef.current && audioSrc) audioRef.current.currentTime = clampedTime;
     lastTickRef.current = null;
-  }, [totalDuration]);
+  }, [audioSrc, totalDuration]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = volume;
+    audio.muted = isMuted;
+  }, [isMuted, volume]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !audioSrc) return;
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(totalDuration);
+    };
+
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+    return () => {
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [audioSrc, totalDuration]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    setIsPlaying(false);
+  }, [audioSrc]);
 
   useLayoutEffect(() => {
     const viewport = previewViewportRef.current;
@@ -193,7 +237,18 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
       return;
     }
 
+    const audio = audioRef.current;
     const tick = (now: number) => {
+      if (audioSrc && audio) {
+        if (audio.paused || audio.ended) {
+          setIsPlaying(false);
+          return;
+        }
+        setCurrentTime(Math.min(audio.currentTime, totalDuration));
+        animationFrameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
       if (lastTickRef.current !== null) {
         const delta = Math.min((now - lastTickRef.current) / 1000, 0.25);
         setCurrentTime((previousTime) => {
@@ -215,12 +270,18 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
       animationFrameRef.current = null;
       lastTickRef.current = null;
     };
-  }, [isPlaying, totalDuration]);
+  }, [audioSrc, isPlaying, totalDuration]);
 
   useEffect(() => {
-    setCurrentTime((previousTime) => Math.min(previousTime, totalDuration));
+    const audio = audioRef.current;
+    audio?.pause();
+    setCurrentTime((previousTime) => {
+      const nextTime = Math.min(previousTime, totalDuration);
+      if (audio && audioSrc) audio.currentTime = nextTime;
+      return nextTime;
+    });
     setIsPlaying(false);
-  }, [document.clips, totalDuration]);
+  }, [audioSrc, document.clips, totalDuration]);
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -242,7 +303,22 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
 
   const togglePlay = () => {
     if (totalDuration <= 0) return;
-    if (currentTime >= totalDuration) setCurrentTime(0);
+    const audio = audioRef.current;
+    const startsAtEnd = currentTime >= totalDuration;
+    if (startsAtEnd) {
+      setCurrentTime(0);
+      if (audio && audioSrc) audio.currentTime = 0;
+    }
+
+    if (audio && audioSrc) {
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        void audio.play().catch(() => setIsPlaying(false));
+      }
+      return;
+    }
+
     lastTickRef.current = null;
     setIsPlaying((playing) => !playing);
   };
@@ -257,6 +333,23 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
   const handleSeekFromPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     seek(((event.clientX - rect.left) / rect.width) * totalDuration);
+  };
+
+  const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVolume = clamp(Number(event.target.value), 0, 1);
+    if (nextVolume > 0) lastVolumeRef.current = nextVolume;
+    setVolume(nextVolume);
+    setIsMuted(nextVolume === 0);
+  };
+
+  const toggleMute = () => {
+    if (isMuted || volume === 0) {
+      const restoredVolume = lastVolumeRef.current > 0 ? lastVolumeRef.current : 1;
+      setVolume(restoredVolume);
+      setIsMuted(false);
+    } else {
+      setIsMuted(true);
+    }
   };
 
   if (document.clips.length === 0 || totalDuration <= 0) {
@@ -275,6 +368,7 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
 
   return (
     <div ref={playerRef} className="flex w-full flex-col gap-3 text-ink" style={themeStyle}>
+      {audioSrc ? <audio ref={audioRef} preload="auto" src={audioSrc} aria-label="Video narration" className="hidden" /> : null}
       <div
         ref={previewViewportRef}
         className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-accent)]"
@@ -355,6 +449,33 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
           </button>
           <span className="font-mono text-xs font-semibold tabular-nums text-muted">
             {formatTime(currentTime)} <span className="text-muted/60">/</span> {formatTime(totalDuration)}
+          </span>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2 sm:border-r sm:border-hairline sm:pr-5" aria-label="Audio controls">
+          <button
+            type="button"
+            onClick={toggleMute}
+            disabled={!audioSrc}
+            aria-label={isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview'}
+            title={audioSrc ? (isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview') : 'Narration audio is not available'}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-surface-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={isMuted ? 0 : volume}
+            onChange={handleVolumeChange}
+            disabled={!audioSrc}
+            aria-label="Preview volume"
+            className="h-1.5 w-20 cursor-pointer accent-[var(--theme-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+          />
+          <span className="w-8 text-right font-mono text-[10px] tabular-nums text-muted">
+            {Math.round((isMuted ? 0 : volume) * 100)}%
           </span>
         </div>
 

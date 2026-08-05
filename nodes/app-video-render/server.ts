@@ -281,6 +281,9 @@ async function execute(
   const tracks: MuxTrack[] = [];
   const usedClips: NarrationClipRef[] = [];
   const musicPath = config.music ? findNodeMusic(nodeAssetsDir) : null;
+  const narrationPath = config.narration && facts.audioDir
+    ? path.join(facts.audioDir, 'narration.mp3')
+    : null;
 
   if (config.narration && facts.audioDir && facts.narrationClips.length) {
     for (const clip of facts.narrationClips) {
@@ -303,6 +306,9 @@ async function execute(
     ...(facts.document ? { document: facts.document } : {}),
     videoFile: 'video.mp4',
     videoUrl: `/api/workflows/${workflowId}/assets/${assetId}/video.mp4`,
+    narrationUrl: narrationPath && fsSync.existsSync(narrationPath)
+      ? `/api/workflows/${workflowId}/assets/${assetId}/narration.mp3`
+      : null,
     bytes,
     durationSeconds: measuredSeconds ?? 0,
     measured: measuredSeconds !== null,

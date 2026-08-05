@@ -21,6 +21,8 @@ interface RenderManifest {
   ready?: boolean;
   problems?: string[];
   videoUrl?: string;
+  narrationUrl?: string | null;
+  combinedUrl?: string | null;
   projectVideoPath?: string;
   bytes?: number;
   durationSeconds?: number;
@@ -160,6 +162,13 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
     return null;
   }, [manifest, allNodes]);
 
+  const narrationUrl = useMemo(() => {
+    if (manifest?.narrationUrl) return manifest.narrationUrl;
+    const narrationNode = allNodes.find((n) => n.type === 'edge-tts-narration' && n.output);
+    const narrationManifest = parseManifest(narrationNode?.output);
+    return narrationManifest?.combinedUrl || null;
+  }, [allNodes, manifest]);
+
   const canOpenRenderTerminal = Boolean(runId && node.output && node.status !== 'running');
 
   const openRenderTerminal = async () => {
@@ -247,7 +256,7 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
       {activeTab === 'preview' && (
         <div className="flex flex-col gap-3">
           {upstreamDocument ? (
-            <InteractivePlayer document={upstreamDocument} />
+            <InteractivePlayer document={upstreamDocument} audioSrc={narrationUrl} />
           ) : (
             <div className="rounded-xl border border-hairline bg-surface-canvas p-8 text-center text-sm text-muted">
               Run the upstream Clip Storyboard or App Video Project node to load the interactive preview.
