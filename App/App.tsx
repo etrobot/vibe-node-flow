@@ -506,8 +506,9 @@ export default function App() {
       const rec = await api.runSingleNode(activeWorkflowId, nodeId, {
         input,
         nodeOutputs,
+      }, (runId) => {
+        setSingleRunIds((previous) => ({ ...previous, [nodeId]: runId }));
       });
-      setSingleRunIds((previous) => ({ ...previous, [nodeId]: rec.runId }));
       setNodes((prev) =>
         prev.map((n) =>
           n.id === nodeId

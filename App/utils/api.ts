@@ -86,13 +86,27 @@ export const api = {
   runSingleNode: (
     workflowId: string,
     nodeId: string,
-    body: { input: NodeTextInput; nodeOutputs: Record<string, string> }
-  ) =>
+    body: { input: NodeTextInput; nodeOutputs: Record<string, string> },
+    onStarted?: (runId: string) => void,
+  ): Promise<SingleNodeRunRecord> =>
     fetch(`/api/workflows/${workflowId}/nodes/${nodeId}/run`, {
       method: 'POST',
       headers: jsonHeaders,
       body: JSON.stringify(body),
-    }).then((r) => parse<SingleNodeRunRecord>(r)),
+    }).then((r) => parse<{ runId: string; status: 'running' | 'success' | 'error' }>(r))
+      .then(async ({ runId }) => {
+        onStarted?.(runId);
+        while (true) {
+          const status = await fetch(`/api/runs/${encodeURIComponent(runId)}/status`)
+            .then((r) => parse<{ status: 'running' | 'success' | 'error' }>(r));
+          if (status.status !== 'running') break;
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+        }
+        const run = await api.getRun(runId);
+        const record = run.nodes[0];
+        if (!record) throw new Error('Single-node run returned no node record');
+        return { ...record, runId };
+      }),
 
   openVideoRenderTerminal: (runId: string) =>
     fetch(`/api/runs/${encodeURIComponent(runId)}/render-video/terminal`, {

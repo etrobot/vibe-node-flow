@@ -9,13 +9,13 @@ import {
   validateStoryboard,
   type StoryboardDocument,
   type StoryboardValidationOptions,
-} from '../nodes/clip-storyboard/contract.ts';
-import { hydrateDocument } from '../nodes/clip-storyboard/resolve.ts';
-import { buildStoryboardPrompt } from '../nodes/clip-storyboard/server.ts';
-import { DEFAULT_CLIP_STORYBOARD_CONFIG } from '../nodes/clip-storyboard/config.ts';
-import { chapterFiles } from '../nodes/app-video-project/server.ts';
-import { clipFileName, readNarrationSource } from '../nodes/edge-tts-narration/server.ts';
-import { boundaryOffsets, resolveClipTiming, stripAnchors } from '../nodes/edge-tts-narration/timing.ts';
+} from './contract.ts';
+import { hydrateDocument } from './resolve.ts';
+import { buildStoryboardPrompt } from './server.ts';
+import { DEFAULT_CLIP_STORYBOARD_CONFIG } from './config.ts';
+import { chapterFiles } from '../app-video-project/server.ts';
+import { clipFileName, readNarrationSource } from '../edge-tts-narration/server.ts';
+import { boundaryOffsets, resolveClipTiming, stripAnchors } from '../edge-tts-narration/timing.ts';
 
 const OPTIONS: StoryboardValidationOptions = {
   minClips: 3,

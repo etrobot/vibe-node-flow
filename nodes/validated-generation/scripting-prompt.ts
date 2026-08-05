@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DATA_DIR } from "./paths.ts";
+import { DATA_DIR } from "../../server/paths.ts";
 
 const FALLBACK_FRAMEWORK = `
 Based on the topic and facts provided upstream, first output a three-column table, then separately output --- and a natural conversational narration.

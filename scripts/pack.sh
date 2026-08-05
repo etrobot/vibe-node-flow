@@ -12,13 +12,14 @@ node --experimental-sea-config sea-config.json
 
 echo "==> Copying Node.js binary..."
 cp "$(command -v node)" dist/vibe-node-flow
+chmod u+w dist/vibe-node-flow
 
 echo "==> Removing code signature (macOS)..."
 codesign --remove-signature dist/vibe-node-flow 2>/dev/null || true
 
 echo "==> Injecting SEA blob into binary..."
 pnpm exec postject dist/vibe-node-flow NODE_SEA_BLOB dist/sea-prep.blob \
-  --sentinel-native NODE_SEA_FOR_SEA
+  --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
 
 echo "==> Re-signing (macOS)..."
 codesign --sign - dist/vibe-node-flow 2>/dev/null || true

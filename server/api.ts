@@ -4,7 +4,6 @@ import type { Express, Request, Response } from "express";
 import type { WorkflowItem } from "../App/types";
 import * as storage from "./storage";
 import * as store from "./db";
-import { executeSingleNode } from "./engine";
 import { callLLM } from "./llm";
 import { nodeOutputToText, normalizeNodeInput } from "../lib/node-io";
 import { getMaxFlowNodes } from "./env";
@@ -15,9 +14,8 @@ import {
   nodePluginScript,
 } from "./plugins";
 import { workflowAssetDir, workflowRunAssetsDir } from "./paths";
-import { getWorkflowRunJob, startWorkflowRun } from "./run-service";
+import { getWorkflowRunJob, startSingleNodeRun, startWorkflowRun } from "./run-service";
 import { openVideoRenderTerminal, VIDEO_RENDER_SCRIPT } from "./video-render-terminal";
-import { makeRunId } from "./run-id";
 import { saveWorkflowSchedule } from "./schedule-config";
 import {
   getWorkflowScheduleStatus,
@@ -62,19 +60,15 @@ export function registerApiRoutes(app: Express): void {
   app.get(
     "/api/workflows/:id/assets/:assetId/:file",
     wrap(async (req, res) => {
-      const allowedFiles = new Set([
-        "narration.wav",
-        "narration-timestamps.json",
-        "narration.mp3",
-        "narration.json",
-        "render.json",
-        "video-spec.json",
-        "video.mp4",
-      ]);
-      // Per-clip narration is generated as clip-01.mp3, clip-02.mp3, and so on.
-      const allowedPattern = /^clip-\d{2,3}\.mp3$/;
       const file = String(req.params.file || "");
-      if (!allowedFiles.has(file) && !allowedPattern.test(file)) {
+      // Nodes own their output names. The host only enforces a single safe
+      // filename, so new nodes never need an API change to publish an asset.
+      if (
+        file === "." || file === ".."
+        || path.basename(file) !== file
+        || file.includes("\\")
+        || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/.test(file)
+      ) {
         return res.status(404).json({ error: "Workflow asset not found" });
       }
       const filePath = path.join(
@@ -240,11 +234,6 @@ export function registerApiRoutes(app: Express): void {
   app.post(
     "/api/workflows/:id/nodes/:nodeId/run",
     wrap(async (req, res) => {
-      const wf = storage.getWorkflow(req.params.id);
-      if (!wf) return res.status(404).json({ error: "Workflow not found" });
-      const node = wf.nodes.find((n) => n.id === req.params.nodeId);
-      if (!node) return res.status(404).json({ error: "Node not found" });
-
       const input = normalizeNodeInput(req.body?.input);
       const nodeOutputs = Object.fromEntries(
         Object.entries(req.body?.nodeOutputs || {}).map(([key, value]) => [
@@ -253,28 +242,10 @@ export function registerApiRoutes(app: Express): void {
         ]),
       );
 
-      storage.ensureWorkflowAssets(wf.id);
-      const startedAt = new Date().toISOString();
-      const singleRunId = makeRunId();
-      const record = await executeSingleNode(node, input, nodeOutputs, wf.id, singleRunId);
-      try {
-        store.insertRun({
-          id: singleRunId,
-          workflowId: wf.id,
-          workflowName: wf.name,
-          trigger: "single",
-          status: record.status === "error" ? "error" : "success",
-          startedAt,
-          finishedAt: new Date().toISOString(),
-          durationMs: record.executionTime,
-          nodes: [record],
-          workflowSnapshot: { nodes: wf.nodes, edges: wf.edges },
-        });
-      } catch (err) {
-        console.error("Failed to persist single-node run:", err);
-      }
-
-      res.json({ ...record, runId: singleRunId });
+      const job = startSingleNodeRun(req.params.id, req.params.nodeId, input, nodeOutputs);
+      // Return the id immediately so another request can stop a long-running
+      // node through /api/runs/:id/stop while its Worker is still active.
+      res.status(202).json({ runId: job.id, status: job.status });
     })
   );
 

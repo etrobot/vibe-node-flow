@@ -9,7 +9,7 @@
     "start": "node dist/server.cjs",
     "pack": "bash scripts/pack.sh",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test server/*.test.ts"
+    "test": "node --import tsx --test \"server/**/*.test.ts\" \"nodes/**/*.test.ts\""
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

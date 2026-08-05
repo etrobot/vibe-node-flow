@@ -3,12 +3,14 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 import type {
+  FlowNode,
   RunEvent,
   RunNodeRecord,
   RunRecord,
   RunTrigger,
   WorkflowItem,
 } from "../App/types";
+import type { NodeTextInput } from "../lib/node-io";
 import * as storage from "./storage";
 import * as store from "./db";
 import { topoOrder, type ExecutionResult } from "./engine";
@@ -19,6 +21,7 @@ import { makeRunId } from "./run-id";
 type WorkerMessage =
   | { type: "event"; event: RunEvent }
   | { type: "result"; result: ExecutionResult }
+  | { type: "single-result"; record: RunNodeRecord }
   | { type: "fatal"; error: string };
 
 export type RunEventListener = (event: RunEvent) => void;
@@ -26,7 +29,7 @@ export type RunEventListener = (event: RunEvent) => void;
 export interface WorkflowRunJob {
   id: string;
   workflowId: string;
-  trigger: Exclude<RunTrigger, "single">;
+  trigger: RunTrigger;
   startedAt: string;
   status: "running" | "success" | "error";
   finishedAt?: string;
@@ -61,10 +64,16 @@ function resolveWorkerEntry(): { url: URL; bundled: boolean } {
   };
 }
 
+interface SingleNodeRequest {
+  node: FlowNode;
+  input: NodeTextInput;
+  nodeOutputs: Record<string, string>;
+}
+
 class WorkflowRunJobImpl implements WorkflowRunJob {
   readonly id = makeRunId();
   readonly workflowId: string;
-  readonly trigger: Exclude<RunTrigger, "single">;
+  readonly trigger: RunTrigger;
   readonly startedAt = new Date().toISOString();
   readonly done: Promise<RunRecord>;
   status: "running" | "success" | "error" = "running";
@@ -78,11 +87,13 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
   private resolveDone!: (record: RunRecord) => void;
   private worker: Worker | null = null;
   private settled = false;
+  private readonly singleNodeRequest?: SingleNodeRequest;
 
-  constructor(workflow: WorkflowItem, trigger: Exclude<RunTrigger, "single">) {
+  constructor(workflow: WorkflowItem, trigger: RunTrigger, singleNodeRequest?: SingleNodeRequest) {
     this.workflow = structuredClone(workflow);
     this.workflowId = workflow.id;
     this.trigger = trigger;
+    this.singleNodeRequest = singleNodeRequest;
     this.done = new Promise<RunRecord>((resolve) => {
       this.resolveDone = resolve;
     });
@@ -90,7 +101,9 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
     this.emit({
       type: "run-start",
       runId: this.id,
-      order: topoOrder(this.workflow.nodes, this.workflow.edges),
+      order: singleNodeRequest
+        ? [singleNodeRequest.node.id]
+        : topoOrder(this.workflow.nodes, this.workflow.edges),
     });
     this.startWorker();
   }
@@ -103,6 +116,15 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
 
   stop(): boolean {
     if (this.settled) return false;
+    if (this.singleNodeRequest) {
+      this.emit({
+        type: "node-finish",
+        nodeId: this.singleNodeRequest.node.id,
+        status: "error",
+        error: "Node run stopped by user",
+        executionTime: Date.now() - this.startedMs,
+      });
+    }
     this.emit({
       type: "node-finish",
       nodeId: "__engine__",
@@ -146,7 +168,18 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
       this.worker = new Worker(entry.url, {
         workerData: {
           projectRoot: process.cwd(),
-          workflow: this.workflow,
+          ...(this.singleNodeRequest
+            ? {
+                mode: "single",
+                node: this.singleNodeRequest.node,
+                input: this.singleNodeRequest.input,
+                nodeOutputs: this.singleNodeRequest.nodeOutputs,
+                workflowId: this.workflow.id,
+              }
+            : {
+                mode: "workflow",
+                workflow: this.workflow,
+              }),
           runId: this.id,
         },
         execArgv: entry.bundled ? [] : ["--import", "tsx"],
@@ -161,6 +194,8 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
         this.emit(message.event);
       } else if (message.type === "result") {
         this.finish(message.result.status, message.result.nodes);
+      } else if (message.type === "single-result") {
+        this.finish(message.record.status === "error" ? "error" : "success", [message.record]);
       } else if (message.type === "fatal") {
         this.finishWithError(message.error);
       }
@@ -235,6 +270,28 @@ export function startWorkflowRun(
   assertFlowNodeLimit(workflow.nodes);
   assertWorkflowPluginsAvailable(workflow);
   const job = new WorkflowRunJobImpl(workflow, trigger);
+  jobs.set(job.id, job);
+  return job;
+}
+
+/** Run one node in an isolated Worker, using the same lifecycle as a full run. */
+export function startSingleNodeRun(
+  workflowId: string,
+  nodeId: string,
+  input: NodeTextInput,
+  nodeOutputs: Record<string, string>,
+): WorkflowRunJob {
+  const workflow = storage.getWorkflow(workflowId);
+  if (!workflow) throw new Error("Workflow not found");
+  const node = workflow.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) throw new Error("Node not found");
+  storage.ensureWorkflowAssets(workflowId);
+  assertWorkflowPluginsAvailable({ ...workflow, nodes: [node] });
+  const job = new WorkflowRunJobImpl(workflow, "single", {
+    node: structuredClone(node),
+    input: structuredClone(input),
+    nodeOutputs: structuredClone(nodeOutputs),
+  });
   jobs.set(job.id, job);
   return job;
 }

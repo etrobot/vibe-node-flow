@@ -3,7 +3,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { registerApiRoutes } from "./server/api";
-import { loadNodePlugins } from "./server/plugins";
+import { loadNodePlugins, watchNodePlugins } from "./server/plugins";
 import {
   startWorkflowScheduler,
   stopWorkflowScheduler,
@@ -16,6 +16,7 @@ async function startServer() {
   app.use(express.json({ limit: "10mb" }));
 
   await loadNodePlugins();
+  const stopNodePluginWatcher = watchNodePlugins();
 
   // All /api/* routes (workflows, execution, run history, LLM proxy).
   registerApiRoutes(app);
@@ -45,6 +46,7 @@ async function startServer() {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`Received ${signal}, stopping workflow scheduler...`);
+    stopNodePluginWatcher();
     await stopWorkflowScheduler();
     server.close(() => process.exit(0));
   };

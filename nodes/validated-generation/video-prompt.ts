@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DATA_DIR } from "./paths.ts";
+import { DATA_DIR } from "../../server/paths.ts";
 
 /**
  * The prompt framework is user-authored content. Keep the loader server-side

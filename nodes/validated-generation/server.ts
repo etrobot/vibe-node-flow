@@ -9,8 +9,8 @@ import {
 } from '../../server/plugins.ts';
 import { callLLM } from '../../server/llm.ts';
 import { runScript, safeStringify } from '../../server/node-runtime.ts';
-import { getScriptingPromptFramework, SCRIPTING_PROMPT_MARKER } from '../../server/scripting-prompt.ts';
-import { getVideoPromptFramework, VIDEO_PROMPT_MARKER } from '../../server/video-prompt.ts';
+import { getScriptingPromptFramework, SCRIPTING_PROMPT_MARKER } from './scripting-prompt.ts';
+import { getVideoPromptFramework, VIDEO_PROMPT_MARKER } from './video-prompt.ts';
 import {
   DEFAULT_REPAIR_PROMPT,
   DEFAULT_VALIDATED_GENERATION_CONFIG,

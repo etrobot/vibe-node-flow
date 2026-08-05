@@ -11,7 +11,6 @@ import {
   nodeOutputToText,
   type NodeTextInput,
 } from "../lib/node-io.ts";
-import { columnIndexOf } from "../lib/canvas-layout.ts";
 import { getNodePlugin, isNodeWarning } from "./plugins.ts";
 import {
   workflowAssetRoot,
@@ -79,22 +78,6 @@ export function topoOrder(nodes: FlowNode[], edges: FlowEdge[]): string[] {
   }
 
   return order;
-}
-
-/**
- * Legacy helper for grouping nodes by x-coordinate columns.
- */
-export function columnGroups(nodes: FlowNode[]): FlowNode[][] {
-  const byCol = new Map<number, FlowNode[]>();
-  for (const n of nodes) {
-    const col = columnIndexOf(n.x);
-    const list = byCol.get(col);
-    if (list) list.push(n);
-    else byCol.set(col, [n]);
-  }
-  return [...byCol.keys()]
-    .sort((a, b) => a - b)
-    .map((col) => byCol.get(col)!);
 }
 
 export function computeUpstreamInput(

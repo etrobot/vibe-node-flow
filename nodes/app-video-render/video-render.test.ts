@@ -6,7 +6,7 @@ import {
   narrationOverruns,
   resolvePackageDir,
   tailLines,
-} from '../nodes/app-video-render/render.ts';
+} from './render.ts';
 
 const RUN_ASSET_MANIFEST = JSON.stringify({
   slug: 'forge-app-launch',

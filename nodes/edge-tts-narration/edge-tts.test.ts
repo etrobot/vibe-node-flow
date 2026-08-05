@@ -17,7 +17,7 @@ import {
   resolveProxyUrl,
   splitTextForSynthesis,
   voiceLocale,
-} from '../nodes/edge-tts-narration/edge-tts.ts';
+} from './edge-tts.ts';
 
 test('Sec-MS-GEC hashes the current five-minute window in Windows file-time ticks', () => {
   // 2026-08-02T14:03:35Z rounds down to 14:00:00Z.

@@ -93,6 +93,15 @@ export interface LoadNodePluginsOptions {
   log?: boolean;
 }
 
+function moduleCacheKey(file: string): string {
+  try {
+    const stat = fs.statSync(file);
+    return `${stat.mtimeMs}-${stat.size}`;
+  } catch {
+    return String(Date.now());
+  }
+}
+
 export async function loadNodePlugins(
   projectRoot = process.cwd(),
   options: LoadNodePluginsOptions = {},
@@ -121,7 +130,11 @@ export async function loadNodePlugins(
 
     let imported: any;
     try {
-      imported = await import(pathToFileURL(candidate.serverPath).href);
+      const moduleUrl = pathToFileURL(candidate.serverPath);
+      // A cache-busting query lets the development watcher reload an edited
+      // node module without restarting the host process.
+      moduleUrl.searchParams.set("v", moduleCacheKey(candidate.serverPath));
+      imported = await import(moduleUrl.href);
     } catch (error) {
       const message = `server.ts load failed: ${error instanceof Error ? error.message : String(error)}`;
       diagnostics.push({ dirName: candidate.dirName, dir: candidate.dir, message });
@@ -164,6 +177,80 @@ export async function loadNodePlugins(
       console.log(`[node-plugin] loaded ${expectedType} from nodes/${candidate.dirName}`);
     }
   }
+}
+
+/**
+ * Watch the node directory and refresh the server registry when a node is
+ * added, removed, or edited. The watcher is host-only; Workers still load a
+ * clean snapshot of the registry for each execution.
+ */
+export function watchNodePlugins(
+  projectRoot = process.cwd(),
+  options: LoadNodePluginsOptions = {},
+): () => void {
+  const nodesRoot = path.resolve(projectRoot, "nodes");
+  if (!fs.existsSync(nodesRoot)) return () => undefined;
+
+  const watchers = new Map<string, fs.FSWatcher>();
+  let reloadTimer: ReturnType<typeof setTimeout> | undefined;
+  let reloadPromise: Promise<void> | null = null;
+  let reloadQueued = false;
+
+  const reload = async () => {
+    if (reloadPromise) {
+      reloadQueued = true;
+      return reloadPromise;
+    }
+    reloadPromise = loadNodePlugins(projectRoot, options).finally(() => {
+      reloadPromise = null;
+      if (reloadQueued) {
+        reloadQueued = false;
+        void reload();
+      }
+    });
+    return reloadPromise;
+  };
+
+  const scheduleReload = () => {
+    if (reloadTimer) clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => {
+      reloadTimer = undefined;
+      refreshDirectoryWatchers();
+      void reload().catch((error) => {
+        console.error("[node-plugin] hot reload failed:", error);
+      });
+    }, 100);
+    reloadTimer.unref?.();
+  };
+
+  const watchDirectory = (directory: string) => {
+    if (watchers.has(directory)) return;
+    try {
+      const watcher = fs.watch(directory, { persistent: false }, scheduleReload);
+      watcher.on("error", (error) => {
+        console.warn(`[node-plugin] watcher error for ${directory}: ${error.message}`);
+      });
+      watchers.set(directory, watcher);
+    } catch (error) {
+      console.warn(`[node-plugin] cannot watch ${directory}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const refreshDirectoryWatchers = () => {
+    watchDirectory(nodesRoot);
+    for (const entry of fs.readdirSync(nodesRoot, { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("_")) {
+        watchDirectory(path.join(nodesRoot, entry.name));
+      }
+    }
+  };
+
+  refreshDirectoryWatchers();
+  return () => {
+    if (reloadTimer) clearTimeout(reloadTimer);
+    for (const watcher of watchers.values()) watcher.close();
+    watchers.clear();
+  };
 }
 
 export function getNodePlugin(type: NodeType): LoadedNodePlugin | undefined {
