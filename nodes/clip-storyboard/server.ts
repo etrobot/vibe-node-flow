@@ -15,13 +15,16 @@ import {
 } from './config.ts';
 import {
   CLIP_BACKGROUNDS,
-  COMPONENT_GUIDE,
+  DIRECT_COMPONENT_GUIDE,
+  GLOBAL_COMPONENT_GUIDE,
+  GLOBAL_COMPONENT_TYPES,
   MAX_ITEM_DURATION,
   MAX_ITEMS_PER_CLIP,
   MIN_ITEM_DURATION,
   parseStoryboardJson,
   validateStoryboard,
   type StoryboardDocument,
+  type TimingMode,
 } from './contract.ts';
 
 function clean(value: unknown): string {
@@ -39,6 +42,7 @@ function normalizeConfig(value: unknown): ClipStoryboardConfig {
   const maxClips = Math.max(minClips, integer(raw.maxClips, DEFAULT_CLIP_STORYBOARD_CONFIG.maxClips, 3, 40));
   const temperature = Number(raw.temperature);
   const tolerance = Number(raw.durationTolerance);
+  const timingMode: TimingMode = raw.timingMode === 'duration' ? 'duration' : 'anchor';
   return {
     ...DEFAULT_CLIP_STORYBOARD_CONFIG,
     ...raw,
@@ -57,6 +61,13 @@ function normalizeConfig(value: unknown): ClipStoryboardConfig {
     durationTolerance: Number.isFinite(tolerance)
       ? Math.max(0.05, Math.min(0.6, tolerance))
       : DEFAULT_CLIP_STORYBOARD_CONFIG.durationTolerance,
+    timingMode,
+    maxGlobalComponents: integer(
+      raw.maxGlobalComponents,
+      DEFAULT_CLIP_STORYBOARD_CONFIG.maxGlobalComponents,
+      0,
+      24,
+    ),
     temperature: Number.isFinite(temperature)
       ? Math.max(0, Math.min(2, temperature))
       : DEFAULT_CLIP_STORYBOARD_CONFIG.temperature,
@@ -100,37 +111,79 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
   const slugRule = config.slug
     ? `Set "slug" to exactly "${config.slug}".`
     : 'Set "slug" to a lowercase kebab-case name derived from the title.';
+
+  const timingRules = config.timingMode === 'anchor'
+    ? [
+      'Items carry no "duration". Timing comes from the narration itself.',
+      'A clip with N items must have exactly N-1 **anchor** phrases in its "speech".'
+      + ' Anchor 1 starts item 2, anchor 2 starts item 3, and so on; item 1 starts with the clip.',
+      'Write the shots first, then choose anchors in order. An anchor is a short complete phrase'
+      + ' (a keyword, number, conclusion, or turn) that is the moment the picture should change.',
+      'When the item after an anchor references a global component with a "spot", anchor the words'
+      + ' that name that node: match the focused card\'s title as closely as the sentence allows.',
+      'Never split a word or anchor bare punctuation, and never anchor a whole sentence.',
+      `Total narration should read in about ${config.targetDurationSeconds} seconds`
+      + ` (±${Math.round(config.durationTolerance * 100)}%) at a natural pace.`,
+    ]
+    : [
+      `Each item duration is ${MIN_ITEM_DURATION}-${MAX_ITEM_DURATION} seconds.`,
+      `Item durations total about ${config.targetDurationSeconds} seconds`
+      + ` (±${Math.round(config.durationTolerance * 100)}%).`,
+      '"speech" is plain narration a voice actor reads aloud: no markdown, no ** markers.',
+    ];
+
+  const globalRules = config.maxGlobalComponents > 0
+    ? [
+      '',
+      '## Reusable structures',
+      '',
+      `Declare every ${GLOBAL_COMPONENT_TYPES.join(', ')} once in "global-components"`
+      + ` (at most ${config.maxGlobalComponents}), each with a unique kebab-case "key".`,
+      'A clip then references it with {"type": <same type>, "key": <component key>, "spot": <node key>}'
+      + ' and writes no payload of its own.',
+      'Every card, chartData entry, and lineMetrics entry needs its own kebab-case "key";'
+      + ' "spot" must name one of them. For comparison-table, "spot" names a row "feature".',
+      'process-card-highlight and pyramid-highlight always need a "spot". The others may omit it.',
+      'Reuse one structure across several clips with a different "spot" each time so a diagram builds'
+      + ' up as the narration walks it, instead of a new structure appearing every clip.',
+      'Declare nothing you do not reference.',
+      '',
+      GLOBAL_COMPONENT_GUIDE,
+    ]
+    : [];
+
   return [
     'Convert the brief below into one storyboard JSON document for a motion-graphics renderer.',
     '',
     '## Output contract',
     '',
     'Return exactly one JSON object with these keys and nothing else:',
-    '{"slug","title","hook","summary","closing","hue","chapters":[{"title","summary","startClip","clipCount"}],'
-    + '"clips":[{"speech","background","items":[{"type","duration",...}]}]}',
+    '{"slug","title","hook","summary","closing","hue","palette":{"background","foreground","muted",'
+    + '"accent","secondary"},"chapters":[{"title","summary","startClip","clipCount"}],'
+    + '"global-components":[{"key","component",...}],'
+    + '"clips":[{"speech","background","items":[{"type",...}]}]}',
     '',
     '## Hard rules',
     '',
     slugRule,
     `Write every "speech" and on-screen string in ${config.language}.`,
-    `Produce ${config.minClips}-${config.maxClips} clips whose item durations total about `
-    + `${config.targetDurationSeconds} seconds (±${Math.round(config.durationTolerance * 100)}%).`,
+    `Produce ${config.minClips}-${config.maxClips} clips.`,
     `"hue" is an integer 0-360 that matches a ${config.tone} mood.`,
+    '"palette" is optional; when present every role is a #rrggbb hex color reading well on dark video.',
     `"background" must be one of: ${CLIP_BACKGROUNDS.join(', ')}.`,
-    `Each clip holds 1-${MAX_ITEMS_PER_CLIP} items; each item duration is `
-    + `${MIN_ITEM_DURATION}-${MAX_ITEM_DURATION} seconds.`,
-    '"speech" is plain narration a voice actor reads aloud: no markdown, no ** markers, no stage directions.',
-    'On-screen text lives in item fields such as "title"; keep it to 2-6 words and use **emphasis** only there.',
+    `Each clip holds 1-${MAX_ITEMS_PER_CLIP} items.`,
+    ...timingRules,
+    'On-screen text lives in item fields such as "title"; keep it to 2-6 words.',
     `Use at least ${config.minComponentTypes} distinct item types across the storyboard.`,
     'text-typing may only be the first item of its clip.',
     'The final clip, and only the final clip, pairs text-title with text-logo.',
-    'Never use the image or video item types; no external media is available.',
     'Chapters must start at clip 0 and their clipCount values must sum to the number of clips.',
     'Every factual claim must trace back to the brief. Do not invent numbers, customers, or endorsements.',
+    ...globalRules,
     '',
     '## Component menu',
     '',
-    COMPONENT_GUIDE,
+    DIRECT_COMPONENT_GUIDE,
     '',
     '## Brief',
     '',
@@ -172,7 +225,7 @@ async function execute({
   const logs: string[] = [
     `Storyboard contract: ${config.minClips}-${config.maxClips} clips, `
     + `${config.targetDurationSeconds}s ±${Math.round(config.durationTolerance * 100)}%, `
-    + `${config.minComponentTypes}+ component types.`,
+    + `${config.minComponentTypes}+ component types, ${config.timingMode} timing.`,
     `Repair policy: initial generation plus up to ${STORYBOARD_RETRY_LIMIT} retries.`,
   ];
   let lastErrors: string[] = ['Storyboard was never produced.'];
@@ -192,6 +245,8 @@ async function execute({
         minComponentTypes: config.minComponentTypes,
         targetDurationSeconds: config.targetDurationSeconds,
         durationTolerance: config.durationTolerance,
+        timingMode: config.timingMode,
+        maxGlobalComponents: config.maxGlobalComponents,
       });
       errors = report.errors;
       warnings = report.warnings;

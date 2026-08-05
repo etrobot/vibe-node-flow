@@ -1,3 +1,5 @@
+import type { TimingMode } from './contract.ts';
+
 export interface ClipStoryboardConfig {
   /** Project folder name written by the downstream project node. Blank uses the model's slug. */
   slug: string;
@@ -12,6 +14,15 @@ export interface ClipStoryboardConfig {
   targetDurationSeconds: number;
   /** Fraction of targetDurationSeconds the estimated runtime may deviate. */
   durationTolerance: number;
+  /**
+   * `anchor` (default): items carry no seconds and `**anchors**` in the speech
+   * mark the shot switches, which `edge-tts-narration` resolves against real
+   * word boundaries. `duration` keeps the older contract where the model writes
+   * seconds per item and the speech stays plain.
+   */
+  timingMode: TimingMode;
+  /** Ceiling on reusable structures declared in `global-components`. */
+  maxGlobalComponents: number;
   temperature: number;
   systemPrompt: string;
   /** Optional UTF-8 file relative to the workflow definition directory. Overrides systemPrompt. */
@@ -33,6 +44,8 @@ export const DEFAULT_CLIP_STORYBOARD_CONFIG: ClipStoryboardConfig = {
   minComponentTypes: 6,
   targetDurationSeconds: 60,
   durationTolerance: 0.25,
+  timingMode: 'anchor',
+  maxGlobalComponents: 12,
   temperature: 0.6,
   systemPrompt: [
     'You are a storyboard director for a local motion-graphics video renderer.',

@@ -225,7 +225,6 @@ export function ensureWorkflowAssets(id: string): void {
   if (!fs.existsSync(path.join(wfDir, "workflow.json"))) {
     throw new Error("Workflow not found");
   }
-  fs.mkdirSync(workflowGeneratedAssetsDir(id), { recursive: true });
   if (!fs.existsSync(workflowScheduleFile(id))) {
     ensureWorkflowScheduleFile(id);
   }
@@ -249,8 +248,6 @@ export function saveWorkflow(item: WorkflowItem): WorkflowItem {
   ensureDataDirs();
   const dir = workflowDir(item.id);
   fs.mkdirSync(dir, { recursive: true });
-  fs.mkdirSync(workflowGeneratedAssetsDir(item.id), { recursive: true });
-
   const existing = readDiskWorkflow(item.id);
   const createdAt = existing?.createdAt ?? item.createdAt ?? nowIso();
   const updatedAt = nowIso();

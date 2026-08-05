@@ -134,7 +134,7 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
   const activeClip = located?.clip ?? null;
   const activeClipIndex = located?.clipIndex ?? -1;
   const activeItem = activeClip ? locateClipItem(activeClip, located?.localTime ?? 0) : null;
-  const theme = useMemo(() => getThemeColors(document.hue), [document.hue]);
+  const theme = useMemo(() => getThemeColors(document.hue, document.palette), [document.hue, document.palette]);
   const themeStyle = useMemo(() => ({
     '--theme-primary': theme.themePrimary,
     '--theme-secondary': theme.themeSecondary,
@@ -297,6 +297,7 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
               effectKey={effectKey}
               effectTime={activeItem?.localTime}
               hue={document.hue}
+              palette={document.palette}
               time={currentTime}
             />
             <div
@@ -317,7 +318,7 @@ export const InteractivePlayer = ({document}: InteractivePlayerProps) => {
           </div>
 
           {transitionProgress !== null && (
-            <TransitionOverlay progress={transitionProgress} hue={document.hue} />
+            <TransitionOverlay progress={transitionProgress} hue={document.hue} palette={document.palette} />
           )}
 
           {!isPlaying && currentTime === 0 && (

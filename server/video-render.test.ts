@@ -8,9 +8,9 @@ import {
   tailLines,
 } from '../nodes/app-video-render/render.ts';
 
-const PROJECT_MANIFEST = JSON.stringify({
+const RUN_ASSET_MANIFEST = JSON.stringify({
   slug: 'forge-app-launch',
-  projectDir: '/assets/generated/node-project/project',
+  assetDir: '/assets/generated/run-1',
   clipCount: 2,
 });
 
@@ -25,7 +25,7 @@ const NARRATION_MANIFEST = JSON.stringify({
 
 test('upstream manifests merge into the slug, audio directory, and clip list', () => {
   const facts = mergeUpstreamManifests({
-    'node-project': PROJECT_MANIFEST,
+    'node-project': RUN_ASSET_MANIFEST,
     'node-narration': NARRATION_MANIFEST,
   });
 
@@ -48,6 +48,40 @@ test('a narration-only upstream is enough, and out-of-order clips are sorted', (
 
   assert.equal(facts.audioDir, '/project/voice');
   assert.deepEqual(facts.narrationClips.map((clip) => clip.index), [0, 1]);
+});
+
+test('clip offsets come from the narration timeline, not from a running total', () => {
+  const facts = mergeUpstreamManifests({
+    'node-narration': JSON.stringify({
+      slug: 'forge-app-launch',
+      audioDir: '/project/voice',
+      timeline: [
+        { clipIndex: 0, startSeconds: 0, durationSeconds: 3.1 },
+        { clipIndex: 1, startSeconds: 3.1, durationSeconds: 4.4 },
+      ],
+      clips: [
+        { index: 0, file: 'clip-01.mp3', durationSeconds: 3.1 },
+        { index: 1, file: 'clip-02.mp3', durationSeconds: 4.4 },
+      ],
+    }),
+  });
+
+  assert.deepEqual(facts.narrationClips.map((clip) => clip.startSeconds), [0, 3.1]);
+});
+
+test('manifests written before the timeline fall back to the clip start offsets', () => {
+  const facts = mergeUpstreamManifests({
+    'node-narration': JSON.stringify({
+      slug: 'forge-app-launch',
+      audioDir: '/project/voice',
+      clips: [
+        { index: 0, file: 'clip-01.mp3', durationSeconds: 3.1, startSeconds: 0 },
+        { index: 1, file: 'clip-02.mp3', durationSeconds: 4.4, startSeconds: 3.1 },
+      ],
+    }),
+  });
+
+  assert.deepEqual(facts.narrationClips.map((clip) => clip.startSeconds), [0, 3.1]);
 });
 
 test('render facts preserve an embedded storyboard document for preview recovery', () => {

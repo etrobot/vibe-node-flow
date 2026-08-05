@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import type {
   FlowNode,
   FlowEdge,
@@ -15,8 +16,10 @@ import { getNodePlugin, isNodeWarning } from "./plugins.ts";
 import {
   workflowAssetRoot,
   workflowDir as workflowDefinitionDir,
-  workflowGeneratedAssetsDir,
+  workflowRunAssetsDir,
+  nodeAssetsDir,
 } from "./paths.ts";
+import { makeRunId } from "./run-id.ts";
 // Kept as a compatibility export for integrations that used the old engine
 // helper. The actual sandbox now belongs to the extension runtime.
 export { runScript } from "./node-runtime.ts";
@@ -113,6 +116,7 @@ async function execNode(
   upstreamInput: NodeTextInput,
   nodeOutputs: Record<string, string>,
   workflowId: string,
+  runId: string,
 ): Promise<{ output: any; logs: string[]; status: "success" | "warning"; error: string | null }> {
   const plugin = getNodePlugin(node.type);
   if (!plugin) {
@@ -123,9 +127,11 @@ async function execNode(
     input: upstreamInput,
     nodeOutputs,
     workflowId,
+    runId,
     workflowDir: workflowAssetRoot(workflowId),
     workflowDefinitionDir: workflowDefinitionDir(workflowId),
-    assetsDir: workflowGeneratedAssetsDir(workflowId),
+    assetsDir: workflowRunAssetsDir(workflowId, runId),
+    nodeAssetsDir: nodeAssetsDir(node.id),
   });
   if (!result || typeof result !== "object" || !("output" in result)) {
     throw new Error(`Node ${node.type} execute must return { output, logs? }`);
@@ -155,8 +161,10 @@ export interface ExecutionResult {
 // Nodes with satisfied upstream dependencies are executed concurrently in waves.
 export async function executeWorkflow(
   wf: WorkflowItem,
-  emit: EmitFn
+  emit: EmitFn,
+  runId = makeRunId(),
 ): Promise<ExecutionResult> {
+  fs.mkdirSync(workflowRunAssetsDir(wf.id, runId), { recursive: true });
   const order = topoOrder(wf.nodes, wf.edges);
   const outputsById: Record<string, string> = {};
   const outputsCombined: Record<string, string> = {}; // keyed by id AND title
@@ -198,6 +206,7 @@ export async function executeWorkflow(
             upstreamInput,
             outputsCombined,
             wf.id,
+            runId,
           );
           const executionTime = Date.now() - start;
           const edgeText = nodeOutputToText(output);
@@ -286,7 +295,9 @@ export async function executeSingleNode(
   input: NodeTextInput,
   nodeOutputs: Record<string, string>,
   workflowId: string,
+  runId = makeRunId(),
 ): Promise<RunNodeRecord> {
+  fs.mkdirSync(workflowRunAssetsDir(workflowId, runId), { recursive: true });
   const start = Date.now();
   try {
     const { output, logs, status, error } = await execNode(
@@ -294,6 +305,7 @@ export async function executeSingleNode(
       input,
       nodeOutputs || {},
       workflowId,
+      runId,
     );
     return {
       nodeId: node.id,

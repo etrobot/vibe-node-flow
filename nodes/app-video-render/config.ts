@@ -36,7 +36,7 @@ export interface AppVideoRenderConfig {
    * Lay each clip's narration MP3 on the timeline at that clip's start offset.
    */
   narration: boolean;
-  /** Mix `<project>/music/bgm.*` underneath the narration if present. */
+  /** Mix `data/assets/<node-id>/music/bgm.*` underneath the narration if present. */
   music: boolean;
   /** Linear gain applied to the background music before mixing. */
   musicVolume: number;

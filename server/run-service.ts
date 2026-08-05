@@ -147,6 +147,7 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
         workerData: {
           projectRoot: process.cwd(),
           workflow: this.workflow,
+          runId: this.id,
         },
         execArgv: entry.bundled ? [] : ["--import", "tsx"],
       });

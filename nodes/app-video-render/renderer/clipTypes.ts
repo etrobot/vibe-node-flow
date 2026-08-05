@@ -66,6 +66,14 @@ export interface ComparisonTableRow {
 export interface ClipItem {
   type: ClipItemType;
   duration: number;
+  /**
+   * Reference into the storyboard's `global-components`. Present only on
+   * documents that have not been hydrated yet; `resolve.ts` replaces it with
+   * the structure itself before the renderer sees the item.
+   */
+  key?: string;
+  /** Node inside the referenced component, resolved into `targetIndex`. */
+  spot?: string;
   effect?: ClipEffect;
   title?: string;
   label?: string;
@@ -98,8 +106,17 @@ export interface ClipItem {
   pan?: number;
   tilt?: number;
   zoom?: number;
-  cards?: { icon: string; title: string; number?: string }[];
+  cards?: { key?: string; icon: string; title: string; number?: string }[];
   targetIndex?: number;
+}
+
+/** Explicit colors overriding the hue-derived theme, when the storyboard sets them. */
+export interface ClipPalette {
+  background: string;
+  foreground: string;
+  muted: string;
+  accent: string;
+  secondary: string;
 }
 
 export interface Clip {
@@ -121,6 +138,7 @@ export interface ClipChapter {
 export interface ClipsDocument {
   clips: Clip[];
   hue?: number;
+  palette?: ClipPalette;
   title?: string;
   summary?: string;
   hook?: string;

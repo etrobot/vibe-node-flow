@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { FlowNode, NodeType } from "../App/types";
 import type { NodeTextInput } from "../lib/node-io.ts";
@@ -13,11 +15,16 @@ export interface NodePluginContext {
   nodeOutputs: Record<string, string>;
   /** Owning workflow identity and filesystem roots. These are always server-side. */
   workflowId: string;
+  /** Unique identity of the current full or single-node execution. */
+  runId: string;
   /** Backward-compatible workflow asset root. Generated files belong in assetsDir. */
   workflowDir: string;
   /** Git-syncable definition root containing workflow.json and workflow-owned prompt files. */
   workflowDefinitionDir?: string;
+  /** Run-scoped output directory. All generated artifacts belong here. */
   assetsDir: string;
+  /** Persistent assets owned by this node and reused across runs. */
+  nodeAssetsDir: string;
 }
 
 export interface NodePluginResult {
@@ -73,6 +80,8 @@ export interface ServerNodePlugin {
 
 export interface LoadedNodePlugin extends ServerNodePlugin {
   dirName: string;
+  /** Absolute node directory, so a node can ship scripts the host launches. */
+  dir: string;
 }
 
 const plugins = new Map<NodeType, LoadedNodePlugin>();
@@ -149,6 +158,7 @@ export async function loadNodePlugins(
       execute: plugin.execute,
       capabilities,
       dirName: candidate.dirName,
+      dir: candidate.dir,
     });
     if (options.log !== false) {
       console.log(`[node-plugin] loaded ${expectedType} from nodes/${candidate.dirName}`);
@@ -162,6 +172,31 @@ export function getNodePlugin(type: NodeType): LoadedNodePlugin | undefined {
 
 export function nodePluginHasCapability(type: NodeType, capability: string): boolean {
   return plugins.get(type)?.capabilities?.includes(capability) ?? false;
+}
+
+/**
+ * Absolute path to an executable a node ships alongside its code, or null when
+ * the node does not provide one.
+ *
+ * This is how a node hands the host something to run without the host having to
+ * know what it is. The alternative — a `package.json` script the host declares
+ * on the node's behalf — inverts the dependency: uninstalling the node would
+ * leave a dangling command, and two nodes could not both own "the render step".
+ * Here the host only asks "does this node ship <name>?".
+ *
+ * `name` is a bare file name by construction: any path separator is refused, so
+ * a manifest cannot walk out of its own directory.
+ */
+export function nodePluginScript(type: NodeType, name: string): string | null {
+  if (!name || name.includes("/") || name.includes("\\") || name.startsWith(".")) return null;
+  const plugin = plugins.get(type);
+  if (!plugin) return null;
+  const candidate = path.join(plugin.dir, name);
+  try {
+    return fs.statSync(candidate).isFile() ? candidate : null;
+  } catch {
+    return null;
+  }
 }
 
 export function listNodePlugins(): Array<

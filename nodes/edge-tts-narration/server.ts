@@ -6,7 +6,6 @@ import {
   type NodePluginContext,
   type NodePluginResult,
 } from '../../server/plugins.ts';
-import { assertSafeId } from '../../server/paths.ts';
 import { DEFAULT_EDGE_TTS_NARRATION_CONFIG, type EdgeTtsNarrationConfig } from './config.ts';
 import {
   EdgeTtsError,
@@ -20,10 +19,14 @@ import {
   voiceLocale,
   type WordBoundary,
 } from './edge-tts.ts';
+import { resolveClipTiming, stripAnchors, type ItemTiming } from './timing.ts';
 
 interface NarrationClip {
   index: number;
+  /** Authored speech, still carrying its `**anchors**`. */
   speech: string;
+  /** How many shots the anchors have to divide this clip into. */
+  itemCount: number;
   /** Storyboard runtime for the clip, when the upstream manifest carries it. */
   plannedSeconds?: number;
 }
@@ -36,6 +39,7 @@ function integer(value: unknown, fallback: number, min: number, max: number): nu
 function normalizeConfig(value: unknown): EdgeTtsNarrationConfig {
   const raw = value && typeof value === 'object' ? value as Partial<EdgeTtsNarrationConfig> : {};
   const tolerance = Number(raw.durationTolerance);
+  const minItemSeconds = Number(raw.minItemSeconds);
   const config: EdgeTtsNarrationConfig = {
     ...DEFAULT_EDGE_TTS_NARRATION_CONFIG,
     voice: String(raw.voice ?? DEFAULT_EDGE_TTS_NARRATION_CONFIG.voice).trim()
@@ -43,9 +47,12 @@ function normalizeConfig(value: unknown): EdgeTtsNarrationConfig {
     writeCombined: raw.writeCombined === undefined
       ? DEFAULT_EDGE_TTS_NARRATION_CONFIG.writeCombined
       : Boolean(raw.writeCombined),
-    writeToProject: raw.writeToProject === undefined
-      ? DEFAULT_EDGE_TTS_NARRATION_CONFIG.writeToProject
-      : Boolean(raw.writeToProject),
+    applyTiming: raw.applyTiming === undefined
+      ? DEFAULT_EDGE_TTS_NARRATION_CONFIG.applyTiming
+      : Boolean(raw.applyTiming),
+    minItemSeconds: Number.isFinite(minItemSeconds)
+      ? Math.max(0.05, Math.min(3, minItemSeconds))
+      : DEFAULT_EDGE_TTS_NARRATION_CONFIG.minItemSeconds,
     concurrency: integer(raw.concurrency, DEFAULT_EDGE_TTS_NARRATION_CONFIG.concurrency, 1, 6),
     timeoutMs: integer(raw.timeoutMs, DEFAULT_EDGE_TTS_NARRATION_CONFIG.timeoutMs, 5_000, 300_000),
     durationTolerance: Number.isFinite(tolerance)
@@ -77,14 +84,22 @@ function clipSeconds(clip: any): number | undefined {
   return total > 0 ? total : undefined;
 }
 
+/** How many shots the clip's anchors must divide the narration into. */
+function clipItemCount(clip: any): number {
+  if (Array.isArray(clip?.items)) return Math.max(1, clip.items.length);
+  const declared = Number(clip?.itemCount);
+  return Number.isInteger(declared) && declared > 0 ? declared : 1;
+}
+
 /**
- * Accept either the project manifest from `app-video-project` or a raw
+ * Accept either the run asset manifest from `app-video-project` or a raw
  * storyboard document, so this node can also sit directly after generation.
  */
 export function readNarrationSource(raw: string): {
   clips: NarrationClip[];
-  projectDir: string | null;
+  assetDir: string | null;
   slug: string | null;
+  chapterFiles: string[];
 } {
   const trimmed = String(raw ?? '').trim();
   if (!trimmed) throw new NodeInputError('Edge TTS Narration received an empty upstream output.');
@@ -104,6 +119,7 @@ export function readNarrationSource(raw: string): {
   const clips: NarrationClip[] = parsed.clips.map((clip: any, index: number) => ({
     index: Number.isInteger(clip?.index) ? Number(clip.index) : index,
     speech: String(clip?.speech ?? '').trim(),
+    itemCount: clipItemCount(clip),
     plannedSeconds: Number(clip?.plannedSeconds) || clipSeconds(clip),
   }));
 
@@ -114,8 +130,11 @@ export function readNarrationSource(raw: string): {
 
   return {
     clips,
-    projectDir: typeof parsed.projectDir === 'string' && parsed.projectDir ? parsed.projectDir : null,
+    assetDir: typeof parsed.assetDir === 'string' && parsed.assetDir ? parsed.assetDir : null,
     slug: typeof parsed.slug === 'string' && parsed.slug ? parsed.slug : null,
+    chapterFiles: Array.isArray(parsed.chapterFiles)
+      ? parsed.chapterFiles.filter((file: unknown) => typeof file === 'string' && file)
+      : [],
   };
 }
 
@@ -161,7 +180,55 @@ async function describeVoiceFailure(voice: string, proxyUrl: string | undefined,
   }
 }
 
-async function execute({ node, input, assetsDir, workflowId }: NodePluginContext): Promise<NodePluginResult> {
+export interface ClipTimeline {
+  clipIndex: number;
+  startSeconds: number;
+  durationSeconds: number;
+  measured: boolean;
+  items: ItemTiming[];
+}
+
+/**
+ * Push the measured shot lengths back into the run assets the render reads, so the
+ * cut points in `chapter-N.json` are the ones the voice actually produced.
+ * Returns how many clips were rewritten.
+ */
+export async function applyTimingToRunAssets(
+  assetDir: string,
+  chapterFiles: string[],
+  timeline: ClipTimeline[],
+): Promise<number> {
+  const byClip = new Map(timeline.map((entry) => [entry.clipIndex, entry]));
+  let cursor = 0;
+  let patched = 0;
+
+  for (const file of chapterFiles) {
+    const target = path.join(assetDir, 'chapter', file);
+    let document: any;
+    try {
+      document = JSON.parse(await fs.readFile(target, 'utf8'));
+    } catch {
+      // A chapter the upstream node never wrote is not this node's failure to report.
+      continue;
+    }
+    if (!Array.isArray(document?.clips)) continue;
+
+    for (const clip of document.clips) {
+      const entry = byClip.get(cursor);
+      cursor += 1;
+      if (!entry || !Array.isArray(clip?.items)) continue;
+      clip.items.forEach((item: any, itemIndex: number) => {
+        const slot = entry.items.find((candidate) => candidate.index === itemIndex);
+        if (slot && slot.durationSeconds > 0) item.duration = slot.durationSeconds;
+      });
+      patched += 1;
+    }
+    await fs.writeFile(target, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+  }
+  return patched;
+}
+
+async function execute({ node, input, assetsDir, workflowId, runId }: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const values = Object.values(input).map((value) => String(value ?? '').trim()).filter(Boolean);
   if (values.length !== 1) {
@@ -172,8 +239,8 @@ async function execute({ node, input, assetsDir, workflowId }: NodePluginContext
   const source = readNarrationSource(values[0]);
   const proxyUrl = resolveProxyUrl();
 
-  const assetId = assertSafeId(node.id);
-  const outputDir = path.join(assetsDir, assetId);
+  const assetId = runId;
+  const outputDir = assetsDir;
   await fs.mkdir(outputDir, { recursive: true });
 
   const logs: string[] = [
@@ -186,7 +253,8 @@ async function execute({ node, input, assetsDir, workflowId }: NodePluginContext
   const synthesized = await mapWithConcurrency(source.clips, config.concurrency, async (clip) => {
     try {
       return await synthesizeSpeech({
-        text: clip.speech,
+        // Anchors mark where the picture cuts; the voice must not read them.
+        text: stripAnchors(clip.speech).plain,
         voice: config.voice,
         rate: config.rate,
         volume: config.volume,
@@ -210,6 +278,8 @@ async function execute({ node, input, assetsDir, workflowId }: NodePluginContext
   const warnings: string[] = [];
   const parts: Buffer[] = [];
   const entries = [];
+  const timeline: ClipTimeline[] = [];
+  let measuredClips = 0;
 
   for (let index = 0; index < source.clips.length; index += 1) {
     const clip = source.clips[index];
@@ -230,15 +300,34 @@ async function execute({ node, input, assetsDir, workflowId }: NodePluginContext
       }
     }
 
+    const timing = resolveClipTiming({
+      speech: clip.speech,
+      itemCount: clip.itemCount,
+      boundaries: result.boundaries,
+      audioSeconds: result.durationSeconds,
+      minItemSeconds: config.minItemSeconds,
+      label: `Clip ${index + 1}`,
+    });
+    warnings.push(...timing.warnings);
+    if (timing.measured) measuredClips += 1;
+    timeline.push({
+      clipIndex: index,
+      startSeconds: Number(startSeconds.toFixed(3)),
+      durationSeconds: Number(result.durationSeconds.toFixed(3)),
+      measured: timing.measured,
+      items: timing.items,
+    });
+
     entries.push({
       index,
       file,
       url: `/api/workflows/${workflowId}/assets/${assetId}/${file}`,
-      speech: clip.speech,
+      speech: stripAnchors(clip.speech).plain,
       bytes: result.audio.length,
       durationSeconds: Number(result.durationSeconds.toFixed(3)),
       plannedSeconds: clip.plannedSeconds ? Number(clip.plannedSeconds.toFixed(3)) : null,
       startSeconds: Number(startSeconds.toFixed(3)),
+      items: timing.items,
       words: result.boundaries.map((boundary: WordBoundary) => ({
         text: boundary.text,
         offsetSeconds: Number(boundary.offsetSeconds.toFixed(3)),
@@ -269,22 +358,19 @@ async function execute({ node, input, assetsDir, workflowId }: NodePluginContext
       : null,
     /** Where the clip MP3s always exist. */
     audioDir: outputDir,
-    projectVoiceDir: null as string | null,
+    /** Measured shot boundaries, the timing source of truth for the render. */
+    timeline,
     clips: entries,
   };
 
-  if (config.writeToProject && source.projectDir) {
-    const voiceDir = path.join(source.projectDir, 'voice');
-    await fs.mkdir(voiceDir, { recursive: true });
-    for (const entry of entries) {
-      await fs.copyFile(path.join(outputDir, entry.file), path.join(voiceDir, entry.file));
-    }
-    if (config.writeCombined) {
-      await fs.copyFile(path.join(outputDir, 'narration.mp3'), path.join(voiceDir, 'narration.mp3'));
-    }
-    manifest.projectVoiceDir = voiceDir;
-    logs.push(`Copied clip audio into ${voiceDir}.`);
+  if (config.applyTiming && source.assetDir && source.chapterFiles.length) {
+    const patched = await applyTimingToRunAssets(source.assetDir, source.chapterFiles, timeline);
+    logs.push(
+      `Applied measured shot timing to ${patched} clip(s) across ${source.chapterFiles.length} chapter file(s).`,
+    );
   }
+
+  logs.push(`Resolved shot timing from anchors for ${measuredClips}/${entries.length} clip(s).`);
 
   await fs.writeFile(
     path.join(outputDir, 'narration.json'),
@@ -302,7 +388,7 @@ async function execute({ node, input, assetsDir, workflowId }: NodePluginContext
       output: JSON.stringify(manifest, null, 2),
       logs: [...logs, ...warnings.map((warning) => `[Timing] ${warning}`)],
       status: 'warning',
-      error: `Narration is longer than the storyboard plan for ${warnings.length} clip(s).`,
+      error: `Narration timing needs attention for ${warnings.length} clip(s).`,
     };
   }
 

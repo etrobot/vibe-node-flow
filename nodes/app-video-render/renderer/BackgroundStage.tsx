@@ -4,13 +4,14 @@ import {
   getSceneTransitionState,
   type SceneTransitionRole,
 } from './SceneTransition';
-import type {Clip, ClipBackground} from './clipTypes';
+import type {Clip, ClipBackground, ClipPalette} from './clipTypes';
 import {getClipBackground, locateClip, locateClipItem} from './clipModel';
 
 interface BackgroundStageProps {
   clips: Clip[];
   time: number;
   hue?: number;
+  palette?: ClipPalette;
   projectName?: string | null;
   resolveBackgroundVideoUrl?: (background: ClipBackground) => string | undefined;
   force2DWithoutVideo?: boolean;
@@ -36,6 +37,7 @@ export default function BackgroundStage({
   clips,
   time,
   hue,
+  palette,
   projectName,
   resolveBackgroundVideoUrl,
   force2DWithoutVideo = false,
@@ -63,6 +65,7 @@ export default function BackgroundStage({
         effectKey={effectKey}
         effectTime={effectTime}
         hue={hue}
+        palette={palette}
         time={time}
         backgroundVideoUrl={backgroundVideoUrl}
         force2D={force2DWithoutVideo && !backgroundVideoUrl}

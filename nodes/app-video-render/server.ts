@@ -7,7 +7,6 @@ import {
   type NodePluginContext,
   type NodePluginResult,
 } from '../../server/plugins.ts';
-import { assertSafeId } from '../../server/paths.ts';
 import {
   DEFAULT_APP_VIDEO_RENDER_CONFIG,
   RENDER_RESOLUTIONS,
@@ -19,6 +18,7 @@ import {
 import {
   buildMuxArgs,
   describeCommand,
+  findNodeMusic,
   mergeUpstreamManifests,
   narrationOverruns,
   resolvePackageDir,
@@ -185,14 +185,14 @@ function isDirectory(target: string): boolean {
 }
 
 async function preflight(
-  projectDir: string | null,
+  assetDir: string | null,
   slug: string,
 ): Promise<{ problems: string[]; notes: string[] }> {
   const problems: string[] = [];
   const notes: string[] = [];
 
-  if (projectDir && !isDirectory(projectDir)) {
-    notes.push(`Project asset directory for ${slug} is not yet present; rendering from upstream storyboard.`);
+  if (assetDir && !isDirectory(assetDir)) {
+    notes.push(`Run asset directory for ${slug} is not yet present; rendering from upstream storyboard.`);
   }
 
   for (const dependency of ['playwright-core']) {
@@ -220,7 +220,7 @@ function failure(step: string, result: CommandResult): string {
 }
 
 async function execute(
-  { node, input, assetsDir, workflowId }: NodePluginContext,
+  { node, input, assetsDir, nodeAssetsDir, workflowId, runId }: NodePluginContext,
 ): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const facts = mergeUpstreamManifests(input);
@@ -233,11 +233,12 @@ async function execute(
     );
   }
 
-  const projectDir = facts.projectDir ?? null;
-  const { problems, notes } = await preflight(projectDir, slug);
+  const assetDir = facts.assetDir ?? null;
+  const { problems, notes } = await preflight(assetDir, slug);
 
-  const assetId = assertSafeId(node.id);
-  const outputDir = path.join(assetsDir, assetId);
+  const assetId = runId;
+  const outputDir = assetsDir;
+  await fs.mkdir(nodeAssetsDir, { recursive: true });
   await fs.mkdir(outputDir, { recursive: true });
 
   const finalPath = path.join(outputDir, 'video.mp4');
@@ -253,7 +254,7 @@ async function execute(
       output: JSON.stringify({
         slug,
         dryRun: true,
-        projectDir,
+        assetDir,
         ...(facts.document ? { document: facts.document } : {}),
         ready: problems.length === 0,
         problems,
@@ -279,12 +280,15 @@ async function execute(
   const warnings: string[] = [];
   const tracks: MuxTrack[] = [];
   const usedClips: NarrationClipRef[] = [];
+  const musicPath = config.music ? findNodeMusic(nodeAssetsDir) : null;
 
   if (config.narration && facts.audioDir && facts.narrationClips.length) {
     for (const clip of facts.narrationClips) {
       const file = path.join(facts.audioDir, clip.file);
       if (fsSync.existsSync(file)) {
-        tracks.push({ path: file, startSeconds: 0 }); // Placeholder offset
+        // Offsets come from the narration's measured timeline, so each clip's
+        // voice starts where its picture does.
+        tracks.push({ path: file, startSeconds: clip.startSeconds });
         usedClips.push(clip);
       }
     }
@@ -310,6 +314,13 @@ async function execute(
     audio: {
       narrationClips: tracks.length,
       bitrate: tracks.length ? config.audioBitrate : null,
+      musicFile: musicPath ? path.relative(nodeAssetsDir, musicPath) : null,
+      clips: usedClips.map((clip) => ({
+        index: clip.index,
+        file: clip.file,
+        startSeconds: clip.startSeconds,
+        durationSeconds: clip.durationSeconds,
+      })),
     },
     commands,
   };
@@ -322,6 +333,8 @@ async function execute(
 
 export default {
   type: 'app-video-render',
-  capabilities: ['filesystem', 'process'],
+  // MP4 rendering is a panel-owned extra capability. The workflow produces
+  // the project/audio inputs; the panel opens the local render script.
+  capabilities: ['filesystem', 'process', 'video-spec'],
   execute,
 };

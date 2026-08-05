@@ -7,6 +7,7 @@ import { loadNodePlugins } from "./plugins.ts";
 interface WorkflowWorkerData {
   projectRoot: string;
   workflow: WorkflowItem;
+  runId: string;
 }
 
 type WorkflowWorkerMessage =
@@ -25,7 +26,7 @@ async function main(): Promise<void> {
   await loadNodePlugins(data.projectRoot, { log: false });
   const result = await executeWorkflow(data.workflow, (event) => {
     port.postMessage({ type: "event", event } satisfies WorkflowWorkerMessage);
-  });
+  }, data.runId);
   port.postMessage({ type: "result", result } satisfies WorkflowWorkerMessage);
 }
 

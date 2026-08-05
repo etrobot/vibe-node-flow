@@ -12,17 +12,25 @@ export interface EdgeTtsNarrationConfig {
   pitch: string;
   /** Also write a single stitched narration.mp3 covering every clip. */
   writeCombined: boolean;
-  /** Copy clip audio into `<project>/voice/` when the upstream manifest names a project. */
-  writeToProject: boolean;
   /** Clips synthesized at the same time. Keep it low; the service throttles. */
   concurrency: number;
   /** Per-request budget in milliseconds. */
   timeoutMs: number;
   /**
    * Warn when a clip's spoken audio exceeds its storyboard duration by more
-   * than this ratio, so timing can be corrected in the builder preview.
+   * than this ratio, so timing can be corrected in the builder preview. Only
+   * applies to storyboards that authored durations; under anchor timing the
+   * narration is the plan, so there is nothing to exceed.
    */
   durationTolerance: number;
+  /**
+   * Resolve `**anchors**` in the speech against real word boundaries and write
+   * the measured seconds back into the project's `chapter-N.json`, so the
+   * picture cuts where the voice actually lands.
+   */
+  applyTiming: boolean;
+  /** Floor for one resolved shot. Anchors closer than this are spread apart. */
+  minItemSeconds: number;
 }
 
 export const DEFAULT_EDGE_TTS_NARRATION_CONFIG: EdgeTtsNarrationConfig = {
@@ -31,8 +39,9 @@ export const DEFAULT_EDGE_TTS_NARRATION_CONFIG: EdgeTtsNarrationConfig = {
   volume: '+0%',
   pitch: '+0Hz',
   writeCombined: true,
-  writeToProject: true,
   concurrency: 2,
   timeoutMs: 60_000,
   durationTolerance: 0.35,
+  applyTiming: true,
+  minItemSeconds: 0.35,
 };

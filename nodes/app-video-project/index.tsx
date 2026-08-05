@@ -5,7 +5,7 @@ export const appVideoProjectModule: NodeModule = {
   type: 'app-video-project',
   label: 'App Video Project',
   menuLabel: 'App Video Project',
-  description: 'Materialize a validated storyboard as an idea-to-app-builder project: chapters.json plus chapter/chapter-N.json.',
+  description: 'Write a validated storyboard into the current run assets: chapters.json plus chapter/chapter-N.json.',
   icon: 'FolderTree',
   color: '#0369a1',
   badge: 'Project',

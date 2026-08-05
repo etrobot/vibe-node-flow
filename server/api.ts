@@ -8,10 +8,15 @@ import { executeSingleNode } from "./engine";
 import { callLLM } from "./llm";
 import { nodeOutputToText, normalizeNodeInput } from "../lib/node-io";
 import { getMaxFlowNodes } from "./env";
-import { listNodePluginDiagnostics, listNodePlugins, nodePluginHasCapability } from "./plugins";
-import { workflowAssetDir, workflowGeneratedAssetsDir } from "./paths";
+import {
+  listNodePluginDiagnostics,
+  listNodePlugins,
+  nodePluginHasCapability,
+  nodePluginScript,
+} from "./plugins";
+import { workflowAssetDir, workflowRunAssetsDir } from "./paths";
 import { getWorkflowRunJob, startWorkflowRun } from "./run-service";
-import { openVideoRenderTerminal } from "./video-render-terminal";
+import { openVideoRenderTerminal, VIDEO_RENDER_SCRIPT } from "./video-render-terminal";
 import { makeRunId } from "./run-id";
 import { saveWorkflowSchedule } from "./schedule-config";
 import {
@@ -250,9 +255,8 @@ export function registerApiRoutes(app: Express): void {
 
       storage.ensureWorkflowAssets(wf.id);
       const startedAt = new Date().toISOString();
-      const record = await executeSingleNode(node, input, nodeOutputs, wf.id);
-
       const singleRunId = makeRunId();
+      const record = await executeSingleNode(node, input, nodeOutputs, wf.id, singleRunId);
       try {
         store.insertRun({
           id: singleRunId,
@@ -368,11 +372,21 @@ export function registerApiRoutes(app: Express): void {
       }
       const baseUrl = (process.env.STUDIO_URL?.trim()
         || `http://127.0.0.1:${process.env.PORT || 3000}`).replace(/\/$/, "");
-      const outputPath = path.join(workflowGeneratedAssetsDir(run.workflowId), run.id, "video.mp4");
+      const outputPath = path.join(workflowRunAssetsDir(run.workflowId, run.id), "video.mp4");
+      // The node ships the renderer; the host only launches it. Nothing here
+      // names a node type or a package.json script.
+      const scriptPath = nodePluginScript(videoNode.nodeType, VIDEO_RENDER_SCRIPT);
+      if (!scriptPath) {
+        return res.status(400).json({
+          error: `Node ${videoNode.nodeType} does not ship ${VIDEO_RENDER_SCRIPT}, so there is nothing to run`,
+        });
+      }
       await openVideoRenderTerminal({
         projectRoot: process.cwd(),
+        scriptPath,
         runId: run.id,
         baseUrl,
+        outputPath,
       });
       res.status(202).json({
         started: true,

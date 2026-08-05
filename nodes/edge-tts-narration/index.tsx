@@ -17,7 +17,6 @@ interface NarrationManifest {
   clipCount?: number;
   totalSeconds?: number;
   combinedUrl?: string | null;
-  projectVoiceDir?: string | null;
   clips?: NarrationClipEntry[];
 }
 
@@ -86,9 +85,6 @@ const NarrationOutputView: React.FC<NodeModuleEditorProps> = ({ node }) => {
         })}
       </ol>
 
-      {manifest.projectVoiceDir ? (
-        <p className="text-xs text-muted">Copied to {manifest.projectVoiceDir}</p>
-      ) : null}
     </div>
   );
 };

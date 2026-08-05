@@ -29,11 +29,13 @@ export interface NarrationClipRef {
   index: number;
   file: string;
   durationSeconds: number;
+  /** Clip start on the finished timeline, measured by `edge-tts-narration`. */
+  startSeconds: number;
 }
 
 export interface UpstreamFacts {
   slug: string | null;
-  projectDir: string | null;
+  assetDir: string | null;
   /** Original storyboard document when an upstream node carries it. */
   document: Record<string, unknown> | null;
   /** Directory holding the clip MP3s reported by `edge-tts-narration`. */
@@ -73,7 +75,7 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
 
   const facts: UpstreamFacts = {
     slug: null,
-    projectDir: null,
+    assetDir: null,
     document: null,
     audioDir: null,
     narrationClips: [],
@@ -104,22 +106,34 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     }
 
     if (!facts.slug && trimmed(parsed.slug)) facts.slug = trimmed(parsed.slug);
-    if (!facts.projectDir && trimmed(parsed.projectDir)) {
-      facts.projectDir = trimmed(parsed.projectDir);
+    if (!facts.assetDir && trimmed(parsed.assetDir)) {
+      facts.assetDir = trimmed(parsed.assetDir);
     }
 
-    const audioDir = trimmed(parsed.audioDir) || trimmed(parsed.projectVoiceDir);
+    const audioDir = trimmed(parsed.audioDir);
     const clips = Array.isArray(parsed.clips)
       ? parsed.clips.filter((clip: any) => CLIP_AUDIO_PATTERN.test(trimmed(clip?.file)))
       : [];
     if (audioDir && clips.length && !facts.narrationClips.length) {
+      // `timeline` is what the narration measured; a clip entry's own
+      // `startSeconds` is the same number, kept as the fallback for manifests
+      // written before the timeline existed.
+      const timeline = new Map<number, number>(
+        (Array.isArray(parsed.timeline) ? parsed.timeline : [])
+          .filter((entry: any) => Number.isInteger(entry?.clipIndex))
+          .map((entry: any) => [Number(entry.clipIndex), Number(entry.startSeconds) || 0]),
+      );
       facts.audioDir = audioDir;
       facts.narrationClips = clips
-        .map((clip: any, position: number) => ({
-          index: Number.isInteger(clip.index) ? Number(clip.index) : position,
-          file: trimmed(clip.file),
-          durationSeconds: Number(clip.durationSeconds) || 0,
-        }))
+        .map((clip: any, position: number) => {
+          const index = Number.isInteger(clip.index) ? Number(clip.index) : position;
+          return {
+            index,
+            file: trimmed(clip.file),
+            durationSeconds: Number(clip.durationSeconds) || 0,
+            startSeconds: timeline.get(index) ?? (Number(clip.startSeconds) || 0),
+          };
+        })
         .sort((left: NarrationClipRef, right: NarrationClipRef) => left.index - right.index);
     }
   }
@@ -163,9 +177,9 @@ export function timelineSeconds(timeline: TimelineClip[]): number {
   return last ? round(last.startSeconds + last.durationSeconds) : 0;
 }
 
-/** Read the project timeline from chapter-N.json files in projectDir. */
-export function readProjectTimeline(projectDir: string): TimelineClip[] {
-  const chapterDir = path.join(projectDir, 'chapter');
+/** Read the run timeline from chapter-N.json files in an asset directory. */
+export function readRunAssetTimeline(assetDir: string): TimelineClip[] {
+  const chapterDir = path.join(assetDir, 'chapter');
   let names: string[];
   try {
     names = fs.readdirSync(chapterDir);
@@ -193,10 +207,10 @@ export function readProjectTimeline(projectDir: string): TimelineClip[] {
   return timeline;
 }
 
-/** Search for background music file in projectDir/music. */
-export function findProjectMusic(projectDir: string): string | null {
+/** Search for reusable background music in a video node's asset directory. */
+export function findNodeMusic(nodeAssetsDir: string): string | null {
   for (const name of MUSIC_FILE_NAMES) {
-    const candidate = path.join(projectDir, 'music', name);
+    const candidate = path.join(nodeAssetsDir, 'music', name);
     if (fs.existsSync(candidate)) return candidate;
   }
   return null;

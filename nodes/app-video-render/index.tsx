@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import type { NodeModule, NodeModuleEditorProps } from '@/App/types.node-module';
+import { api } from '@/App/utils/api';
 import { DEFAULT_APP_VIDEO_RENDER_CONFIG } from './config';
+import { hydrateDocument } from '../clip-storyboard/resolve.ts';
 import { InteractivePlayer } from './renderer/InteractivePlayer';
 import type { ClipsDocument } from './renderer/clipTypes';
-import { Film, Play, PlayCircle, Loader2 } from 'lucide-react';
+import { Film, Play, Terminal, Loader2 } from 'lucide-react';
 
 interface RenderClipEntry {
   index: number;
@@ -63,6 +65,17 @@ function parseObject(value: unknown): Record<string, any> | null {
   }
 }
 
+/**
+ * A compact storyboard still carries `key`/`spot` references and no seconds.
+ * The player reads the flat shape, so expand before previewing.
+ */
+function needsHydration(candidate: Record<string, any>): boolean {
+  if (Array.isArray(candidate['global-components']) && candidate['global-components'].length) return true;
+  return candidate.clips.some((clip: any) => (clip?.items || []).some(
+    (item: any) => item?.key || !(Number(item?.duration) > 0),
+  ));
+}
+
 /** Convert a full storyboard or an older project summary into a preview document. */
 function toPreviewDocument(value: unknown): ClipsDocument | null {
   const parsed = parseObject(value);
@@ -72,7 +85,11 @@ function toPreviewDocument(value: unknown): ClipsDocument | null {
   if (!Array.isArray(candidate.clips) || candidate.clips.length === 0) return null;
 
   const hasRendererItems = candidate.clips.some((clip: any) => Array.isArray(clip?.items));
-  if (hasRendererItems) return candidate as ClipsDocument;
+  if (hasRendererItems) {
+    return (needsHydration(candidate)
+      ? hydrateDocument(candidate as any)
+      : candidate) as ClipsDocument;
+  }
 
   // app-video-project manifests written before document persistence contain
   // speech/background summaries only. Keep those historical runs previewable.
@@ -110,10 +127,12 @@ function megabytes(value: number | undefined): string {
 const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
   node,
   allNodes,
-  onRunSingleNode,
   readOnly,
+  runId,
 }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'mp4'>('preview');
+  const [openingRenderTerminal, setOpeningRenderTerminal] = useState(false);
+  const [renderTerminalError, setRenderTerminalError] = useState<string | null>(null);
   const manifest = useMemo(() => parseManifest(node.output), [node.output]);
 
   // Prefer the render manifest's embedded document. This is essential for
@@ -141,7 +160,20 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
     return null;
   }, [manifest, allNodes]);
 
-  const isRendering = node.status === 'running';
+  const canOpenRenderTerminal = Boolean(runId && node.output && node.status !== 'running');
+
+  const openRenderTerminal = async () => {
+    if (!runId || openingRenderTerminal) return;
+    setOpeningRenderTerminal(true);
+    setRenderTerminalError(null);
+    try {
+      await api.openVideoRenderTerminal(runId);
+    } catch (error) {
+      setRenderTerminalError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setOpeningRenderTerminal(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -177,28 +209,39 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
           </button>
         </div>
 
-        {/* Explicit Action: Render Video Button */}
-        {!readOnly ? (
+        {/* Extra capability: rendering is intentionally outside workflow execution. */}
+        {canOpenRenderTerminal ? (
           <button
             type="button"
-            disabled={isRendering}
-            onClick={() => onRunSingleNode(node.id)}
+            disabled={openingRenderTerminal}
+            onClick={() => void openRenderTerminal()}
+            title="Open a terminal and run the MP4 render script"
             className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors cursor-pointer"
           >
-            {isRendering ? (
+            {openingRenderTerminal ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Rendering...
+                Opening terminal...
               </>
             ) : (
               <>
-                <PlayCircle className="w-3.5 h-3.5" />
+                <Terminal className="w-3.5 h-3.5" />
                 Render MP4
               </>
             )}
           </button>
+        ) : !readOnly ? (
+          <span className="text-[11px] text-muted" title="Run the workflow first to create a render context.">
+            Run workflow to enable MP4 render
+          </span>
         ) : null}
       </div>
+
+      {renderTerminalError ? (
+        <div className="rounded-lg border border-semantic-error/30 bg-semantic-error/5 px-3 py-2 text-xs text-semantic-error">
+          Could not open the render terminal: {renderTerminalError}
+        </div>
+      ) : null}
 
       {/* Tab 1: Interactive Motion Preview */}
       {activeTab === 'preview' && (

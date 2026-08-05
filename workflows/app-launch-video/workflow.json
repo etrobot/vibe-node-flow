@@ -66,8 +66,10 @@
         "minComponentTypes": 6,
         "targetDurationSeconds": 60,
         "durationTolerance": 0.25,
+        "timingMode": "anchor",
+        "maxGlobalComponents": 6,
         "temperature": 0.6,
-        "systemPrompt": "You are a storyboard director for a local motion-graphics video renderer. You return one JSON document and nothing else: no Markdown fences, no commentary. Every claim in the narration must be supported by the upstream brief."
+        "systemPrompt": "You are a storyboard director for a local motion-graphics video renderer. You return one JSON document and nothing else: no Markdown fences, no commentary. Every claim in the narration must be supported by the upstream brief. Declare each reusable structure once in global-components and revisit it across clips with a different spot, so a diagram builds up instead of restarting. Items carry no duration: mark where the picture cuts with **anchors** in the speech."
       }
     },
     {
@@ -83,8 +85,6 @@
         "FS"
       ],
       "config": {
-        "builderProjectsDir": "idea-to-app-builder/projects",
-        "overwrite": true,
         "writeDescription": true
       }
     },
@@ -107,6 +107,8 @@
         "pitch": "+0Hz",
         "writeCombined": true,
         "writeToProject": true,
+        "applyTiming": true,
+        "minItemSeconds": 0.35,
         "concurrency": 2,
         "timeoutMs": 60000,
         "durationTolerance": 0.35
@@ -125,7 +127,6 @@
         "FS"
       ],
       "config": {
-        "builderDir": "idea-to-app-builder",
         "slug": "",
         "resolution": "1080p",
         "fps": 30,

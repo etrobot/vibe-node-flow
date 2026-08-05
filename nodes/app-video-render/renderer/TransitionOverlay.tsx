@@ -1,9 +1,11 @@
 import {useMemo} from 'react';
 import {getTransitionBlobColors} from './theme';
+import type {ClipPalette} from './clipTypes';
 
 interface TransitionOverlayProps {
   progress: number;
   hue?: number;
+  palette?: ClipPalette;
   quality?: 'light' | 'soft';
 }
 
@@ -65,8 +67,8 @@ function fadeEnvelope(progress: number) {
   return 1;
 }
 
-export default function TransitionOverlay({progress, hue, quality = 'soft'}: TransitionOverlayProps) {
-  const colors = useMemo(() => getTransitionBlobColors(hue), [hue]);
+export default function TransitionOverlay({progress, hue, palette, quality = 'soft'}: TransitionOverlayProps) {
+  const colors = useMemo(() => getTransitionBlobColors(hue, palette), [hue, palette]);
   const p = clamp01(progress);
   const envelope = fadeEnvelope(p);
   const peak = Math.sin(p * Math.PI); // 0 → 1 → 0, maxed at the midpoint

@@ -1,7 +1,43 @@
 // Pure color-theme utilities — NO Three.js / R3F dependency.
 // Import from here in any render-path code that doesn't need 3D.
 
-export function getThemeColors(hue?: number) {
+import type {ClipPalette} from './clipTypes';
+
+/** `#rrggbb` to `rgba(r, g, b, alpha)`, for the glow color the theme exposes. */
+function withAlpha(hex: string, alpha: number) {
+  const value = hex.replace('#', '');
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return `rgba(168, 85, 247, ${alpha})`;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * Spread the five palette roles across the thirteen slots the scene layers ask
+ * for. The hue bands below stay the default; a storyboard only overrides them
+ * when it has brand colors that no band approximates.
+ */
+function paletteTheme(palette: ClipPalette) {
+  return {
+    blob1: palette.accent,
+    blob2: palette.secondary,
+    blob3: palette.secondary,
+    pointLight1: palette.accent,
+    pointLight2: palette.secondary,
+    mountainWireframe: palette.accent,
+    mountainLight1: palette.secondary,
+    mountainLight2: palette.accent,
+    shockwave: palette.accent,
+    themePrimary: palette.accent,
+    themeSecondary: palette.secondary,
+    themeAccent: palette.foreground,
+    themeGlow: withAlpha(palette.accent, 0.42),
+  };
+}
+
+export function getThemeColors(hue?: number, palette?: ClipPalette) {
+  if (palette) return paletteTheme(palette);
   const h = hue ?? 0;
 
   if (h === 0 || h === 360) {
@@ -112,7 +148,8 @@ export function getThemeColors(hue?: number) {
   };
 }
 
-export function getTransitionBlobColors(hue?: number) {
+export function getTransitionBlobColors(hue?: number, palette?: ClipPalette) {
+  if (palette) return [palette.accent, palette.secondary, palette.accent, palette.secondary, palette.muted];
   const h = hue ?? 0;
 
   if (h === 0 || h === 360) {

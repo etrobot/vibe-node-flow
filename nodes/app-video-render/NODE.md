@@ -2,15 +2,33 @@
 
 ## Design
 
-`app-video-render` turns the builder project written by `app-video-project` into a finished MP4. It performs no model call. It drives the local toolchain in `data/idea-to-app-builder`: Playwright screenshots every frame of every clip, ffmpeg concatenates them, and this node then mixes the audio.
+`app-video-render` prepares and reports the MP4 render for the current run. It performs no model call.
 
-The audio mix is the part the builder cannot do. `scripts/render-video.ts` supports exactly one looped background track (`--music`), which is wrong for narration: a stitched voice track would loop when it is shorter than the video and drift out of sync with the clips. So the node always renders silent (`--no-audio`) and builds the mix itself, placing each clip's MP3 at that clip's real start offset.
+**Where the render actually runs.** `execute()` validates the slug, checks the toolchain, resolves the audio layout, and writes `render.json`; it does not itself capture frames or invoke ffmpeg. The MP4 is produced by `render-video.sh`, which this node owns and the panel's **Render MP4** button opens in a visible terminal. The helpers in `render.ts` — `buildRenderArgs`, `buildMuxArgs`, `readProjectTimeline` — are the deterministic pieces that path is built from and are covered by `server/video-render.test.ts`.
 
-Clip offsets are a plain cumulative sum of clip durations. That is exact, not an estimate: `render-video.ts` advances its timeline by `getClipDuration(clip)` per clip and draws transitions inside clip time, so a clip's start in `final.mp4` is the sum of the durations before it. The offsets are read from `projects/<slug>/chapter/chapter-N.json` rather than from the upstream storyboard, so timings edited by hand in the builder preview are respected.
+## The render script
+
+`render-video.sh` sits in this directory and is the only thing the host launches:
+
+```sh
+render-video.sh --run-id <id> --base-url <studio origin> --out <absolute mp4 path>
+```
+
+The host finds it through `nodePluginScript(type, 'render-video.sh')` — it looks for that file in the directory of whichever node declares the `video-spec` capability, and knows nothing else about it. Nothing is declared in the host `package.json`: a script entry there would mean the host owns a command on this node's behalf, so removing the node would leave a dangling `npm run`, and two nodes could never both own a render step.
+
+The script validates its arguments, checks `node`/`curl`/`ffmpeg`, and fetches the run's spec from `/api/video/spec/<run-id>` before doing anything expensive. It then hands off to `scripts/render-video.mjs` or `scripts/render-video.ts` beside it.
+
+**That handoff target is not yet implemented.** Frame capture needs a browser driver, so it cannot live in bash. Until the file exists the script exits `2` and prints the contract it expects. Two known gaps to close when writing it: `RenderEntrypoints.tsx` fetches `/api/projects/:name`, which `server/api.ts` does not implement (`/api/video/spec/:runId` is the endpoint that does), and `buildMuxArgs()` is imported by `server.ts` but never called.
+
+Exit codes: `0` the MP4 exists at `--out`, `2` no renderer installed, `64` bad arguments, `1` anything else.
+
+The audio mix is the part the renderer cannot delegate. `scripts/render-video.ts` supports exactly one looped background track (`--music`), which is wrong for narration: a stitched voice track would loop when it is shorter than the video and drift out of sync with the clips. So the node always renders silent (`--no-audio`) and builds the mix itself, placing each clip's MP3 at that clip's real start offset.
+
+Clip offsets come from the `timeline` that `edge-tts-narration` measured, not from a running total of planned durations. That node resolves each clip's `**anchors**` against real word boundaries and writes the resulting shot lengths back into `chapter/chapter-N.json`, so the picture timeline and the audio timeline are derived from the same measurement. Manifests written before `timeline` existed fall back to each clip entry's own `startSeconds`.
 
 ## Toolchain
 
-The builder workspace is a separate, git-ignored install. Before rendering, the node checks for `scripts/render-video.ts`, the project directory, `playwright-core`, `vite`, and `ffmpeg`, and reports each missing piece with its own fix:
+The renderer uses a separate, git-ignored toolchain install. Before rendering, the node checks for `scripts/render-video.ts`, the run asset directory, `playwright-core`, `vite`, and `ffmpeg`, and reports each missing piece with its own fix:
 
 ```sh
 cd data/idea-to-app-builder && npm install
@@ -23,15 +41,15 @@ brew install ffmpeg
 
 - Input: one or more upstream JSON manifests. The `edge-tts-narration` manifest supplies the clip MP3s; the `app-video-project` manifest supplies the slug. Either alone is enough — without narration the node renders a silent or music-only video.
 - Output: JSON manifest with the video path and playable URL, byte size, measured and planned duration, encode settings, the audio mix summary, per-clip start offsets with their narration file, and the exact commands that ran.
-- Side effects: writes `projects/<slug>/renders/flow-<timestamp>/silent.mp4` and `final.mp4` into the builder workspace, then copies the final file to `video.mp4` in the run's asset directory alongside `render.json`.
+- Side effects: writes `video.mp4` and `render.json` into `data/assets/<workflow-id>/generated/<run-id>/`. Reusable video-node assets, such as background music, live under `data/assets/<node-id>/`.
 
 ## Audio Mix
 
-Each clip MP3 becomes one ffmpeg input, normalized to 48 kHz stereo (`amix` rejects inputs whose rate or layout differ) and delayed with `adelay` to its clip start. Background music from `projects/<slug>/music/bgm.*` is looped, scaled by `musicVolume`, and trimmed to the timeline length. The mix is padded with `apad` so `-shortest` trims the audio to the video instead of cutting the video down to a shorter narration.
+Each clip MP3 becomes one ffmpeg input, normalized to 48 kHz stereo (`amix` rejects inputs whose rate or layout differ) and delayed with `adelay` to its clip start. Background music from `data/assets/<node-id>/music/bgm.*` is looped, scaled by `musicVolume`, and trimmed to the timeline length. The mix is padded with `apad` so `-shortest` trims the audio to the video instead of cutting the video down to a shorter narration.
 
 ## Configuration
 
-`builderDir` is resolved relative to the server data directory and defaults to `idea-to-app-builder`. `slug` overrides the slug from the upstream manifest; blank uses the upstream value. `resolution` (`1080p` or `4k`), `fps`, `crf`, and `x264Preset` map to the builder's own flags — the defaults trade a little quality for render time, since the builder's own defaults (`crf 12`, `slow`) are tuned for a final master.
+`slug` overrides the slug from the upstream manifest; blank uses the upstream value. `resolution` (`1080p` or `4k`), `fps`, `crf`, and `x264Preset` map to the builder's own flags — the defaults trade a little quality for render time, since the builder's own defaults (`crf 12`, `slow`) are tuned for a final master.
 
 `narration` and `music` toggle the two audio sources, `musicVolume` sets the music gain, and `audioBitrate` sets the AAC bitrate. `validateProject` runs the builder's `validate-project` first so a contract error costs seconds instead of a full render. `timeoutMs` bounds the render; the whole process group is terminated on expiry, because `npm run` is only the parent of the renderer.
 
@@ -41,7 +59,7 @@ Each clip MP3 becomes one ffmpeg input, normalized to 48 kHz stereo (`amix` reje
 
 ## Failure Behavior
 
-Missing upstream input, an unusable slug, a `builderDir` outside the data directory, an unready builder workspace, an unreadable project, and a failed `validate-project` are warnings (`⚠️`). A non-zero exit from `render-video` or `ffmpeg`, a timeout, and a missing output file are errors, because at that point the toolchain itself failed. When the video renders but narration is longer than its clip slot or a clip's MP3 is missing, the node returns its manifest with `warning` status so the timing can be corrected in the builder preview.
+Missing upstream input, an unusable slug, and an unready toolchain are warnings (`⚠️`). `dryRun` reports the same preflight without committing to a render.
 
 The editor's **Stop** action terminates the server-side Worker, which does not reach processes that Worker spawned. A render already in flight keeps running to completion. The node logs its process group id at spawn time so it can be stopped by hand:
 

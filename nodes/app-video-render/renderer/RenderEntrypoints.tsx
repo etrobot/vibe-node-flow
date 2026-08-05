@@ -145,8 +145,8 @@ function useProjectData(projectName: string | null) {
   return data;
 }
 
-function makeThemeStyle(hue?: number): CSSProperties {
-  const theme = getThemeColors(hue);
+function makeThemeStyle(hue?: number, palette?: ClipsDocument['palette']): CSSProperties {
+  const theme = getThemeColors(hue, palette);
   return {
     '--theme-primary': theme.themePrimary,
     '--theme-secondary': theme.themeSecondary,
@@ -179,7 +179,7 @@ function DirectPlayerRenderer() {
   const clips = projectData?.clips;
   const totalDuration = useMemo(() => clips ? getTotalDuration(clips) : 0, [clips]);
   const [time, setTime] = useState(0);
-  const themeStyle = useMemo(() => makeThemeStyle(projectData?.hue), [projectData?.hue]);
+  const themeStyle = useMemo(() => makeThemeStyle(projectData?.hue, projectData?.palette), [projectData?.hue, projectData?.palette]);
   const syncRenderAnimations = useRenderAnimationSync();
   const availableBackgroundVideos = useMemo(() => new Set(
     (query.get('backgroundVideos') || '')
@@ -235,6 +235,7 @@ function DirectPlayerRenderer() {
           clips={clips}
           time={time}
           hue={projectData?.hue}
+          palette={projectData?.palette}
           projectName={projectName}
           themeStyle={themeStyle}
           resolveBackgroundVideoUrl={resolveBackgroundVideoUrl}
@@ -350,7 +351,7 @@ function TransparentClipRenderer() {
   const clips = projectData?.clips;
 
   const clip = clips?.[clipIndex];
-  const themeStyle = useMemo(() => makeThemeStyle(projectData?.hue), [projectData?.hue]);
+  const themeStyle = useMemo(() => makeThemeStyle(projectData?.hue, projectData?.palette), [projectData?.hue, projectData?.palette]);
   const syncRenderAnimations = useRenderAnimationSync();
 
   useEffect(() => {
@@ -432,7 +433,7 @@ function TransitionFrameRenderer() {
 
   return (
     <div className="fixed inset-0 bg-transparent overflow-hidden" data-render-root="transition">
-      <TransitionOverlay progress={progress} hue={projectData?.hue} quality="soft" />
+      <TransitionOverlay progress={progress} hue={projectData?.hue} palette={projectData?.palette} quality="soft" />
     </div>
   );
 }
@@ -472,5 +473,5 @@ function BackgroundVideoRenderer() {
   }
 
   // Pure CSS gradient background — no Three.js
-  return <BackgroundLayer background={bgType} hue={projectData?.hue} time={time} />;
+  return <BackgroundLayer background={bgType} hue={projectData?.hue} palette={projectData?.palette} time={time} />;
 }

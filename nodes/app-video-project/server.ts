@@ -6,7 +6,6 @@ import {
   type NodePluginContext,
   type NodePluginResult,
 } from '../../server/plugins.ts';
-import { assertSafeId, DATA_DIR } from '../../server/paths.ts';
 import {
   estimateDurationSeconds,
   parseStoryboardJson,
@@ -14,6 +13,7 @@ import {
   type StoryboardClip,
   type StoryboardDocument,
 } from '../clip-storyboard/contract.ts';
+import { hydrateClips, hydrateDocument } from '../clip-storyboard/resolve.ts';
 import { DEFAULT_APP_VIDEO_PROJECT_CONFIG, type AppVideoProjectConfig } from './config.ts';
 
 function normalizeConfig(value: unknown): AppVideoProjectConfig {
@@ -55,8 +55,10 @@ function readStoryboard(raw: string): StoryboardDocument {
 }
 
 /** Split clips into one file per chapter, matching the builder's chapter-N.json layout. */
-export function chapterFiles(document: StoryboardDocument): Array<{ file: string; clips: StoryboardClip[] }> {
-  const files: Array<{ file: string; clips: StoryboardClip[] }> = [];
+export function chapterFiles(
+  document: StoryboardDocument,
+): Array<{ file: string; startClip: number; clips: StoryboardClip[] }> {
+  const files: Array<{ file: string; startClip: number; clips: StoryboardClip[] }> = [];
   let cursor = 0;
   document.chapters.forEach((chapter: StoryboardChapter, index: number) => {
     const count = Number(chapter?.clipCount);
@@ -69,7 +71,7 @@ export function chapterFiles(document: StoryboardDocument): Array<{ file: string
         `Chapter ${index + 1} claims ${count} clips but only ${clips.length} remain in the storyboard.`,
       );
     }
-    files.push({ file: `chapter-${index + 1}.json`, clips });
+    files.push({ file: `chapter-${index + 1}.json`, startClip: cursor, clips });
     cursor += count;
   });
   if (cursor !== document.clips.length) {
@@ -104,38 +106,48 @@ export function buildDescription(document: StoryboardDocument, seconds: number):
   ].join('\n');
 }
 
-async function writeProject(
-  projectDir: string,
+async function writeRunAssets(
+  assetsDir: string,
   document: StoryboardDocument,
-  files: Array<{ file: string; clips: StoryboardClip[] }>,
+  files: Array<{ file: string; startClip: number; clips: StoryboardClip[] }>,
   config: AppVideoProjectConfig,
   seconds: number,
 ): Promise<void> {
-  const chapterDir = path.join(projectDir, 'chapter');
+  const chapterDir = path.join(assetsDir, 'chapter');
   await fs.rm(chapterDir, { recursive: true, force: true });
   await fs.mkdir(chapterDir, { recursive: true });
 
   await fs.writeFile(
-    path.join(projectDir, 'chapters.json'),
+    path.join(assetsDir, 'chapters.json'),
     `${JSON.stringify({
       title: document.title,
       hook: document.hook,
       summary: document.summary,
       closing: document.closing,
       hue: document.hue,
+      ...(document.palette ? { palette: document.palette } : {}),
       chapters: document.chapters,
     }, null, 2)}\n`,
     'utf8',
   );
+
+  // The authored document, references and anchors intact. `chapter-N.json` is
+  // the expanded render input; this is the file to edit and re-run from.
+  await fs.writeFile(
+    path.join(assetsDir, 'storyboard.json'),
+    `${JSON.stringify(document, null, 2)}\n`,
+    'utf8',
+  );
+
   for (const entry of files) {
     await fs.writeFile(
       path.join(chapterDir, entry.file),
-      `${JSON.stringify({ clips: entry.clips }, null, 2)}\n`,
+      `${JSON.stringify({ clips: hydrateClips(document, entry.clips, entry.startClip) }, null, 2)}\n`,
       'utf8',
     );
   }
   if (config.writeDescription) {
-    await fs.writeFile(path.join(projectDir, 'description.md'), `${buildDescription(document, seconds)}\n`, 'utf8');
+    await fs.writeFile(path.join(assetsDir, 'description.md'), `${buildDescription(document, seconds)}\n`, 'utf8');
   }
 }
 
@@ -149,29 +161,36 @@ async function execute({ node, input, assetsDir }: NodePluginContext): Promise<N
 
   const files = chapterFiles(document);
   const seconds = estimateDurationSeconds(document.clips);
-  const runProjectDir = path.join(assetsDir, assertSafeId(node.id), 'project');
-  await fs.mkdir(runProjectDir, { recursive: true });
-  await writeProject(runProjectDir, document, files, config, seconds);
+  await fs.mkdir(assetsDir, { recursive: true });
+  await writeRunAssets(assetsDir, document, files, config, seconds);
 
   const logs = [
-    `Wrote ${files.length} chapter file(s) and ${document.clips.length} clip(s) to ${runProjectDir}.`,
-    `Estimated runtime: ${seconds.toFixed(1)}s.`,
+    `Wrote ${files.length} chapter file(s) and ${document.clips.length} clip(s) to ${assetsDir}.`,
+    `Expanded ${(document['global-components'] || []).length} reusable structure(s) into clip items.`,
+    `Estimated narration: ${seconds.toFixed(1)}s.`,
   ];
 
   const manifest = {
     slug,
     // Keep the source document in the manifest so downstream render nodes and
-    // historical run views can reconstruct the interactive preview.
-    document,
+    // historical run views can reconstruct the interactive preview. It is the
+    // hydrated form, because that is what a player can render directly.
+    document: hydrateDocument(document),
+    // The authored form, so a rerun can re-resolve references and anchors.
+    storyboard: document,
     title: document.title,
     hue: document.hue,
-    projectDir: runProjectDir,
+    ...(document.palette ? { palette: document.palette } : {}),
+    assetDir: assetsDir,
     chapterFiles: files.map((entry) => entry.file),
     clipCount: document.clips.length,
+    globalComponentCount: (document['global-components'] || []).length,
     estimatedSeconds: Number(seconds.toFixed(1)),
     clips: document.clips.map((clip, index) => ({
       index,
+      // Anchors intact: `edge-tts-narration` needs them to place the cuts.
       speech: String(clip.speech ?? '').trim(),
+      itemCount: (clip.items || []).length,
       background: clip.background,
     })),
   };

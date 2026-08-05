@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import Database from "better-sqlite3";
 import type {
   RunRecord,
@@ -7,7 +8,7 @@ import type {
   NodeStatus,
   RunTrigger,
 } from "../App/types";
-import { ensureDataDirs, DB_PATH } from "./paths";
+import { ensureDataDirs, DB_PATH, workflowRunAssetsDir } from "./paths";
 
 let db: Database.Database | null = null;
 
@@ -193,7 +194,13 @@ export function getRun(id: string): RunRecord | null {
 
 export function deleteRun(id: string): boolean {
   const database = getDb();
+  const run = database.prepare(`SELECT workflow_id FROM runs WHERE id = ?`).get(id) as
+    | { workflow_id: string }
+    | undefined;
   const info = database.prepare(`DELETE FROM runs WHERE id = ?`).run(id);
   database.prepare(`DELETE FROM run_nodes WHERE run_id = ?`).run(id);
+  if (run) {
+    fs.rmSync(workflowRunAssetsDir(run.workflow_id, id), { recursive: true, force: true });
+  }
   return info.changes > 0;
 }
