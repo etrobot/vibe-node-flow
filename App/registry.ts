@@ -66,8 +66,21 @@ export const ADDABLE_NODE_MODULES = NODE_MODULES.filter(
 
 const BY_TYPE = new Map<NodeType, NodeModule>(NODE_MODULES.map((module) => [module.type, module]));
 
+const DOC_BY_TYPE = new Map<NodeType, string>();
+for (const external of externalNodeModules) {
+  const doc = external?.nodeDoc;
+  const type = external?.module?.type;
+  if (typeof type === 'string' && typeof doc === 'string' && doc.trim()) {
+    DOC_BY_TYPE.set(type, doc);
+  }
+}
+
 export function getModule(type: NodeType): NodeModule {
   return BY_TYPE.get(type) ?? { ...missingNodeModule, type };
+}
+
+export function getNodeDoc(type: NodeType): string | null {
+  return DOC_BY_TYPE.get(type) ?? null;
 }
 
 export function getRenderPage(): React.FC | null {

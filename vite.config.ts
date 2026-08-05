@@ -1,6 +1,7 @@
+import fs from 'node:fs';
+import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 import {defineConfig} from 'vite';
 import { discoverNodePlugins } from './server/plugin-discovery';
 
@@ -22,11 +23,19 @@ function nodePluginVite() {
       const imports = discovered.plugins.map(
         (plugin, index) => `import * as p${index} from ${JSON.stringify(plugin.clientPath)};`,
       );
-      const values = discovered.plugins.map((plugin, index) => `({
+      const values = discovered.plugins.map((plugin, index) => {
+        const docPath = path.join(plugin.dir, 'NODE.md');
+        let nodeDoc: string | null = null;
+        if (fs.existsSync(docPath)) {
+          nodeDoc = fs.readFileSync(docPath, 'utf8');
+        }
+        return `({
         dirName: ${JSON.stringify(plugin.dirName)},
         expectedType: ${JSON.stringify(plugin.type)},
-        module: p${index}.default ?? p${index}
-      })`);
+        module: p${index}.default ?? p${index},
+        nodeDoc: ${JSON.stringify(nodeDoc)}
+      })`;
+      });
       return `${imports.join('\n')}\nexport default [${values.join(', ')}];`;
     },
   };

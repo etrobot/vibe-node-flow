@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import { FlowNode, FlowEdge } from '@/App/types';
 import { renderLucideIcon } from '@/App/components/ui/IconPicker';
 import { IconPickerModal } from '@/App/components/ui/IconPickerModal';
+import { NodeDocModal } from '@/App/components/ui/NodeDocModal';
 import { ErrorBoundary } from '@/App/components/ErrorBoundary';
-import { getModule } from './registry';
+import { getModule, getNodeDoc } from './registry';
 import { resolveUpstreamInput } from '@/App/utils/upstream';
 import {
   ChevronRight,
@@ -24,6 +25,7 @@ import {
   FileText,
   Filter,
   PencilLine,
+  CircleHelp,
   X,
 } from 'lucide-react';
 
@@ -67,6 +69,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showIconModal, setShowIconModal] = useState(false);
   const [showFullPanelModal, setShowFullPanelModal] = useState(false);
+  const [showNodeDocModal, setShowNodeDocModal] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualInputDraft, setManualInputDraft] = useState('');
   const [lastManualInput, setLastManualInput] = useState<string | null>(null);
@@ -75,6 +78,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const activeModule = node ? getModule(node.type) : null;
+  const nodeDoc = node ? getNodeDoc(node.type) : null;
   const hasCustomPanel = Boolean(
     activeModule?.CustomView || activeModule?.OutputView || activeModule?.RenderPage,
   );
@@ -547,6 +551,16 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 
           {node && (
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowNodeDocModal(true)}
+                title="View NODE.md documentation"
+                aria-label="View node documentation"
+                className="grid h-7 w-7 place-items-center rounded-lg border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
+              >
+                <CircleHelp className="h-3.5 w-3.5" />
+              </button>
+
               {node.executionTime !== undefined && (
                 <span className="text-[11px] text-muted font-mono flex items-center gap-1">
                   <Clock className="w-3 h-3 text-muted" />
@@ -885,6 +899,15 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           </div>
         </div>,
         document.body
+      )}
+
+      {showNodeDocModal && node && (
+        <NodeDocModal
+          nodeTitle={node.title}
+          nodeType={node.type}
+          markdown={nodeDoc ?? ''}
+          onClose={() => setShowNodeDocModal(false)}
+        />
       )}
     </>
   );

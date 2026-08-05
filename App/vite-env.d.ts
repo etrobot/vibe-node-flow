@@ -5,6 +5,7 @@ declare module 'virtual:vibenodeflow-node-modules' {
     dirName: string;
     expectedType: string;
     module: NodeModule;
+    nodeDoc: string | null;
   }
   const modules: ExternalNodeModule[];
   export default modules;
