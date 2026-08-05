@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { WorkflowItem } from '../../types';
 import { RunHistoryPage } from './RunHistoryPage';
 import { WorkflowListHome } from './WorkflowListHome';
@@ -15,6 +15,9 @@ interface HomePageProps {
     id: string, name: string, description: string, icon: string, color: string
   ) => void;
   onOpenRun: (runId: string) => void;
+  onChangeTab?: (tab: 'history' | 'workflows', workflowId?: string | null) => void;
+  onCopyWorkflowLink?: (workflowId: string) => void;
+  onCopyRunLink?: (runId: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -26,6 +29,9 @@ export const HomePage: React.FC<HomePageProps> = ({
   onDeleteWorkflow,
   onEditWorkflowMeta,
   onOpenRun,
+  onChangeTab,
+  onCopyWorkflowLink,
+  onCopyRunLink,
 }) => {
   const [activeTab, setActiveTab] = useState<'history' | 'workflows'>(
     initialTab || 'history'
@@ -35,6 +41,20 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [historyFilterWorkflowId, setHistoryFilterWorkflowId] = useState<string | null>(
     initialFilterWorkflowId || null
   );
+
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
+  useEffect(() => {
+    setHistoryFilterWorkflowId(initialFilterWorkflowId || null);
+  }, [initialFilterWorkflowId]);
+
+  const changeTab = (tab: 'history' | 'workflows', workflowId = historyFilterWorkflowId) => {
+    setActiveTab(tab);
+    if (tab === 'history') setHistoryFilterWorkflowId(workflowId);
+    onChangeTab?.(tab, workflowId);
+  };
 
   return (
     <div className="w-screen h-screen flex flex-col bg-surface-canvas font-sans text-body overflow-hidden antialiased">
@@ -46,7 +66,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
           <div className="flex items-center gap-1 bg-surface-card rounded-lg p-1 border border-hairline">
             <button
-              onClick={() => setActiveTab('history')}
+              onClick={() => changeTab('history')}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'history'
                   ? 'bg-white text-ink shadow-sm'
@@ -57,7 +77,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               <span className="hidden xs:inline">Run </span>History
             </button>
             <button
-              onClick={() => setActiveTab('workflows')}
+              onClick={() => changeTab('workflows')}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'workflows'
                   ? 'bg-white text-ink shadow-sm'
@@ -79,8 +99,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           <RunHistoryPage
             workflows={workflows}
             initialWorkflowId={historyFilterWorkflowId}
-            onBack={() => setActiveTab('workflows')}
+            onBack={() => changeTab('workflows')}
             onOpenRun={onOpenRun}
+            onCopyRunLink={onCopyRunLink}
             embedded
           />
         ) : (
@@ -92,8 +113,9 @@ export const HomePage: React.FC<HomePageProps> = ({
             onEditWorkflowMeta={onEditWorkflowMeta}
             onOpenHistory={(workflowId) => {
               setHistoryFilterWorkflowId(workflowId);
-              setActiveTab('history');
+              changeTab('history', workflowId);
             }}
+            onCopyLink={onCopyWorkflowLink}
             embedded
           />
         )}

@@ -20,6 +20,7 @@ import {
   History,
   CalendarClock,
   Loader2,
+  Link2,
 } from 'lucide-react';
 
 interface WorkflowListHomeProps {
@@ -35,6 +36,7 @@ interface WorkflowListHomeProps {
     color: string
   ) => void;
   onOpenHistory: (workflowId: string | null) => void;
+  onCopyLink?: (workflowId: string) => void;
   /** When true, renders without the outer wrapper and header — for embedding in a tabbed layout. */
   embedded?: boolean;
 }
@@ -64,6 +66,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
   onDeleteWorkflow,
   onEditWorkflowMeta,
   onOpenHistory,
+  onCopyLink,
   embedded = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -324,6 +327,16 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                     <span>History</span>
                   </button>
                   <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCopyLink?.(workflow.id);
+                    }}
+                    className="p-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary border border-hairline"
+                    title="Copy link"
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={(e) => handleDuplicate(workflow.id, e)}
                     className="p-1.5 rounded-md bg-surface-canvas text-muted hover:text-ink border border-hairline"
                     title="Duplicate"
@@ -434,6 +447,13 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                           className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-ink border border-hairline"
                         >
                           <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onCopyLink?.(workflow.id)}
+                          title="Copy link"
+                          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary border border-hairline"
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => setDeletingId(workflow.id)}

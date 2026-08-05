@@ -259,6 +259,20 @@ Runs contain node statuses, outputs, logs, errors, and a workflow snapshot. Full
 
 ## APIs
 
+### Shareable browser links
+
+The browser UI uses stable URLs for every workflow and run record, so a link
+can be refreshed or shared directly:
+
+```text
+/workflows/<workflow-id>              workflow editor
+/history                              all run history
+/history?workflowId=<workflow-id>     history for one workflow
+/runs/<run-id>                        run detail snapshot
+```
+
+The link icon beside a workflow or run record copies its URL to the clipboard.
+
 ```sh
 curl http://localhost:3000/api/node-plugins                                  # plugin diagnostics
 curl -X POST http://localhost:3000/api/workflows/<workflow-id>/run/background

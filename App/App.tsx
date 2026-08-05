@@ -17,17 +17,30 @@ import {
   uniqueNodeTags,
 } from '../lib/workflow-tags';
 import { columnIndexOf, columnX, snapY } from '../lib/canvas-layout';
+import { AppRoute, absoluteRouteUrl, parseRoute, routePath } from './utils/routes';
+
+const initialRoute = parseRoute(window.location);
+
+type AppView = 'home' | 'canvas' | 'run-detail';
 
 export default function App() {
   // Navigation View State
   // 'home' = RunHistoryPage (default home), 'workflows' = WorkflowListHome,
   // 'canvas' = editor, 'run-detail' = execution detail
-  const [currentView, setCurrentView] = useState<'home' | 'canvas' | 'workflows' | 'run-detail'>('home');
-  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
-  const [historyFilterWorkflowId, setHistoryFilterWorkflowId] = useState<string | null>(null);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<AppView>(initialRoute.view);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(
+    initialRoute.view === 'canvas' ? initialRoute.workflowId : null,
+  );
+  const [historyFilterWorkflowId, setHistoryFilterWorkflowId] = useState<string | null>(
+    initialRoute.view === 'home' ? initialRoute.workflowId : null,
+  );
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(
+    initialRoute.view === 'run-detail' ? initialRoute.runId : null,
+  );
   // Track which tab to show when navigating to the home page
-  const [homeInitialTab, setHomeInitialTab] = useState<'history' | 'workflows'>('history');
+  const [homeInitialTab, setHomeInitialTab] = useState<'history' | 'workflows'>(
+    initialRoute.view === 'home' ? initialRoute.tab : 'history',
+  );
 
   // All Workflows (metadata + graph) loaded from the backend filesystem store
   const [workflows, setWorkflows] = useState<WorkflowItem[]>([]);
@@ -54,6 +67,42 @@ export default function App() {
   const [lastSavedTagCatalog, setLastSavedTagCatalog] = useState<string[]>([...DEFAULT_NODE_TAG_CATALOG]);
   const [lastSavedLaneLabels, setLastSavedLaneLabels] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  const applyRoute = useCallback((route: AppRoute) => {
+    if (route.view === 'canvas') {
+      setActiveWorkflowId(route.workflowId);
+      setCurrentView('canvas');
+      return;
+    }
+    if (route.view === 'run-detail') {
+      setSelectedRunId(route.runId);
+      setCurrentView('run-detail');
+      return;
+    }
+    setHistoryFilterWorkflowId(route.workflowId);
+    setHomeInitialTab(route.tab);
+    setSelectedRunId(null);
+    setActiveWorkflowId(null);
+    setCurrentView('home');
+  }, []);
+
+  const navigateTo = useCallback((route: AppRoute, replace = false) => {
+    const nextPath = routePath(route);
+    const currentPath = `${window.location.pathname}${window.location.search}`;
+    if (currentPath !== nextPath) {
+      window.history[replace ? 'replaceState' : 'pushState']({}, '', nextPath);
+    }
+    applyRoute(route);
+  }, [applyRoute]);
+
+  const copyRouteLink = useCallback(async (route: AppRoute) => {
+    try {
+      await navigator.clipboard.writeText(absoluteRouteUrl(route));
+      window.alert('Link copied');
+    } catch {
+      window.prompt('Copy link', absoluteRouteUrl(route));
+    }
+  }, []);
 
   // Dirty state: true when current canvas differs from last saved state
   const isDirty = useMemo(() => {
@@ -128,6 +177,20 @@ export default function App() {
   // Load workflow list on first mount
   useEffect(() => {
     api.listWorkflows().then(setWorkflows).catch((e) => console.error('Failed to load workflow list:', e));
+
+    const onPopState = () => {
+      const route = parseRoute(window.location);
+      applyRoute(route);
+      if (route.view === 'canvas') void handleOpenWorkflow(route.workflowId, false);
+    };
+    window.addEventListener('popstate', onPopState);
+    if (initialRoute.view === 'canvas') {
+      void handleOpenWorkflow(initialRoute.workflowId, false);
+    }
+    return () => window.removeEventListener('popstate', onPopState);
+    // The initial URL is intentionally read once. Navigation after mount uses
+    // navigateTo and popstate above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const nowLabel = () =>
@@ -156,7 +219,7 @@ export default function App() {
   };
 
   // Switch to Canvas View — fetch the full workflow (with node bodies) from disk
-  const handleOpenWorkflow = async (id: string) => {
+  const handleOpenWorkflow = async (id: string, updateUrl = true) => {
     try {
       const full = await api.getWorkflow(id);
       const loadedTagCatalog = mergeNodeTagCatalog(
@@ -191,6 +254,7 @@ export default function App() {
         )
       );
       setCurrentView('canvas');
+      if (updateUrl) navigateTo({ view: 'canvas', workflowId: id });
     } catch (e) {
       console.error(e);
       alert('Failed to open workflow: ' + (e as Error).message);
@@ -214,6 +278,7 @@ export default function App() {
     setHomeInitialTab('workflows');
     setCurrentView('home');
     setActiveWorkflowId(null);
+    navigateTo({ view: 'home', tab: 'workflows', workflowId: null });
   };
 
   const handleDuplicateWorkflow = async (id: string) => {
@@ -231,7 +296,9 @@ export default function App() {
       setWorkflows((prev) => prev.filter((w) => w.id !== id));
       if (activeWorkflowId === id) {
         setActiveWorkflowId(null);
-        setCurrentView('workflows');
+        setHomeInitialTab('workflows');
+        setCurrentView('home');
+        navigateTo({ view: 'home', tab: 'workflows', workflowId: null });
       }
     } catch (e) {
       alert('Failed to delete workflow: ' + (e as Error).message);
@@ -243,11 +310,27 @@ export default function App() {
     setHomeInitialTab('history');
     setSelectedRunId(null);
     setCurrentView('home');
+    navigateTo({ view: 'home', tab: 'history', workflowId });
   };
 
   const handleOpenRunDetail = (runId: string) => {
     setSelectedRunId(runId);
     setCurrentView('run-detail');
+    navigateTo({ view: 'run-detail', runId });
+  };
+
+  const handleHomeTabChange = (
+    tab: 'history' | 'workflows',
+    workflowId = historyFilterWorkflowId,
+  ) => {
+    if (tab === 'history') {
+      handleOpenHistory(workflowId);
+    } else {
+      setHomeInitialTab('workflows');
+      setHistoryFilterWorkflowId(null);
+      setCurrentView('home');
+      navigateTo({ view: 'home', tab: 'workflows', workflowId: null });
+    }
   };
 
   const handleEditWorkflowMeta = async (
@@ -547,6 +630,9 @@ export default function App() {
           onDeleteWorkflow={handleDeleteWorkflow}
           onEditWorkflowMeta={handleEditWorkflowMeta}
           onOpenRun={handleOpenRunDetail}
+          onChangeTab={handleHomeTabChange}
+          onCopyWorkflowLink={(id) => void copyRouteLink({ view: 'canvas', workflowId: id })}
+          onCopyRunLink={(id) => void copyRouteLink({ view: 'run-detail', runId: id })}
         />
       </>
     );
@@ -556,8 +642,9 @@ export default function App() {
     return (
       <RunDetailPage
         runId={selectedRunId}
-        onBack={() => setCurrentView('home')}
+        onBack={() => handleOpenHistory(null)}
         onOpenWorkflow={(workflowId) => void handleOpenWorkflow(workflowId)}
+        onCopyLink={() => void copyRouteLink({ view: 'run-detail', runId: selectedRunId })}
       />
     );
   }
