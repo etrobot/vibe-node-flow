@@ -1,4 +1,4 @@
-import {useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode} from 'react';
+import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode} from 'react';
 import {
   ArrowUp,
   AudioLines,
@@ -40,6 +40,49 @@ interface ClipTypeRendererProps {
   localTime: number;
   duration: number;
   projectName?: string | null;
+}
+
+function DemoUiEmbed({item, localTime}: ClipTypeRendererProps) {
+  const [loaded, setLoaded] = useState(false);
+  const url = item.demoUi?.url || '';
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [url]);
+
+  useEffect(() => {
+    const frame = document.querySelector<HTMLIFrameElement>(
+      `iframe[data-demo-ui="${item.demoUi?.clipIndex}:${item.demoUi?.itemIndex}"]`,
+    );
+    frame?.contentWindow?.postMessage({type: 'demo-time', time: localTime}, '*');
+  }, [item.demoUi?.clipIndex, item.demoUi?.itemIndex, localTime]);
+
+  if (!url) {
+    return <div className="absolute inset-0 flex items-center justify-center bg-black text-red-300">Demo UI URL is missing.</div>;
+  }
+
+  return (
+    <div className="absolute inset-0 overflow-hidden bg-black" data-demo-ui-frame>
+      {!loaded && <div className="absolute inset-0 z-10 flex items-center justify-center bg-black text-white/60">Loading product UI…</div>}
+      <iframe
+        title="Generated product UI"
+        src={url}
+        data-demo-ui={`${item.demoUi?.clipIndex}:${item.demoUi?.itemIndex}`}
+        className="h-full w-full border-0"
+        onLoad={(event) => {
+          if (!event.currentTarget.contentDocument?.querySelector('[data-demo-ui]')) {
+            window.__renderError = `Demo UI HTML did not expose a product surface: ${url}`;
+            return;
+          }
+          setLoaded(true);
+          event.currentTarget.contentWindow?.postMessage({type: 'demo-time', time: localTime}, '*');
+        }}
+        onError={() => {
+          window.__renderError = `Demo UI HTML failed to load: ${url}`;
+        }}
+      />
+    </div>
+  );
 }
 
 interface FrameState {
@@ -2829,6 +2872,8 @@ function ProcessCardHighlight(props: ClipTypeRendererProps) {
 }
 
 export default function ClipTypeRenderer(props: ClipTypeRendererProps) {
+  if (props.item.demoUi) return <DemoUiEmbed {...props} />;
+
   switch (props.item.type) {
     case 'text-typing':
     case 'text-title':

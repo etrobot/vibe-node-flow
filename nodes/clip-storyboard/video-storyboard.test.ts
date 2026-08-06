@@ -375,10 +375,12 @@ test('narration reads either a run asset manifest or a raw storyboard', () => {
     slug: 'forge-app-launch',
     assetDir: '/tmp/run-assets',
     chapterFiles: ['chapter-1.json'],
+    document: { clips: [{ items: [{ type: 'ui-prompt-input', demoUi: { htmlFile: 'demo/clip-01-item-01.html' } }] }] },
     clips: [{ index: 0, speech: 'Ideas are **everywhere**.', itemCount: 2 }],
   }));
   assert.equal(fromManifest.assetDir, '/tmp/run-assets');
   assert.deepEqual(fromManifest.chapterFiles, ['chapter-1.json']);
+  assert.equal((fromManifest.document as any)?.clips?.[0]?.items?.[0]?.demoUi?.htmlFile, 'demo/clip-01-item-01.html');
   assert.equal(fromManifest.clips[0].itemCount, 2);
   assert.equal(fromManifest.clips[0].plannedSeconds, undefined);
 

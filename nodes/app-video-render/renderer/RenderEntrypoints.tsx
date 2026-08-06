@@ -33,6 +33,31 @@ function waitForPaint() {
   });
 }
 
+async function waitForDemoFrames() {
+  const frames = Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe[data-demo-ui]'));
+  await Promise.all(frames.map((frame) => new Promise<void>((resolve, reject) => {
+    if (frame.contentDocument?.readyState === 'complete') {
+      resolve();
+      return;
+    }
+    const done = () => {
+      frame.removeEventListener('load', onLoad);
+      frame.removeEventListener('error', onError);
+    };
+    const onLoad = () => {
+      done();
+      if (!frame.contentDocument?.querySelector('[data-demo-ui]')) {
+        reject(new Error(`Demo UI HTML did not expose a product surface: ${frame.src}`));
+        return;
+      }
+      resolve();
+    };
+    const onError = () => { done(); reject(new Error(`Demo UI HTML failed to load: ${frame.src}`)); };
+    frame.addEventListener('load', onLoad, {once: true});
+    frame.addEventListener('error', onError, {once: true});
+  })));
+}
+
 function useRenderSurface(background = 'transparent') {
   useEffect(() => {
     const html = document.documentElement;
@@ -118,17 +143,22 @@ function useProjectData(projectName: string | null) {
     let cancelled = false;
     window.__renderReady = false;
     window.__renderError = undefined;
+    const runId = getQuery().get('run');
 
     async function load() {
       try {
-        if (!projectName) {
+        if (!projectName && !runId) {
           if (!cancelled) setData(clipsData);
           return;
         }
 
-        const response = await fetch(`/api/projects/${encodeURIComponent(projectName)}`);
-        if (!response.ok) throw new Error(`Failed to load project ${projectName}: ${response.status}`);
-        const data = await response.json();
+        const response = runId
+          ? await fetch(`/api/video/spec/${encodeURIComponent(runId)}`)
+          : await fetch(`/api/projects/${encodeURIComponent(projectName)}`);
+        if (!response.ok) throw new Error(`Failed to load render project: ${response.status}`);
+        let data = await response.json();
+        if (typeof data === 'string') data = JSON.parse(data);
+        data = data?.document && typeof data.document === 'object' ? data.document : data;
         if (!Array.isArray(data?.clips)) throw new Error('Project clip data is missing a clips array.');
         if (!cancelled) setData(data);
       } catch (err: any) {
@@ -209,6 +239,7 @@ function DirectPlayerRenderer() {
 
     Promise.resolve(document.fonts?.ready)
       .then(waitForPaint)
+      .then(waitForDemoFrames)
       .then(() => {
         if (!cancelled) window.__renderReady = true;
       })

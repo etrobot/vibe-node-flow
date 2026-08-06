@@ -187,6 +187,7 @@ function isDirectory(target: string): boolean {
 async function preflight(
   assetDir: string | null,
   slug: string,
+  document: Record<string, unknown> | null,
 ): Promise<{ problems: string[]; notes: string[] }> {
   const problems: string[] = [];
   const notes: string[] = [];
@@ -194,6 +195,32 @@ async function preflight(
   if (assetDir && !isDirectory(assetDir)) {
     notes.push(`Run asset directory for ${slug} is not yet present; rendering from upstream storyboard.`);
   }
+
+  const demoItems = (document?.clips as any[] | undefined)?.flatMap((clip: any) => (
+    Array.isArray(clip?.items) ? clip.items.filter((item: any) => item?.demoUi) : []
+  )) || [];
+  for (const item of demoItems) {
+    const htmlFile = String(item.demoUi?.htmlFile ?? '').trim();
+    if (!assetDir || !htmlFile || htmlFile.startsWith('/') || htmlFile.includes('..') || htmlFile.includes('\\')) {
+      problems.push(`Demo UI preflight failed: unsafe or missing HTML path ${JSON.stringify(htmlFile)}.`);
+      continue;
+    }
+    const root = path.resolve(assetDir);
+    const target = path.resolve(root, htmlFile);
+    if (!target.startsWith(`${root}${path.sep}`) || !fsSync.existsSync(target)) {
+      problems.push(`Demo UI HTML is missing: ${htmlFile}.`);
+      continue;
+    }
+    try {
+      const html = await fs.readFile(target, 'utf8');
+      if (!/^\s*<!doctype html>/i.test(html) || !html.includes('data-demo-ui')) {
+        problems.push(`Demo UI HTML is not loadable: ${htmlFile}.`);
+      }
+    } catch {
+      problems.push(`Demo UI HTML cannot be read: ${htmlFile}.`);
+    }
+  }
+  if (demoItems.length) notes.push(`Preflight checked ${demoItems.length} Demo UI HTML file(s).`);
 
   for (const dependency of ['playwright-core']) {
     if (!resolvePackageDir(process.cwd(), dependency)) {
@@ -234,7 +261,7 @@ async function execute(
   }
 
   const assetDir = facts.assetDir ?? null;
-  const { problems, notes } = await preflight(assetDir, slug);
+  const { problems, notes } = await preflight(assetDir, slug, facts.document);
 
   const assetId = runId;
   const outputDir = assetsDir;
@@ -320,6 +347,9 @@ async function execute(
     audio: {
       narrationClips: tracks.length,
       bitrate: tracks.length ? config.audioBitrate : null,
+      audioDir: facts.audioDir,
+      musicPath,
+      musicVolume: config.musicVolume,
       musicFile: musicPath ? path.relative(nodeAssetsDir, musicPath) : null,
       clips: usedClips.map((clip) => ({
         index: clip.index,

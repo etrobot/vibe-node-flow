@@ -100,6 +100,7 @@ export function readNarrationSource(raw: string): {
   assetDir: string | null;
   slug: string | null;
   chapterFiles: string[];
+  document: Record<string, unknown> | null;
 } {
   const trimmed = String(raw ?? '').trim();
   if (!trimmed) throw new NodeInputError('Edge TTS Narration received an empty upstream output.');
@@ -135,6 +136,9 @@ export function readNarrationSource(raw: string): {
     chapterFiles: Array.isArray(parsed.chapterFiles)
       ? parsed.chapterFiles.filter((file: unknown) => typeof file === 'string' && file)
       : [],
+    document: parsed.document && typeof parsed.document === 'object' && !Array.isArray(parsed.document)
+      ? parsed.document as Record<string, unknown>
+      : null,
   };
 }
 
@@ -226,6 +230,21 @@ export async function applyTimingToRunAssets(
     await fs.writeFile(target, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
   }
   return patched;
+}
+
+/** Keep the manifest's embedded preview in lockstep with the chapter files. */
+function applyTimingToDocument(document: Record<string, any>, timeline: ClipTimeline[]): Record<string, any> {
+  const copy = structuredClone(document);
+  if (!Array.isArray(copy?.clips)) return copy;
+  copy.clips.forEach((clip: any, clipIndex: number) => {
+    const entry = timeline[clipIndex];
+    if (!entry || !Array.isArray(clip?.items)) return;
+    clip.items.forEach((item: any, itemIndex: number) => {
+      const slot = entry.items.find((candidate) => candidate.index === itemIndex);
+      if (slot && slot.durationSeconds > 0) item.duration = slot.durationSeconds;
+    });
+  });
+  return copy;
 }
 
 async function execute({ node, input, assetsDir, workflowId, runId }: NodePluginContext): Promise<NodePluginResult> {
@@ -343,8 +362,14 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
   }
 
   const totalSeconds = combined.length * 8 / 48_000;
+  const finalDocument = config.applyTiming && source.document
+    ? applyTimingToDocument(source.document, timeline)
+    : source.document;
   const manifest = {
     slug: source.slug,
+    assetDir: source.assetDir,
+    chapterFiles: source.chapterFiles,
+    ...(finalDocument ? { document: finalDocument } : {}),
     voice: config.voice,
     rate: config.rate,
     volume: config.volume,

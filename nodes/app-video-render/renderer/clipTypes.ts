@@ -108,6 +108,13 @@ export interface ClipItem {
   zoom?: number;
   cards?: { key?: string; icon: string; title: string; number?: string }[];
   targetIndex?: number;
+  /** A run-scoped, self-contained product UI page composed into this item. */
+  demoUi?: {
+    clipIndex: number;
+    itemIndex: number;
+    htmlFile: string;
+    url?: string;
+  };
 }
 
 /** Explicit colors overriding the hue-derived theme, when the storyboard sets them. */

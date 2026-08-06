@@ -190,6 +190,9 @@ export interface StoryboardItem {
   words?: string[];
   ctaText?: string;
   effect?: 'shockwave';
+  /** Optional opt-in for a generated product surface; the demo node also recognizes UI item types. */
+  demoUi?: boolean | { state?: string; [key: string]: unknown };
+  demo?: boolean;
 }
 
 export interface StoryboardClip {

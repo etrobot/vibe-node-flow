@@ -58,23 +58,23 @@ export function registerApiRoutes(app: Express): void {
   // handles byte-range requests, which keeps seeking in the HTML audio and
   // video elements smooth.
   app.get(
-    "/api/workflows/:id/assets/:assetId/:file",
+    "/api/workflows/:id/assets/:assetId/*",
     wrap(async (req, res) => {
-      const file = String(req.params.file || "");
-      // Nodes own their output names. The host only enforces a single safe
-      // filename, so new nodes never need an API change to publish an asset.
+      const relative = String(req.params[0] || "");
+      const parts = relative.split("/");
+      // Demo pages are nested under demo/, while older narration/render assets
+      // remain available at the run root. Reject traversal before resolving.
       if (
-        file === "." || file === ".."
-        || path.basename(file) !== file
-        || file.includes("\\")
-        || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/.test(file)
+        !relative || relative.startsWith("/") || relative.includes("\\")
+        || parts.some((part) => !part || part === "." || part === ".." || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/.test(part))
       ) {
         return res.status(404).json({ error: "Workflow asset not found" });
       }
-      const filePath = path.join(
-        workflowAssetDir(String(req.params.id || ""), String(req.params.assetId || "")),
-        file,
-      );
+      const root = workflowAssetDir(String(req.params.id || ""), String(req.params.assetId || ""));
+      const filePath = path.resolve(root, relative);
+      if (filePath !== path.resolve(root) && !filePath.startsWith(`${path.resolve(root)}${path.sep}`)) {
+        return res.status(404).json({ error: "Workflow asset not found" });
+      }
       if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
         return res.status(404).json({ error: "Workflow asset not found" });
       }

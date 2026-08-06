@@ -4,6 +4,7 @@ import { api } from '@/App/utils/api';
 import { DEFAULT_APP_VIDEO_RENDER_CONFIG } from './config';
 import { hydrateDocument } from '../clip-storyboard/resolve.ts';
 import { InteractivePlayer } from './renderer/InteractivePlayer';
+import { RenderEntrypoint } from './renderer/RenderEntrypoints';
 import type { ClipsDocument } from './renderer/clipTypes';
 import { Film, Play, Terminal, Loader2 } from 'lucide-react';
 
@@ -300,6 +301,7 @@ export const appVideoRenderModule: NodeModule = {
   badge: 'Render',
   menuOrder: 50,
   createConfig: () => ({ ...DEFAULT_APP_VIDEO_RENDER_CONFIG }),
+  RenderPage: RenderEntrypoint,
   CustomView: RenderCustomView,
   OutputView: RenderCustomView,
 };

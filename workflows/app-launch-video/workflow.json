@@ -1,9 +1,9 @@
 {
   "id": "app-launch-video",
   "name": "App Launch Video With Voice",
-  "description": "Turn a verified product brief into an idea-to-app-builder video project, narrate every clip with Edge TTS, and render the finished MP4.",
+  "description": "Turn a verified product brief into a storyboard, build the video JSON and Demo UI HTML in parallel, compose them, narrate every clip with Edge TTS, and render the finished MP4.",
   "createdAt": "2026-08-02T00:00:00.000Z",
-  "updatedAt": "2026-08-05T04:35:06.205Z",
+  "updatedAt": "2026-08-06T00:00:00.000Z",
   "icon": "AudioLines",
   "color": "#15803d",
   "tagCatalog": [
@@ -20,7 +20,8 @@
     "Lane 2",
     "Lane 3",
     "Lane 4",
-    "Lane 5"
+    "Lane 5",
+    "Lane 6"
   ],
   "nodes": [
     {
@@ -89,12 +90,43 @@
       }
     },
     {
+      "id": "node-demo-ui",
+      "type": "app-video-demo-ui",
+      "title": "Generate Demo UI HTML",
+      "icon": "PanelsTopLeft",
+      "lane": "Lane 3",
+      "x": 526,
+      "y": 410,
+      "color": "#0891b2",
+      "tags": [
+        "FS"
+      ],
+      "config": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "id": "node-compose",
+      "type": "app-video-compose",
+      "title": "Compose Video Project",
+      "icon": "Combine",
+      "lane": "Lane 4",
+      "x": 759,
+      "y": 180,
+      "color": "#2563eb",
+      "tags": [
+        "FS"
+      ],
+      "config": {}
+    },
+    {
       "id": "node-narration",
       "type": "edge-tts-narration",
       "title": "Clip Narration",
       "icon": "AudioLines",
-      "lane": "Lane 4",
-      "x": 759,
+      "lane": "Lane 5",
+      "x": 992,
       "y": 180,
       "color": "#15803d",
       "tags": [
@@ -119,8 +151,8 @@
       "type": "app-video-render",
       "title": "Video Render",
       "icon": "Film",
-      "lane": "Lane 5",
-      "x": 992,
+      "lane": "Lane 6",
+      "x": 1225,
       "y": 180,
       "color": "#7c3aed",
       "tags": [
@@ -155,8 +187,23 @@
       "toNodeId": "node-project"
     },
     {
-      "id": "edge-node-project-node-narration",
+      "id": "edge-node-storyboard-node-demo-ui",
+      "fromNodeId": "node-storyboard",
+      "toNodeId": "node-demo-ui"
+    },
+    {
+      "id": "edge-node-project-node-compose",
       "fromNodeId": "node-project",
+      "toNodeId": "node-compose"
+    },
+    {
+      "id": "edge-node-demo-ui-node-compose",
+      "fromNodeId": "node-demo-ui",
+      "toNodeId": "node-compose"
+    },
+    {
+      "id": "edge-node-compose-node-narration",
+      "fromNodeId": "node-compose",
       "toNodeId": "node-narration"
     },
     {

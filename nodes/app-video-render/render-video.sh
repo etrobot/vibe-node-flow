@@ -121,7 +121,8 @@ cat >&2 <<EOF
   and must write the MP4 to --out. Two pieces already exist to build on:
 
     - The browser render harness in renderer/RenderEntrypoints.tsx, driven at
-      <base-url>/?render=player with window.__setRenderTime(t) per frame.
+      <base-url>/?videoRender=1&render=player&run=<run-id> with
+      window.__setPlayerTime(t) per frame.
       Note it currently fetches /api/projects/:name, which server/api.ts does
       not implement; /api/video/spec/:runId is the endpoint that does.
     - buildMuxArgs() in render.ts, which lays each clip's narration on the
