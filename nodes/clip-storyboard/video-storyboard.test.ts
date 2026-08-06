@@ -13,7 +13,6 @@ import {
 import { hydrateDocument } from './resolve.ts';
 import { buildStoryboardPrompt } from './server.ts';
 import { DEFAULT_CLIP_STORYBOARD_CONFIG } from './config.ts';
-import { chapterFiles } from '../app-video-project/server.ts';
 import { clipFileName, readNarrationSource } from '../edge-tts-narration/server.ts';
 import { boundaryOffsets, resolveClipTiming, stripAnchors } from '../edge-tts-narration/timing.ts';
 
@@ -348,18 +347,6 @@ test('the generation prompt states the pinned slug and the anchor contract', () 
     '# Brief',
   );
   assert.match(timed, /Each item duration is 0\.6-6 seconds/);
-});
-
-test('chapters split into one builder clip file each', () => {
-  const files = chapterFiles(fixture());
-  assert.deepEqual(files.map((entry) => entry.file), ['chapter-1.json', 'chapter-2.json']);
-  assert.deepEqual(files.map((entry) => entry.clips.length), [2, 2]);
-  assert.deepEqual(files.map((entry) => entry.startClip), [0, 2]);
-  assert.match(files[1].clips[1].speech, /^Turn your idea into a real product/);
-
-  const broken = fixture();
-  broken.chapters[0].clipCount = 9;
-  assert.throws(() => chapterFiles(broken), /only 4 remain/);
 });
 
 test('narration reads either a run asset manifest or a raw storyboard', () => {

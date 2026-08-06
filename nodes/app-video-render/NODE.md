@@ -39,7 +39,7 @@ brew install ffmpeg
 
 ## Input And Output
 
-- Input: one or more upstream JSON manifests. The `edge-tts-narration` manifest supplies the clip MP3s; the `app-video-project` manifest supplies the slug. Either alone is enough — without narration the node renders a silent or music-only video.
+- Input: one or more upstream JSON manifests. The `edge-tts-narration` manifest supplies the clip MP3s and the storyboard/Demo UI branches supply the document and slug. Either alone is enough — without narration the node renders a silent or music-only video.
 - Output: JSON manifest with the video path and playable URL, byte size, measured and planned duration, encode settings, the audio mix summary, per-clip start offsets with their narration file, and the exact commands that ran.
 - Side effects: writes `video.mp4` and `render.json` into `data/assets/<workflow-id>/generated/<run-id>/`. Reusable video-node assets, such as background music, live under `data/assets/<node-id>/`.
 

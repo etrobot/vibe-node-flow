@@ -18,16 +18,11 @@ export interface DemoUiReference {
   clipIndex: number;
   itemIndex: number;
   htmlFile: string;
-  /** Same-run URL, injected by the compose node for browser consumers. */
+  /** Same-run URL, injected for browser consumers. */
   url?: string;
 }
 
-/**
- * Validate HTML returned by the target-level model node before it is written
- * into a run. This deliberately checks the transport/sandbox boundary here so
- * the deterministic packager cannot accidentally accept a second, untrusted
- * HTML producer.
- */
+/** Validate one generated offline HTML document before the renderer writes it. */
 export function validateDemoHtml(
   htmlValue: unknown,
   target: DemoUiTarget,
@@ -65,11 +60,7 @@ export function validateDemoHtml(
   return errors;
 }
 
-/**
- * Find items that need a real product surface. The explicit flag is useful for
- * future storyboard contracts; the current contract remains backwards compatible
- * by treating the existing UI scene types as demo candidates.
- */
+/** Find storyboard items that need a real product surface. */
 export function findDemoUiTargets(document: StoryboardDocument | any): DemoUiTarget[] {
   const targets: DemoUiTarget[] = [];
   for (const [clipIndex, clip] of (document?.clips || []).entries()) {

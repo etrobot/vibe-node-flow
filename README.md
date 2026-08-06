@@ -214,11 +214,8 @@ Constraints beyond the rules already stated above:
 | Type | Purpose |
 | --- | --- |
 | `content-brief` | Validated editorial contract and evidence boundary. No model call. |
-| `validated-generation` | Prompt → LLM → JavaScript validation → quality contract, with repair retries. |
 | `clip-storyboard` | Brief → clip JSON with reusable structures and narration anchors, validated. |
 | `ui-html-generation` | Storyboard + optional brief → one independently validated offline HTML document per Demo UI target. |
-| `app-video-project` | Generated video JSON → `chapters.json` and `chapter/chapter-N.json`, references expanded. |
-| `app-video-demo-ui` | Generated UI manifest → HTML files and a deterministic Demo UI manifest. |
 | `edge-tts-narration` | Clip `speech` → per-clip MP3 via Microsoft Edge Read Aloud, plus the measured shot timeline. |
 | `app-video-render` | Timed storyboard + narration + Demo UI → interactive preview and MP4. Ships `render-video.sh`. |
 

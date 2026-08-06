@@ -21,7 +21,7 @@ Because the output stream is constant bitrate, clip duration is derived from byt
 
 ## Input And Output
 
-- Input: exactly one upstream node emitting either the `app-video-project` manifest or a storyboard document. Both are JSON objects with a `clips` array carrying `speech`. Each clip's `itemCount` (or its `items` array) tells the node how many shots the anchors must divide the narration into.
+- Input: exactly one upstream node emitting either a run asset manifest or a storyboard document. Both are JSON objects with a `clips` array carrying `speech`. Each clip's `itemCount` (or its `items` array) tells the node how many shots the anchors must divide the narration into.
 - Output: JSON manifest with the voice settings, per-clip file name, playable URL, byte size, measured duration, start offset, resolved per-item timing, and word boundaries, plus a top-level `timeline` that `app-video-render` uses to place each clip's audio. It also carries `audioDir` so the render node can find the MP3s in the same run asset directory.
 - Side effects: writes `clip-NN.mp3` per clip, an optional stitched `narration.mp3`, and `narration.json` into `data/assets/<workflow-id>/generated/<run-id>/`. Unless `applyTiming` is off, measured shot lengths are written back into that run's `chapter-N.json` files.
 

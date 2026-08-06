@@ -8,8 +8,8 @@
  * simple: the model writes each structure once, the renderer keeps reading the
  * flat shape it always has.
  *
- * Everything in this file is pure, so `app-video-project`, the preview panel,
- * and the tests all expand a document the same way.
+ * Everything in this file is pure, so the preview panel and render node expand
+ * a document the same way.
  */
 
 import {

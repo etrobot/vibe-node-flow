@@ -25,7 +25,7 @@ const NARRATION_MANIFEST = JSON.stringify({
 
 test('upstream manifests merge into the slug, audio directory, and clip list', () => {
   const facts = mergeUpstreamManifests({
-    'node-project': RUN_ASSET_MANIFEST,
+    'node-storyboard': RUN_ASSET_MANIFEST,
     'node-narration': NARRATION_MANIFEST,
   });
 
@@ -95,7 +95,7 @@ test('render facts preserve an embedded storyboard document for preview recovery
     }],
   };
   const facts = mergeUpstreamManifests({
-    'node-project': JSON.stringify({
+    'node-storyboard': JSON.stringify({
       slug: document.slug,
       document,
       clips: [{ index: 0, speech: document.clips[0].speech, background: 'aurora' }],

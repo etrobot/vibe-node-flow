@@ -10,7 +10,7 @@ import {
   findDemoUiTargets,
   validateDemoHtml,
   type DemoUiTarget,
-} from '../app-video-demo-ui/contract.ts';
+} from './contract.ts';
 import {
   DEFAULT_UI_HTML_GENERATION_CONFIG,
   UI_HTML_RETRY_LIMIT,

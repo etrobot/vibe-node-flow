@@ -79,7 +79,7 @@ function needsHydration(candidate: Record<string, any>): boolean {
   ));
 }
 
-/** Convert a full storyboard or an older project summary into a preview document. */
+/** Convert a full storyboard or a legacy summary into a preview document. */
 function toPreviewDocument(value: unknown): ClipsDocument | null {
   const parsed = parseObject(value);
   if (!parsed) return null;
@@ -94,8 +94,8 @@ function toPreviewDocument(value: unknown): ClipsDocument | null {
       : candidate) as ClipsDocument;
   }
 
-  // app-video-project manifests written before document persistence contain
-  // speech/background summaries only. Keep those historical runs previewable.
+  // Legacy manifests may contain speech/background summaries only. Keep those
+  // historical runs previewable.
   const clips = candidate.clips.map((clip: any) => {
     const speech = String(clip?.speech ?? '').trim();
     const duration = Number(clip?.plannedSeconds ?? clip?.durationSeconds ?? 2);
@@ -148,12 +148,6 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
     const storyboardNode = allNodes.find((n) => n.type === 'clip-storyboard' && n.output);
     const storyboardDocument = toPreviewDocument(storyboardNode?.output);
     if (storyboardDocument) return storyboardDocument;
-
-    // Then recover from an app-video-project summary, including old manifests
-    // that predate the embedded document field.
-    const projectNode = allNodes.find((n) => n.type === 'app-video-project' && n.output);
-    const projectDocument = toPreviewDocument(projectNode?.output);
-    if (projectDocument) return projectDocument;
 
     // A few legacy runs only retained a generic manifest on the render node.
     // Its clips are still enough to build a lightweight preview.
@@ -266,7 +260,7 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
             />
           ) : (
             <div className="rounded-xl border border-hairline bg-surface-canvas p-8 text-center text-sm text-muted">
-              Run the upstream Clip Storyboard or App Video Project node to load the interactive preview.
+              Run the workflow to load the interactive preview.
             </div>
           )}
         </div>

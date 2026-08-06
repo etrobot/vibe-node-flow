@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import http from 'node:http';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
-import demoPlugin from '../app-video-demo-ui/server.ts';
 import uiHtmlPlugin from './server.ts';
 
 function storyboard() {
@@ -118,40 +114,4 @@ test('UI HTML generation fails the whole stage when one target exhausts its retr
     );
     assert.equal(requests.length, 2);
   });
-});
-
-test('the deterministic Demo UI packager writes a complete generated manifest only after validation', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vibe-ui-generated-'));
-  try {
-    const document = storyboard();
-    const generated = {
-      kind: 'ui-html-generation',
-      slug: document.slug,
-      width: 1920,
-      height: 1080,
-      document,
-      demos: [
-        { clipIndex: 0, itemIndex: 0, html: validHtml('prompt'), generation: { model: 'mock-ui-model', attempt: 1 } },
-        { clipIndex: 1, itemIndex: 0, html: validHtml('preview'), generation: { model: 'mock-ui-model', attempt: 1 } },
-      ],
-    };
-    const result = await demoPlugin.execute({
-      node: { type: 'app-video-demo-ui', config: {} },
-      input: { 'ui-html-generation': JSON.stringify(generated) },
-      nodeOutputs: {},
-      workflowId: 'test-workflow',
-      runId: 'test-run',
-      workflowDir: root,
-      workflowDefinitionDir: root,
-      assetsDir: root,
-      nodeAssetsDir: root,
-    } as any);
-    const manifest = JSON.parse(result.output);
-    assert.equal(manifest.demoCount, 2);
-    assert.equal(manifest.demos[0].generation.model, 'mock-ui-model');
-    const html = await fs.readFile(path.join(root, manifest.demos[0].htmlFile), 'utf8');
-    assert.equal(html, validHtml('prompt'));
-  } finally {
-    await fs.rm(root, { recursive: true, force: true });
-  }
 });

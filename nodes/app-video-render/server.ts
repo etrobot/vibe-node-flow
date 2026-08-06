@@ -11,7 +11,7 @@ import {
   demoFileName,
   findDemoUiTargets,
   validateDemoHtml,
-} from '../app-video-demo-ui/contract.ts';
+} from '../ui-html-generation/contract.ts';
 import {
   DEFAULT_APP_VIDEO_RENDER_CONFIG,
   RENDER_RESOLUTIONS,
@@ -326,7 +326,7 @@ async function execute(
   }
 
   // In the compact graph all generated assets share the current run directory.
-  // A legacy project manifest may still provide its own asset directory.
+  // A legacy upstream manifest may still provide its own asset directory.
   const assetDir = facts.assetDir ?? assetsDir;
   if (facts.document && facts.generatedDemos.length) {
     facts.document = await attachGeneratedDemos(

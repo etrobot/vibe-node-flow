@@ -73,8 +73,8 @@ function round(value: number): number {
 
 /**
  * Collect what the render needs from every upstream manifest. The node accepts
- * the `app-video-project` manifest, the `edge-tts-narration` manifest, or both,
- * so it works whether it is chained after narration or fanned in from earlier.
+ * storyboard, Demo UI, and narration manifests, so parallel workflow branches
+ * can fan in here without an intermediate packager node.
  */
 export function mergeUpstreamManifests(input: Record<string, string>): UpstreamFacts {
   const values = Object.values(input).map((value) => String(value ?? '').trim()).filter(Boolean);

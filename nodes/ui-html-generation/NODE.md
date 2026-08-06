@@ -4,7 +4,7 @@ This node is the LLM boundary for Demo UI surfaces. It finds every DemoUiTarget 
 
 Each response must be a complete offline HTML document for the configured 1920x1080 composition. The deterministic contract checks doctype, html/head/body structure, inline style, data-demo-ui, network independence, browser network APIs, DOM HTML injection APIs, size limits, and escaping of special characters in target text.
 
-The node returns a generation manifest in memory. It does not write any HTML file. The downstream app-video-demo-ui node validates every target again, then writes all HTML files and the manifest only after the complete set is present.
+The node returns a generation manifest in memory. It does not write any HTML file. The downstream app-video-render node validates every target again, writes all HTML files, and attaches their same-run references to the storyboard before rendering.
 
 ## Input And Output
 

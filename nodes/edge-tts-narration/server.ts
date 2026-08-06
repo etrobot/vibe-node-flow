@@ -92,8 +92,8 @@ function clipItemCount(clip: any): number {
 }
 
 /**
- * Accept either the run asset manifest from `app-video-project` or a raw
- * storyboard document, so this node can also sit directly after generation.
+ * Accept either a run asset manifest or a raw storyboard document, so this
+ * node can sit directly after storyboard generation.
  */
 export function readNarrationSource(raw: string): {
   clips: NarrationClip[];
@@ -138,7 +138,7 @@ export function readNarrationSource(raw: string): {
       : [],
     // A direct storyboard edge is the compact five-node workflow's project
     // handoff. Preserve it so the render node can carry measured shot timing
-    // forward without requiring an intermediate app-video-project node.
+    // forward without requiring an intermediate project packager.
     document: parsed.document && typeof parsed.document === 'object' && !Array.isArray(parsed.document)
       ? parsed.document as Record<string, unknown>
       : parsed as Record<string, unknown>,
