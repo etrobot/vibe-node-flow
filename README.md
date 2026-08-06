@@ -216,18 +216,24 @@ Constraints beyond the rules already stated above:
 | `content-brief` | Validated editorial contract and evidence boundary. No model call. |
 | `validated-generation` | Prompt → LLM → JavaScript validation → quality contract, with repair retries. |
 | `clip-storyboard` | Brief → clip JSON with reusable structures and narration anchors, validated. |
-| `app-video-project` | Storyboard → `chapters.json` and `chapter/chapter-N.json`, references expanded. |
+| `ui-html-generation` | Storyboard + optional brief → one independently validated offline HTML document per Demo UI target. |
+| `app-video-project` | Generated video JSON → `chapters.json` and `chapter/chapter-N.json`, references expanded. |
+| `app-video-demo-ui` | Generated UI manifest → HTML files and a deterministic Demo UI manifest. |
 | `edge-tts-narration` | Clip `speech` → per-clip MP3 via Microsoft Edge Read Aloud, plus the measured shot timeline. |
-| `app-video-render` | Project → MP4, narration mixed onto the timeline. Ships `render-video.sh`. |
+| `app-video-render` | Timed storyboard + narration + Demo UI → interactive preview and MP4. Ships `render-video.sh`. |
 
 Each node directory carries a `NODE.md` describing its contract, configuration, and failure behavior.
 
 ## Example: App Launch Video With Voice
 
-`workflows/app-launch-video/` chains five nodes from a brief to a finished MP4:
+`workflows/app-launch-video/` keeps the production graph to five nodes:
 
 ```text
-content-brief → clip-storyboard → app-video-project → edge-tts-narration → app-video-render
+content-brief
+  → clip-storyboard
+      ├→ edge-tts-narration ┐
+      └→ ui-html-generation ┘
+                 → app-video-render
 ```
 
 Two things the storyboard does not contain, because a model is bad at both:
@@ -235,9 +241,9 @@ Two things the storyboard does not contain, because a model is bad at both:
 - **Seconds.** Items carry no duration. The narration marks where the picture cuts with `**anchors**`, and `edge-tts-narration` resolves those against real word boundaries. Timing is read off the voice instead of negotiated with it.
 - **Repeated structure.** A process strip or comparison table is declared once under `global-components` and referenced by `key`, with `spot` naming the node to focus. Revisiting one structure across clips is what makes a diagram build up rather than restart.
 
-`app-video-project` expands both into the flat shape the renderer reads, so neither reaches the render layer.
+`clip-storyboard` emits UI item placeholders rather than HTML. `ui-html-generation` independently validates one offline HTML document per placeholder, while `edge-tts-narration` measures the spoken timeline. `app-video-render` waits for both branches, attaches the generated Demo UI files to the timed storyboard, and loads the combined result in the preview.
 
-`edge-tts-narration` is a Node.js port of the Microsoft Edge "Read Aloud" protocol — the same service the Python `edge-tts` package uses. No API key, no Python runtime, no extra dependency: the WebSocket client comes from `undici`. It writes `clip-NN.mp3` per clip plus a stitched `narration.mp3`, copies them into `<project>/voice/`, and writes the measured shot lengths back into `chapter-N.json` so picture and voice come from one measurement.
+`edge-tts-narration` is a Node.js port of the Microsoft Edge "Read Aloud" protocol — the same service the Python `edge-tts` package uses. No API key, no Python runtime, no extra dependency: the WebSocket client comes from `undici`. It writes `clip-NN.mp3` per clip plus a stitched `narration.mp3` into the current run and returns measured shot lengths so picture and voice come from one measurement.
 
 `app-video-render` prepares the render and reports it; the MP4 itself is produced by `nodes/app-video-render/render-video.sh`, which the panel's **Render MP4** button opens in a visible terminal. It needs `ffmpeg` on PATH (`brew install ffmpeg`) and a local Chrome, Edge, Brave, or Chromium, because every frame is a screenshot.
 

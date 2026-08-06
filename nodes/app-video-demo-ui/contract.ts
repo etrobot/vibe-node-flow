@@ -23,6 +23,49 @@ export interface DemoUiReference {
 }
 
 /**
+ * Validate HTML returned by the target-level model node before it is written
+ * into a run. This deliberately checks the transport/sandbox boundary here so
+ * the deterministic packager cannot accidentally accept a second, untrusted
+ * HTML producer.
+ */
+export function validateDemoHtml(
+  htmlValue: unknown,
+  target: DemoUiTarget,
+  maxLength = 400_000,
+): string[] {
+  const html = String(htmlValue ?? '');
+  const errors: string[] = [];
+  if (html.length === 0) errors.push('HTML is empty.');
+  if (html.length > maxLength) errors.push('HTML exceeds the ' + maxLength + '-character limit.');
+  if (!/^\s*<!doctype html>/i.test(html)) errors.push('HTML must start with <!doctype html>.');
+  if (!/<html\b/i.test(html) || !/<head\b/i.test(html) || !/<body\b/i.test(html)) {
+    errors.push('HTML must contain html, head, and body elements.');
+  }
+  if (!/<style\b[^>]*>/i.test(html)) errors.push('HTML must contain an inline style block.');
+  if (!/data-demo-ui(?:\s|=|>)/i.test(html)) errors.push('HTML is missing the data-demo-ui marker.');
+  if (/(?:https?:\/\/|\/\/)/i.test(html)
+    || /(?:src|href)\s*=\s*['"][^'"]+/i.test(html) && /(?:src|href)\s*=\s*['"](?:\/\/|https?:)/i.test(html)
+    || /@import\b/i.test(html)) {
+    errors.push('HTML must not contain external network dependencies.');
+  }
+  if (/\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\b/i.test(html)) {
+    errors.push('HTML must not depend on browser network APIs.');
+  }
+  if (/\b(?:innerHTML|outerHTML|document\.write)\b/i.test(html)) {
+    errors.push('HTML must not inject unescaped text through DOM HTML APIs.');
+  }
+
+  const item = target.item as unknown as Record<string, unknown>;
+  for (const value of Object.values(item)) {
+    if (typeof value !== 'string' || !/[&<>"']/.test(value)) continue;
+    if (html.includes(value)) {
+      errors.push('User text must be HTML-escaped: ' + JSON.stringify(value));
+    }
+  }
+  return errors;
+}
+
+/**
  * Find items that need a real product surface. The explicit flag is useful for
  * future storyboard contracts; the current contract remains backwards compatible
  * by treating the existing UI scene types as demo candidates.
@@ -52,4 +95,3 @@ export function isSafeDemoFile(file: string): boolean {
     && file.split('/').every((part) => Boolean(part) && part !== '.' && part !== '..')
     && file.startsWith('demo/');
 }
-

@@ -8,6 +8,11 @@ import {
   type NodePluginResult,
 } from '../../server/plugins.ts';
 import {
+  demoFileName,
+  findDemoUiTargets,
+  validateDemoHtml,
+} from '../app-video-demo-ui/contract.ts';
+import {
   DEFAULT_APP_VIDEO_RENDER_CONFIG,
   RENDER_RESOLUTIONS,
   RESOLUTION_SIZES,
@@ -25,6 +30,7 @@ import {
   SLUG_PATTERN,
   tailLines,
   timelineSeconds,
+  type GeneratedDemoHtml,
   type MuxTrack,
   type NarrationClipRef,
 } from './render.ts';
@@ -74,6 +80,65 @@ function normalizeConfig(value: unknown): AppVideoRenderConfig {
     timeoutMs: integer(raw.timeoutMs, defaults.timeoutMs, 60_000, 21_600_000),
     dryRun: raw.dryRun === undefined ? defaults.dryRun : Boolean(raw.dryRun),
   };
+}
+
+/**
+ * The five-node workflow has no separate project/compose packagers. Materialize
+ * the LLM HTML payloads here, while the preview node is already waiting for
+ * both the narration and Demo UI branches.
+ */
+async function attachGeneratedDemos(
+  document: Record<string, any>,
+  generatedDemos: GeneratedDemoHtml[],
+  assetsDir: string,
+  workflowId: string,
+  runId: string,
+): Promise<Record<string, any>> {
+  const targets = findDemoUiTargets(document);
+  if (generatedDemos.length !== targets.length) {
+    throw new NodeValidationError(
+      `Demo UI generation produced ${generatedDemos.length} target(s), but the storyboard requires ${targets.length}.`,
+    );
+  }
+
+  const byTarget = new Map<string, GeneratedDemoHtml>();
+  for (const demo of generatedDemos) {
+    const key = `${demo.clipIndex}:${demo.itemIndex}`;
+    if (byTarget.has(key)) {
+      throw new NodeValidationError(`Demo UI generation contains a duplicate target ${key}.`);
+    }
+    byTarget.set(key, demo);
+  }
+
+  const output = structuredClone(document);
+  await fs.mkdir(path.join(assetsDir, 'demo'), { recursive: true });
+  for (const target of targets) {
+    const key = `${target.clipIndex}:${target.itemIndex}`;
+    const generated = byTarget.get(key);
+    if (!generated) {
+      throw new NodeValidationError(`Demo UI generation is missing target ${key}.`);
+    }
+    const errors = validateDemoHtml(generated.html, target);
+    if (errors.length) {
+      throw new NodeValidationError(
+        `Demo UI target ${key} failed validation:\n${errors.map((error) => `- ${error}`).join('\n')}`,
+      );
+    }
+
+    const htmlFile = demoFileName(target.clipIndex, target.itemIndex);
+    await fs.writeFile(path.join(assetsDir, htmlFile), generated.html, 'utf8');
+    output.clips[target.clipIndex].items[target.itemIndex] = {
+      ...output.clips[target.clipIndex].items[target.itemIndex],
+      demoUi: {
+        clipIndex: target.clipIndex,
+        itemIndex: target.itemIndex,
+        htmlFile,
+        url: `/api/workflows/${encodeURIComponent(workflowId)}/assets/${encodeURIComponent(runId)}/${htmlFile
+          .split('/').map(encodeURIComponent).join('/')}`,
+      },
+    };
+  }
+  return output;
 }
 
 interface CommandResult {
@@ -260,7 +325,18 @@ async function execute(
     );
   }
 
-  const assetDir = facts.assetDir ?? null;
+  // In the compact graph all generated assets share the current run directory.
+  // A legacy project manifest may still provide its own asset directory.
+  const assetDir = facts.assetDir ?? assetsDir;
+  if (facts.document && facts.generatedDemos.length) {
+    facts.document = await attachGeneratedDemos(
+      facts.document,
+      facts.generatedDemos,
+      assetDir,
+      workflowId,
+      runId,
+    );
+  }
   const { problems, notes } = await preflight(assetDir, slug, facts.document);
 
   const assetId = runId;

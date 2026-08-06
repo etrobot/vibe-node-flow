@@ -136,9 +136,12 @@ export function readNarrationSource(raw: string): {
     chapterFiles: Array.isArray(parsed.chapterFiles)
       ? parsed.chapterFiles.filter((file: unknown) => typeof file === 'string' && file)
       : [],
+    // A direct storyboard edge is the compact five-node workflow's project
+    // handoff. Preserve it so the render node can carry measured shot timing
+    // forward without requiring an intermediate app-video-project node.
     document: parsed.document && typeof parsed.document === 'object' && !Array.isArray(parsed.document)
       ? parsed.document as Record<string, unknown>
-      : null,
+      : parsed as Record<string, unknown>,
   };
 }
 

@@ -257,7 +257,13 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
       {activeTab === 'preview' && (
         <div className="flex flex-col gap-3">
           {upstreamDocument ? (
-            <InteractivePlayer document={upstreamDocument} audioSrc={narrationUrl} />
+            <InteractivePlayer
+              document={upstreamDocument}
+              audioSrc={narrationUrl}
+              onRenderMp4={() => void openRenderTerminal()}
+              isRenderingMp4={openingRenderTerminal}
+              canRenderMp4={canOpenRenderTerminal}
+            />
           ) : (
             <div className="rounded-xl border border-hairline bg-surface-canvas p-8 text-center text-sm text-muted">
               Run the upstream Clip Storyboard or App Video Project node to load the interactive preview.

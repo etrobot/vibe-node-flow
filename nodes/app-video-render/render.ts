@@ -33,6 +33,14 @@ export interface NarrationClipRef {
   startSeconds: number;
 }
 
+/** HTML payloads produced by the LLM Demo UI branch. */
+export interface GeneratedDemoHtml {
+  clipIndex: number;
+  itemIndex: number;
+  html: string;
+  generation?: Record<string, unknown>;
+}
+
 export interface UpstreamFacts {
   slug: string | null;
   assetDir: string | null;
@@ -41,6 +49,7 @@ export interface UpstreamFacts {
   /** Directory holding the clip MP3s reported by `edge-tts-narration`. */
   audioDir: string | null;
   narrationClips: NarrationClipRef[];
+  generatedDemos: GeneratedDemoHtml[];
 }
 
 export interface TimelineClip {
@@ -79,6 +88,7 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     document: null,
     audioDir: null,
     narrationClips: [],
+    generatedDemos: [],
   };
 
   let parsedAny = false;
@@ -91,6 +101,23 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
     parsedAny = true;
+
+    if (parsed.kind === 'ui-html-generation' && Array.isArray(parsed.demos)) {
+      facts.generatedDemos.push(
+        ...parsed.demos
+          .filter((demo: any) => Number.isInteger(demo?.clipIndex)
+            && Number.isInteger(demo?.itemIndex)
+            && typeof demo?.html === 'string')
+          .map((demo: any) => ({
+            clipIndex: Number(demo.clipIndex),
+            itemIndex: Number(demo.itemIndex),
+            html: demo.html,
+            ...(demo.generation && typeof demo.generation === 'object'
+              ? { generation: demo.generation as Record<string, unknown> }
+              : {}),
+          })),
+      );
+    }
 
     const embeddedDocument = parsed.document && typeof parsed.document === 'object'
       ? parsed.document

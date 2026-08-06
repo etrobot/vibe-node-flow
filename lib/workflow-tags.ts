@@ -1,4 +1,4 @@
-export const DEFAULT_NODE_TAG_CATALOG = ['DB', 'ENV', 'FS'] as const;
+export const DEFAULT_NODE_TAG_CATALOG = ['DB', 'ENV', 'FS', 'LLM'] as const;
 
 export const MAX_NODE_TAG_LENGTH = 24;
 

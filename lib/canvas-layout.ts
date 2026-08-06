@@ -7,9 +7,9 @@ export const LEFT_MARGIN = 60;
 /** Top padding before the first row (px). */
 export const TOP_MARGIN = 48;
 /** Rendered width of a single node card (px). */
-export const NODE_WIDTH = 153;
-/** Rendered height of a single node card (px). */
-export const NODE_HEIGHT = 50;
+export const NODE_WIDTH = 165;
+/** Rendered height of a single node card icon/interactive block (px). */
+export const NODE_HEIGHT = 80;
 /** Horizontal gap between two adjacent columns (px). */
 export const COL_GAP = 80;
 /** Full stride of one column = node width + gap (px). */

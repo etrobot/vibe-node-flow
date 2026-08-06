@@ -11,6 +11,7 @@ import { DEFAULT_APP_VIDEO_DEMO_UI_CONFIG, type AppVideoDemoUiConfig } from './c
 import {
   demoFileName,
   findDemoUiTargets,
+  validateDemoHtml,
   type DemoUiTarget,
 } from './contract.ts';
 
@@ -47,6 +48,87 @@ function readStoryboard(raw: string): StoryboardDocument {
     throw new NodeValidationError('Storyboard is missing a non-empty clips array.');
   }
   return parsed as StoryboardDocument;
+}
+
+interface GeneratedDemo {
+  clipIndex: number;
+  itemIndex: number;
+  html: string;
+  generation?: Record<string, unknown>;
+}
+
+interface DemoSource {
+  document: StoryboardDocument;
+  generatedDemos?: GeneratedDemo[];
+  width?: number;
+  height?: number;
+}
+
+function readSource(raw: string): DemoSource {
+  let parsed: any;
+  try {
+    parsed = parseStoryboardJson(raw);
+  } catch (error) {
+    throw new NodeValidationError(
+      'Demo UI input is not valid JSON: ' + (error instanceof Error ? error.message : String(error)),
+    );
+  }
+
+  if (parsed?.kind !== 'ui-html-generation') {
+    return { document: readStoryboard(raw) };
+  }
+
+  const document = readStoryboard(JSON.stringify(parsed.document));
+  if (!Array.isArray(parsed.demos)) {
+    throw new NodeValidationError('UI HTML Generation manifest is missing its demos array.');
+  }
+  const targets = findDemoUiTargets(document);
+  const seen = new Set<string>();
+  const generatedDemos: GeneratedDemo[] = [];
+  for (const [index, value] of parsed.demos.entries()) {
+    const clipIndex = Number(value?.clipIndex);
+    const itemIndex = Number(value?.itemIndex);
+    const key = clipIndex + ':' + itemIndex;
+    if (!Number.isInteger(clipIndex) || !Number.isInteger(itemIndex) || seen.has(key)) {
+      throw new NodeValidationError(
+        'UI HTML Generation manifest has a duplicate or invalid target at entry ' + (index + 1) + '.',
+      );
+    }
+    if (typeof value?.html !== 'string') {
+      throw new NodeValidationError('UI HTML Generation manifest target ' + key + ' is missing HTML.');
+    }
+    seen.add(key);
+    generatedDemos.push({
+      clipIndex,
+      itemIndex,
+      html: value.html,
+      generation: value.generation && typeof value.generation === 'object' ? value.generation : undefined,
+    });
+  }
+  if (generatedDemos.length !== targets.length) {
+    throw new NodeValidationError(
+      'UI HTML Generation manifest contains ' + generatedDemos.length
+      + ' target(s), but the storyboard requires ' + targets.length + '.',
+    );
+  }
+  for (const target of targets) {
+    const key = target.clipIndex + ':' + target.itemIndex;
+    const generated = generatedDemos.find((entry) => entry.clipIndex + ':' + entry.itemIndex === key);
+    if (!generated) throw new NodeValidationError('UI HTML Generation manifest is missing target ' + key + '.');
+    const errors = validateDemoHtml(generated.html, target);
+    if (errors.length) {
+      throw new NodeValidationError(
+        'UI HTML Generation manifest target ' + key + ' failed validation:\n'
+        + errors.map((error) => '- ' + error).join('\n'),
+      );
+    }
+  }
+  return {
+    document,
+    generatedDemos,
+    width: Number.isFinite(Number(parsed.width)) ? Number(parsed.width) : undefined,
+    height: Number.isFinite(Number(parsed.height)) ? Number(parsed.height) : undefined,
+  };
 }
 
 function escapeHtml(value: unknown): string {
@@ -171,20 +253,38 @@ export function renderDemoHtml(target: DemoUiTarget, config: AppVideoDemoUiConfi
 async function execute({ node, input, assetsDir, workflowId, runId }: NodePluginContext): Promise<NodePluginResult> {
   const startedAt = new Date().toISOString();
   const config = normalizeConfig(node.config);
-  const document = readStoryboard(sourceText(input));
+  const source = readSource(sourceText(input));
+  const document = source.document;
   const targets = findDemoUiTargets(document);
+  const generatedByTarget = new Map(
+    (source.generatedDemos || []).map((demo) => [demo.clipIndex + ':' + demo.itemIndex, demo]),
+  );
+  const prepared = targets.map((target) => {
+    const generated = generatedByTarget.get(target.clipIndex + ':' + target.itemIndex);
+    const html = generated?.html || renderDemoHtml(target, config);
+    const errors = validateDemoHtml(html, target);
+    if (errors.length) {
+      throw new NodeValidationError(
+        'Demo UI target ' + target.clipIndex + ':' + target.itemIndex + ' failed HTML validation:\n'
+        + errors.map((error) => '- ' + error).join('\n'),
+      );
+    }
+    return { target, html, generation: generated?.generation };
+  });
   const demoDir = path.join(assetsDir, 'demo');
   await fs.mkdir(demoDir, { recursive: true });
 
   const demos = [];
-  for (const target of targets) {
+  for (const entry of prepared) {
+    const target = entry.target;
     const htmlFile = demoFileName(target.clipIndex, target.itemIndex);
     const absolute = path.join(assetsDir, htmlFile);
-    await fs.writeFile(absolute, renderDemoHtml(target, config), 'utf8');
+    await fs.writeFile(absolute, entry.html, 'utf8');
     demos.push({
       clipIndex: target.clipIndex,
       itemIndex: target.itemIndex,
       htmlFile,
+      ...(entry.generation ? { generation: entry.generation } : {}),
       url: `/api/workflows/${encodeURIComponent(workflowId)}/assets/${encodeURIComponent(runId)}/${htmlFile
         .split('/').map(encodeURIComponent).join('/')}`,
     });
@@ -194,8 +294,8 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
     kind: 'app-video-demo-ui',
     slug: String(document.slug ?? '').trim(),
     assetDir: assetsDir,
-    width: config.width,
-    height: config.height,
+    width: source.width ?? config.width,
+    height: source.height ?? config.height,
     demoCount: demos.length,
     demos,
   };

@@ -303,10 +303,13 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     setConnectingFromId(null);
   };
 
+  const ICON_CARD_SIZE = 56;
+
   const getNodePorts = (node: FlowNode) => {
+    const iconCardXOffset = (NODE_WIDTH - ICON_CARD_SIZE) / 2;
     return {
-      input: { x: node.x, y: node.y + NODE_HEIGHT / 2 },
-      output: { x: node.x + NODE_WIDTH, y: node.y + NODE_HEIGHT / 2 },
+      input: { x: node.x + iconCardXOffset, y: node.y + ICON_CARD_SIZE / 2 },
+      output: { x: node.x + iconCardXOffset + ICON_CARD_SIZE, y: node.y + ICON_CARD_SIZE / 2 },
     };
   };
 
@@ -471,10 +474,10 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const clearance = 12;
     const rightOfSource = from.x + clearance;
     const leftOfTarget = to.x - clearance;
-    const sourceTop = from.y - NODE_HEIGHT / 2;
-    const sourceBottom = from.y + NODE_HEIGHT / 2;
-    const targetTop = to.y - NODE_HEIGHT / 2;
-    const targetBottom = to.y + NODE_HEIGHT / 2;
+    const sourceTop = from.y - 28;
+    const sourceBottom = from.y + 28;
+    const targetTop = to.y - 28;
+    const targetBottom = to.y + 28;
     const gapBetween = to.y > from.y
       ? targetTop - sourceBottom
       : sourceTop - targetBottom;
@@ -788,66 +791,61 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 style={{ left: `${node.x}px`, top: `${node.y}px`, width: `${NODE_WIDTH}px` }}
                 className={`absolute flex flex-col items-center group select-none pointer-events-auto ${readOnly ? 'cursor-pointer' : 'cursor-move'}`}
               >
-                {/* Execution time badge - top right */}
-                {node.executionTime !== undefined && (
-                  <div className="absolute -top-7 right-0 z-50">
-                    <span className="inline-flex items-center gap-1 bg-surface-card/95 border border-hairline px-2 py-0.5 rounded-pill text-[10px] font-mono text-muted shadow-2xs whitespace-nowrap">
-                      <Clock className="w-2.5 h-2.5 text-primary" />
-                      {(node.executionTime / 1000).toFixed(1)}s
-                    </span>
-                  </div>
-                )}
-
-                {/* Run button - centered above node */}
-                {!readOnly && (
-                  <div
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className={`absolute -top-7 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-surface-card border border-hairline rounded-pill px-1.5 py-0.5 transition-all ${
-                      isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); onRunSingleNode(node.id); }}
-                      title="Run this node alone"
-                      className="p-1 rounded-full text-muted hover:text-primary hover:bg-primary-light transition-colors cursor-pointer"
-                    >
-                      <Play className="w-3 h-3 fill-current" />
-                    </button>
-                  </div>
-                )}
-
-                <div
-                  className={`relative w-[149px] h-[48px] px-1.5 rounded-lg flex items-center gap-1.5 transition-all duration-200 bg-surface-card border shadow-2xs ${
-                    isSelected
-                      ? 'border-black ring-2 ring-black/20 z-30'
-                      : node.status === 'running'
-                      ? 'border-timeline-done ring-2 ring-timeline-done/20 animate-pulse z-30'
-                      : node.status === 'success'
-                      ? 'border-timeline-grep hover:border-timeline-grep/80'
-                      : node.status === 'warning'
-                      ? 'border-semantic-warning hover:border-semantic-warning/80'
-                      : node.status === 'error'
-                      ? 'border-semantic-error hover:border-semantic-error/80'
-                      : 'border-hairline hover:border-hairline-strong'
-                  }`}
-                >
-                  <div style={{ color: node.color || nodeModule.color }}>
-                    {renderLucideIcon(node.icon, 'w-4 h-4')}
-                  </div>
-
-                  <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <div className={`text-xs font-medium tracking-tight truncate ${isSelected ? 'text-primary font-medium' : 'text-ink'}`}>
-                      {node.title}
+                {/* Top Icon Card Block */}
+                <div className="relative">
+                  {/* Execution time badge - top right */}
+                  {node.executionTime !== undefined && (
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 z-50">
+                      <span className="text-[10px] font-mono text-muted whitespace-nowrap">
+                        {(node.executionTime / 1000).toFixed(1)}s
+                      </span>
                     </div>
-                    {nodeModule.badge && (
-                      <div className="text-[10px] text-muted font-mono truncate">
-                        {nodeModule.badge}
-                      </div>
-                    )}
+                  )}
+
+                  {/* Run button - centered above node icon card */}
+                  {!readOnly && (
+                    <div
+                      onMouseDown={(e) => e.stopPropagation()}
+                      className={`absolute -top-7 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-surface-card border border-hairline rounded-pill px-1.5 py-0.5 transition-all ${
+                        isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onRunSingleNode(node.id); }}
+                        title="Run this node alone"
+                        className="p-1 rounded-full text-muted hover:text-primary hover:bg-primary-light transition-colors cursor-pointer"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Clean Square Icon Tile */}
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-200 bg-surface-card border shadow-2xs ${
+                      isSelected
+                        ? 'border-black ring-2 ring-black/20 z-30'
+                        : node.status === 'running'
+                        ? 'border-timeline-done ring-2 ring-timeline-done/20 animate-pulse z-30'
+                        : node.status === 'success'
+                        ? 'border-timeline-grep hover:border-timeline-grep/80'
+                        : node.status === 'warning'
+                        ? 'border-semantic-warning hover:border-semantic-warning/80'
+                        : node.status === 'error'
+                        ? 'border-semantic-error hover:border-semantic-error/80'
+                        : 'border-hairline hover:border-hairline-strong'
+                    }`}
+                    style={{
+                      backgroundColor: `${node.color || nodeModule.color}12`,
+                      color: node.color || nodeModule.color,
+                    }}
+                  >
+                    {renderLucideIcon(node.icon, 'w-6 h-6')}
                   </div>
 
+                  {/* Status Indicator Badges */}
                   {node.status === 'running' && (
                     <div className="absolute -top-1.5 -right-1.5 bg-timeline-done text-on-primary rounded-full p-0.5 z-40">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -884,6 +882,18 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                   >
                     <div className="w-1 h-1 rounded-full bg-muted group-hover/port:bg-white transition-colors" />
                   </div>
+                </div>
+
+                {/* Middle Text Label Block */}
+                <div className="mt-1.5 w-full flex flex-col items-center justify-center text-center px-1">
+                  <div className={`w-full text-xs font-medium tracking-tight whitespace-normal break-words leading-tight ${isSelected ? 'text-primary font-semibold' : 'text-ink'}`}>
+                    {node.title}
+                  </div>
+                  {nodeModule.badge && (
+                    <div className="w-full text-[10px] text-muted font-mono truncate mt-0.5">
+                      {nodeModule.badge}
+                    </div>
+                  )}
                 </div>
 
                 {(selectedTags.length > 0 || !readOnly) && (

@@ -1,38 +1,40 @@
 {
   "id": "app-launch-video",
   "name": "App Launch Video With Voice",
-  "description": "Turn a verified product brief into a storyboard, build the video JSON and Demo UI HTML in parallel, compose them, narrate every clip with Edge TTS, and render the finished MP4.",
+  "description": "Generate script copy and storyboard JSON, create voiceover and Demo UI HTML in parallel, then merge both into the video preview.",
   "createdAt": "2026-08-02T00:00:00.000Z",
-  "updatedAt": "2026-08-06T00:00:00.000Z",
+  "updatedAt": "2026-08-06T09:00:53.837Z",
   "icon": "AudioLines",
   "color": "#15803d",
   "tagCatalog": [
     "DB",
     "ENV",
-    "FS"
+    "FS",
+    "LLM"
   ],
   "tags": [
     "video",
     "voice"
   ],
   "laneLabels": [
-    "Lane 1",
-    "Lane 2",
-    "Lane 3",
-    "Lane 4",
-    "Lane 5",
-    "Lane 6"
+    "Script Copy",
+    "Storyboard JSON",
+    "Parallel Assets",
+    "Video Preview"
   ],
   "nodes": [
     {
       "id": "node-brief",
       "type": "content-brief",
-      "title": "Product Brief",
-      "icon": "FileInput",
-      "lane": "Lane 1",
+      "title": "Generate Script Copy",
+      "icon": "ScrollText",
+      "lane": "Script Copy",
       "x": 60,
       "y": 180,
       "color": "#0f766e",
+      "tags": [
+        "ENV"
+      ],
       "config": {
         "topic": "Forge, an AI app builder that turns an idea into a working product",
         "audience": "Solo founders and small product teams who can describe a product but cannot ship one alone",
@@ -49,14 +51,15 @@
     {
       "id": "node-storyboard",
       "type": "clip-storyboard",
-      "title": "Storyboard",
+      "title": "Generate Storyboard JSON",
       "icon": "Clapperboard",
-      "lane": "Lane 2",
+      "lane": "Storyboard JSON",
       "x": 293,
-      "y": 140,
+      "y": 180,
       "color": "#c2410c",
       "tags": [
-        "ENV"
+        "ENV",
+        "LLM"
       ],
       "config": {
         "slug": "forge-app-launch",
@@ -70,64 +73,17 @@
         "timingMode": "anchor",
         "maxGlobalComponents": 6,
         "temperature": 0.6,
-        "systemPrompt": "You are a storyboard director for a local motion-graphics video renderer. You return one JSON document and nothing else: no Markdown fences, no commentary. Every claim in the narration must be supported by the upstream brief. Declare each reusable structure once in global-components and revisit it across clips with a different spot, so a diagram builds up instead of restarting. Items carry no duration: mark where the picture cuts with **anchors** in the speech."
+        "systemPrompt": "You are a storyboard director for a local motion-graphics video renderer. You return one JSON document and nothing else: no Markdown fences, no commentary. Every claim in the narration must be supported by the upstream brief. Declare each reusable structure once in global-components and revisit it across clips with a different spot, so a diagram builds up instead of restarting. Items carry no duration: mark where the picture cuts with **anchors** in the speech. For product UI shots, use ui-prompt-input, ui-dropfiles, ui-render-loading, or ui-video-preview as HTML placeholders; the downstream Demo UI generator will replace those placeholders with self-contained HTML. Do not put HTML markup in the storyboard JSON."
       }
-    },
-    {
-      "id": "node-project",
-      "type": "app-video-project",
-      "title": "Builder Project",
-      "icon": "FolderTree",
-      "lane": "Lane 3",
-      "x": 526,
-      "y": 180,
-      "color": "#0369a1",
-      "tags": [
-        "FS"
-      ],
-      "config": {
-        "writeDescription": true
-      }
-    },
-    {
-      "id": "node-demo-ui",
-      "type": "app-video-demo-ui",
-      "title": "Generate Demo UI HTML",
-      "icon": "PanelsTopLeft",
-      "lane": "Lane 3",
-      "x": 526,
-      "y": 410,
-      "color": "#0891b2",
-      "tags": [
-        "FS"
-      ],
-      "config": {
-        "width": 1920,
-        "height": 1080
-      }
-    },
-    {
-      "id": "node-compose",
-      "type": "app-video-compose",
-      "title": "Compose Video Project",
-      "icon": "Combine",
-      "lane": "Lane 4",
-      "x": 759,
-      "y": 180,
-      "color": "#2563eb",
-      "tags": [
-        "FS"
-      ],
-      "config": {}
     },
     {
       "id": "node-narration",
       "type": "edge-tts-narration",
-      "title": "Clip Narration",
+      "title": "Generate Voiceover",
       "icon": "AudioLines",
-      "lane": "Lane 5",
-      "x": 992,
-      "y": 180,
+      "lane": "Parallel Assets",
+      "x": 526,
+      "y": 140,
       "color": "#15803d",
       "tags": [
         "FS"
@@ -147,12 +103,32 @@
       }
     },
     {
+      "id": "node-ui-html",
+      "type": "ui-html-generation",
+      "title": "Generate Demo UI HTML",
+      "icon": "PanelsTopLeft",
+      "lane": "Parallel Assets",
+      "x": 526,
+      "y": 420,
+      "color": "#0891b2",
+      "tags": [
+        "LLM"
+      ],
+      "config": {
+        "width": 1920,
+        "height": 1080,
+        "temperature": 0.45,
+        "retryLimit": 3,
+        "maxHtmlLength": 400000
+      }
+    },
+    {
       "id": "node-render",
       "type": "app-video-render",
-      "title": "Video Render",
+      "title": "Video Preview",
       "icon": "Film",
-      "lane": "Lane 6",
-      "x": 1225,
+      "lane": "Video Preview",
+      "x": 759,
       "y": 180,
       "color": "#7c3aed",
       "tags": [
@@ -182,33 +158,23 @@
       "toNodeId": "node-storyboard"
     },
     {
-      "id": "edge-node-storyboard-node-project",
+      "id": "edge-node-storyboard-node-narration",
       "fromNodeId": "node-storyboard",
-      "toNodeId": "node-project"
-    },
-    {
-      "id": "edge-node-storyboard-node-demo-ui",
-      "fromNodeId": "node-storyboard",
-      "toNodeId": "node-demo-ui"
-    },
-    {
-      "id": "edge-node-project-node-compose",
-      "fromNodeId": "node-project",
-      "toNodeId": "node-compose"
-    },
-    {
-      "id": "edge-node-demo-ui-node-compose",
-      "fromNodeId": "node-demo-ui",
-      "toNodeId": "node-compose"
-    },
-    {
-      "id": "edge-node-compose-node-narration",
-      "fromNodeId": "node-compose",
       "toNodeId": "node-narration"
+    },
+    {
+      "id": "edge-node-storyboard-node-ui-html",
+      "fromNodeId": "node-storyboard",
+      "toNodeId": "node-ui-html"
     },
     {
       "id": "edge-node-narration-node-render",
       "fromNodeId": "node-narration",
+      "toNodeId": "node-render"
+    },
+    {
+      "id": "edge-node-ui-html-node-render",
+      "fromNodeId": "node-ui-html",
       "toNodeId": "node-render"
     }
   ]

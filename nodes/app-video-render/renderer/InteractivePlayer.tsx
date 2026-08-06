@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent} from 'react';
-import {CalendarRange, Pause, Play, RotateCcw, Volume2, VolumeX} from 'lucide-react';
+import {CalendarRange, Loader2, Pause, Play, RotateCcw, Terminal, Volume2, VolumeX} from 'lucide-react';
 import type {Clip, ClipsDocument} from './clipTypes';
 import {
   clamp,
@@ -18,6 +18,10 @@ export interface InteractivePlayerProps {
   document: ClipsDocument;
   /** Combined Edge TTS narration for the preview timeline, when available. */
   audioSrc?: string | null;
+  /** Optional callback to trigger opening the MP4 render terminal */
+  onRenderMp4?: () => void;
+  isRenderingMp4?: boolean;
+  canRenderMp4?: boolean;
 }
 
 interface TimedClip {
@@ -114,7 +118,13 @@ function getTimedChapters(document: ClipsDocument, clips: TimedClip[], totalDura
   });
 }
 
-export const InteractivePlayer = ({document, audioSrc = null}: InteractivePlayerProps) => {
+export const InteractivePlayer = ({
+  document,
+  audioSrc = null,
+  onRenderMp4,
+  isRenderingMp4 = false,
+  canRenderMp4 = false,
+}: InteractivePlayerProps) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -427,156 +437,178 @@ export const InteractivePlayer = ({document, audioSrc = null}: InteractivePlayer
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 px-1 text-[10px] text-muted">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <CalendarRange className="h-3.5 w-3.5 shrink-0 text-[var(--theme-primary)]" />
-          <span className="truncate">Click a segment to seek · Use Space to play or pause</span>
-        </span>
-        <span className="shrink-0 font-mono tabular-nums text-ink">
-          {formatTime(currentTime)} <span className="text-muted">/</span> {formatTime(totalDuration)}
-        </span>
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-xl border border-hairline bg-surface-canvas p-3 shadow-lg sm:flex-row sm:items-center sm:gap-6 sm:p-4">
-        <div className="flex shrink-0 items-center gap-3 sm:min-w-[150px] sm:border-r sm:border-hairline sm:pr-5">
-          <button
-            type="button"
-            onClick={togglePlay}
-            aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow-md transition hover:brightness-110 active:scale-95"
-          >
-            {isPlaying ? <Pause className="h-3.5 w-3.5" /> : currentTime >= totalDuration ? <RotateCcw className="h-3.5 w-3.5" /> : <Play className="ml-0.5 h-3.5 w-3.5" />}
-          </button>
-          <span className="font-mono text-xs font-semibold tabular-nums text-muted">
-            {formatTime(currentTime)} <span className="text-muted/60">/</span> {formatTime(totalDuration)}
-          </span>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2 sm:border-r sm:border-hairline sm:pr-5" aria-label="Audio controls">
-          <button
-            type="button"
-            onClick={toggleMute}
-            disabled={!audioSrc}
-            aria-label={isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview'}
-            title={audioSrc ? (isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview') : 'Narration audio is not available'}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-surface-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {isMuted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-          </button>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={isMuted ? 0 : volume}
-            onChange={handleVolumeChange}
-            disabled={!audioSrc}
-            aria-label="Preview volume"
-            className="h-1.5 w-20 cursor-pointer accent-[var(--theme-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-          />
-          <span className="w-8 text-right font-mono text-[10px] tabular-nums text-muted">
-            {Math.round((isMuted ? 0 : volume) * 100)}%
-          </span>
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <div
-            className="relative h-2 min-w-0 cursor-pointer rounded-full bg-surface-elevated"
-            role="slider"
-            tabIndex={0}
-            aria-label="Video timeline"
-            aria-valuemin={0}
-            aria-valuemax={totalDuration}
-            aria-valuenow={currentTime}
-            onPointerDown={handleSeekFromPointer}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowLeft') seek(currentTime - 1);
-              if (event.key === 'ArrowRight') seek(currentTime + 1);
-              if (event.key === 'Home') seek(0);
-              if (event.key === 'End') seek(totalDuration);
-            }}
-          >
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-accent)]"
-              style={{width: `${(currentTime / totalDuration) * 100}%`}}
-            />
-            {timedClips.slice(0, -1).map((clip) => (
-              <span
-                key={clip.index}
-                className="absolute inset-y-0 w-px bg-white/30"
-                style={{left: `${(clip.end / totalDuration) * 100}%`}}
-              />
-            ))}
-            <span
-              className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--theme-accent)] shadow-[0_0_10px_var(--theme-glow)]"
-              style={{left: `${(currentTime / totalDuration) * 100}%`}}
-            />
-          </div>
-
-          {timedChapters.length > 0 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-            {timedChapters.map((chapter, index) => {
-              const isActive = index === activeChapterIndex;
-              const progress = currentTime <= chapter.start
-                ? 0
-                : currentTime >= chapter.end
-                  ? 100
-                  : ((currentTime - chapter.start) / Math.max(chapter.duration, 0.1)) * 100;
-              return (
-                <button
-                  key={`${chapter.index}-${chapter.startClip}-${chapter.title}`}
-                  type="button"
-                  title={`${chapter.title} (${formatTime(chapter.duration)})${chapter.summary ? ` — ${chapter.summary}` : ''}`}
-                  onClick={() => seek(chapter.start)}
-                  style={{flexGrow: Math.max(chapter.duration, 1)}}
-                  className={`relative min-w-[142px] max-w-[260px] flex-1 overflow-hidden rounded-lg border px-2.5 py-2 text-left transition ${
-                    isActive
-                      ? 'border-[var(--theme-accent)]/60 bg-[var(--theme-accent)]/10 text-ink shadow-[0_0_18px_var(--theme-glow)]'
-                      : 'border-hairline bg-surface-canvas-soft text-muted hover:border-hairline-strong hover:text-ink'
-                  }`}
-                >
-                  <span className="absolute inset-y-0 left-0 bg-[var(--theme-accent)]/10" style={{width: `${progress}%`}} />
-                  <span className="relative flex items-center gap-2">
-                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-[9px] font-black ${isActive ? 'bg-[var(--theme-accent)] text-black' : 'bg-surface-elevated text-muted'}`}>
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">{chapter.title}</span>
-                    <span className="shrink-0 font-mono text-[9px] opacity-70">{formatTime(chapter.duration)}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          )}
-
-          <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-          {timedClips.map(({clip, index, start, end, duration}) => {
-            const isActive = currentTime >= start && currentTime < end;
-            const progress = currentTime >= end ? 100 : isActive ? ((currentTime - start) / Math.max(duration, 0.1)) * 100 : 0;
-            return (
+      <div className="flex flex-col gap-3 rounded-xl border border-hairline bg-surface-canvas p-3 shadow-lg sm:p-4">
+        {/* Main Grid Layout: Left 1/8 stacked controls, Right 7/8 stacked (Timeline, Chapters, Clips) */}
+        <div className="flex items-start gap-3">
+          {/* Left Column (~1/8): Playback & Audio Controls Stacked + Render MP4 Button */}
+          <div className="flex w-28 shrink-0 flex-col gap-2 pt-0.5 sm:w-32">
+            {/* Top: Play/Pause button + Current Time / Total Time */}
+            <div className="flex items-center gap-1.5">
               <button
-                key={index}
                 type="button"
-                onClick={() => seek(start)}
-                style={{flexGrow: Math.max(duration, 0.1)}}
-                className={`relative min-w-[76px] flex-1 overflow-hidden rounded-lg border p-2 text-left transition ${
-                  isActive
-                    ? 'z-10 scale-[1.02] border-[var(--theme-primary)]/70 bg-surface-elevated shadow-[0_0_18px_var(--theme-glow)]'
-                    : 'border-hairline bg-surface-canvas-soft hover:border-hairline-strong'
-                }`}
-                title={`Seek to clip ${index + 1}`}
+                onClick={togglePlay}
+                aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--theme-primary)] text-white shadow transition hover:brightness-110 active:scale-95 cursor-pointer"
               >
-                <span className="absolute inset-y-0 left-0 bg-gradient-to-r from-[var(--theme-primary)]/30 to-[var(--theme-accent)]/20" style={{width: `${progress}%`}} />
-                <span className="relative flex items-center justify-between gap-2 text-[9px] font-mono text-muted">
-                  <span className={isActive ? 'font-bold text-[var(--theme-primary)]' : ''}>{String(index + 1).padStart(2, '0')}</span>
-                  <span>{duration.toFixed(1)}s</span>
-                </span>
-                <span className={`relative mt-1 block truncate text-[10px] font-semibold ${isActive ? 'text-ink' : 'text-muted'}`}>
-                  {clipLabel(clip, index)}
-                </span>
+                {isPlaying ? <Pause className="h-2.5 w-2.5" /> : currentTime >= totalDuration ? <RotateCcw className="h-2.5 w-2.5" /> : <Play className="ml-0.5 h-2.5 w-2.5" />}
               </button>
-            );
-          })}
+              <span className="font-mono text-[10px] font-medium tabular-nums text-muted">
+                {formatTime(currentTime)} / {formatTime(totalDuration)}
+              </span>
+            </div>
+
+            {/* Middle: Mute/Unmute button + Volume Slider */}
+            <div className="flex items-center gap-1" aria-label="Audio controls">
+              <button
+                type="button"
+                onClick={toggleMute}
+                disabled={!audioSrc}
+                aria-label={isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview'}
+                title={audioSrc ? (isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview') : 'Narration audio is not available'}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted transition hover:bg-surface-elevated hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+              >
+                {isMuted || volume === 0 ? <VolumeX className="h-2.5 w-2.5" /> : <Volume2 className="h-2.5 w-2.5" />}
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={isMuted ? 0 : volume}
+                onChange={handleVolumeChange}
+                disabled={!audioSrc}
+                aria-label="Preview volume"
+                className="h-1 min-w-0 flex-1 cursor-pointer accent-[var(--theme-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+              />
+            </div>
+
+            {/* Bottom: Render MP4 trigger button */}
+            {onRenderMp4 && (
+              <button
+                type="button"
+                disabled={!canRenderMp4 || isRenderingMp4}
+                onClick={onRenderMp4}
+                title={canRenderMp4 ? '调用渲染脚本 render-video.sh 导出 MP4' : '请先运行工作流生成渲染上下文'}
+                className="mt-1 flex w-full items-center justify-center gap-1 rounded-md bg-[var(--theme-accent)] px-2 py-1 text-[10px] font-semibold text-black shadow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+              >
+                {isRenderingMp4 ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>启动中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Terminal className="h-3 w-3" />
+                    <span>Render MP4</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Right Column (~7/8): Top is Timeline Bar, Middle is Chapters, Bottom is Clips */}
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+            {/* 1. Timeline slider */}
+            <div
+              className="group/timeline relative h-2.5 w-full cursor-pointer rounded-full bg-surface-elevated transition-all hover:h-3"
+              role="slider"
+              tabIndex={0}
+              aria-label="Video timeline"
+              aria-valuemin={0}
+              aria-valuemax={totalDuration}
+              aria-valuenow={currentTime}
+              onPointerDown={handleSeekFromPointer}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowLeft') seek(currentTime - 1);
+                if (event.key === 'ArrowRight') seek(currentTime + 1);
+                if (event.key === 'Home') seek(0);
+                if (event.key === 'End') seek(totalDuration);
+              }}
+            >
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-accent)]"
+                style={{width: `${(currentTime / totalDuration) * 100}%`}}
+              />
+              {timedClips.slice(0, -1).map((clip) => (
+                <span
+                  key={clip.index}
+                  className="absolute inset-y-0 w-px bg-white/30"
+                  style={{left: `${(clip.end / totalDuration) * 100}%`}}
+                />
+              ))}
+              <span
+                className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-[var(--theme-accent)] shadow-[0_0_10px_var(--theme-glow)] opacity-90 transition-transform group-hover/timeline:scale-125"
+                style={{left: `${(currentTime / totalDuration) * 100}%`}}
+              />
+            </div>
+
+            {/* 2. Chapters Navigation */}
+            {timedChapters.length > 0 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                {timedChapters.map((chapter, index) => {
+                  const isActive = index === activeChapterIndex;
+                  const progress = currentTime <= chapter.start
+                    ? 0
+                    : currentTime >= chapter.end
+                      ? 100
+                      : ((currentTime - chapter.start) / Math.max(chapter.duration, 0.1)) * 100;
+                  return (
+                    <button
+                      key={`${chapter.index}-${chapter.startClip}-${chapter.title}`}
+                      type="button"
+                      title={`${chapter.title} (${formatTime(chapter.duration)})${chapter.summary ? ` — ${chapter.summary}` : ''}`}
+                      onClick={() => seek(chapter.start)}
+                      style={{flexGrow: Math.max(chapter.duration, 1)}}
+                      className={`relative min-w-[110px] max-w-[220px] flex-1 overflow-hidden rounded-lg border px-2 py-1 text-left transition ${
+                        isActive
+                          ? 'border-[var(--theme-accent)]/60 bg-[var(--theme-accent)]/10 text-ink shadow-[0_0_18px_var(--theme-glow)]'
+                          : 'border-hairline bg-surface-canvas-soft text-muted hover:border-hairline-strong hover:text-ink'
+                      }`}
+                    >
+                      <span className="absolute inset-y-0 left-0 bg-[var(--theme-accent)]/10" style={{width: `${progress}%`}} />
+                      <span className="relative flex items-center gap-1.5">
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded font-mono text-[8px] font-black ${isActive ? 'bg-[var(--theme-accent)] text-black' : 'bg-surface-elevated text-muted'}`}>
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">{chapter.title}</span>
+                        <span className="shrink-0 font-mono text-[8px] opacity-70">{formatTime(chapter.duration)}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 3. Clips Navigation */}
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+              {timedClips.map(({clip, index, start, end, duration}) => {
+                const isActive = currentTime >= start && currentTime < end;
+                const progress = currentTime >= end ? 100 : isActive ? ((currentTime - start) / Math.max(duration, 0.1)) * 100 : 0;
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => seek(start)}
+                    style={{flexGrow: Math.max(duration, 0.1)}}
+                    className={`relative min-w-[70px] flex-1 overflow-hidden rounded-lg border p-1.5 text-left transition ${
+                      isActive
+                        ? 'z-10 scale-[1.02] border-[var(--theme-primary)]/70 bg-surface-elevated shadow-[0_0_18px_var(--theme-glow)]'
+                        : 'border-hairline bg-surface-canvas-soft hover:border-hairline-strong'
+                    }`}
+                    title={`Seek to clip ${index + 1}`}
+                  >
+                    <span className="absolute inset-y-0 left-0 bg-gradient-to-r from-[var(--theme-primary)]/30 to-[var(--theme-accent)]/20" style={{width: `${progress}%`}} />
+                    <span className="relative flex items-center justify-between gap-1 text-[8px] font-mono text-muted">
+                      <span className={isActive ? 'font-bold text-[var(--theme-primary)]' : ''}>{String(index + 1).padStart(2, '0')}</span>
+                      <span>{duration.toFixed(1)}s</span>
+                    </span>
+                    <span className={`relative mt-0.5 block truncate text-[9px] font-semibold ${isActive ? 'text-ink' : 'text-muted'}`}>
+                      {clipLabel(clip, index)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

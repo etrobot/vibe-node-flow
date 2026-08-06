@@ -2,7 +2,7 @@
 
 ## Design
 
-`app-video-project` is the deterministic bridge between a validated storyboard and the renderer. It performs no model call. It splits clips into one `chapter-N.json` per chapter, writes `chapters.json` with document metadata into the current run asset directory, and emits a manifest the narration node consumes.
+`app-video-project` is the deterministic bridge between validated video JSON and the renderer. It performs no model call. It splits clips into one `chapter-N.json` per chapter, writes `chapters.json` with document metadata into the current run asset directory, and emits a manifest the narration node consumes.
 
 This is also where the compact authored storyboard becomes something a renderer can draw. `resolve.ts` expands each clip item: a `{"key": "build-flow", "spot": "generate"}` reference is replaced by the structure it names plus the numeric `targetIndex` that highlights `generate`, and every item gets seconds. The authored form is kept alongside as `storyboard.json`, so a rerun can re-resolve from the source rather than from the expansion.
 
@@ -10,7 +10,7 @@ The output layout is exactly what the renderer expects. It is scoped to the curr
 
 ## Input And Output
 
-- Input: exactly one upstream storyboard JSON document.
+- Input: exactly one upstream video JSON document from video-json-generation.
 - Output: JSON manifest with `slug`, `assetDir`, `chapterFiles`, `clipCount`, `globalComponentCount`, `estimatedSeconds`, the hydrated `document` for preview, the authored `storyboard`, and per-clip `speech` and `itemCount`. The speech keeps its `**anchors**`, because `edge-tts-narration` needs them to place the cuts.
 - Side effects: writes `description.md`, `chapters.json`, `storyboard.json`, and `chapter/chapter-N.json` into `data/assets/<workflow-id>/generated/<run-id>/`.
 
