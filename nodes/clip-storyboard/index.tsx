@@ -8,7 +8,6 @@ export const clipStoryboardModule: NodeModule = {
   description: 'Turn a verified brief into renderer-ready clip JSON with plain narration, validated against the builder contract.',
   icon: 'Clapperboard',
   color: '#c2410c',
-  badge: 'Storyboard',
   menuOrder: 20,
   createConfig: () => ({ ...DEFAULT_CLIP_STORYBOARD_CONFIG }),
 };

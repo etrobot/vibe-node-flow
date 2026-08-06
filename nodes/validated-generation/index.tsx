@@ -10,7 +10,6 @@ export const validatedGenerationModule: NodeModule = {
   description: 'Run prompt → LLM → JavaScript validation → deterministic quality validation, with five repair retries before failure.',
   icon: 'BadgeCheck',
   color: '#7c3aed',
-  badge: 'Gen+QA',
   menuOrder: 10,
   createConfig: () => ({ ...DEFAULT_VALIDATED_GENERATION_CONFIG }),
 };

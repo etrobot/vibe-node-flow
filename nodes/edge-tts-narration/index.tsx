@@ -96,7 +96,6 @@ export const edgeTtsNarrationModule: NodeModule = {
   description: 'Synthesize per-clip MP3 narration with the Microsoft Edge Read Aloud service. No API key, no Python.',
   icon: 'AudioLines',
   color: '#15803d',
-  badge: 'Voice',
   menuOrder: 40,
   createConfig: () => ({ ...DEFAULT_EDGE_TTS_NARRATION_CONFIG }),
   OutputView: NarrationOutputView,

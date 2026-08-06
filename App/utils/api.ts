@@ -172,10 +172,19 @@ export const api = {
   },
 
   // ---- Run history ----
-  listRuns: (workflowId?: string, offset = 0, limit = 20, status?: string) => {
+  listRuns: (
+    workflowId?: string,
+    offset = 0,
+    limit = 20,
+    status?: string,
+    startAt?: string,
+    endAt?: string
+  ) => {
     const params = new URLSearchParams();
     if (workflowId) params.set('workflowId', workflowId);
     if (status) params.set('status', status);
+    if (startAt) params.set('startAt', startAt);
+    if (endAt) params.set('endAt', endAt);
     params.set('offset', String(offset));
     params.set('limit', String(limit));
     return fetch(`/api/runs?${params.toString()}`).then((r) =>

@@ -48,7 +48,7 @@ for (const external of externalNodeModules) {
     description: module.description ?? '',
     icon: module.icon ?? 'Puzzle',
     color: module.color ?? '#64748b',
-    badge: module.badge ?? module.type.toUpperCase(),
+    badge: module.badge,
     createConfig: module.createConfig ?? (() => ({})),
   };
 

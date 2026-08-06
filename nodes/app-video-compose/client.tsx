@@ -7,7 +7,6 @@ export const appVideoComposeModule: NodeModule = {
   description: 'Join the deterministic video project and generated Demo UI assets.',
   icon: 'Combine',
   color: '#2563eb',
-  badge: 'Compose',
   menuOrder: 32,
   createConfig: () => ({}),
 };

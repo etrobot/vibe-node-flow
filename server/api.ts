@@ -297,9 +297,15 @@ export function registerApiRoutes(app: Express): void {
       const status = req.query.status
         ? String(req.query.status)
         : undefined;
+      const startAt = req.query.startAt
+        ? String(req.query.startAt)
+        : undefined;
+      const endAt = req.query.endAt
+        ? String(req.query.endAt)
+        : undefined;
       const limit = req.query.limit ? Number(req.query.limit) : 20;
       const offset = req.query.offset ? Number(req.query.offset) : 0;
-      res.json(store.listRuns(workflowId, status, limit, offset));
+      res.json(store.listRuns(workflowId, status, startAt, endAt, limit, offset));
     })
   );
 

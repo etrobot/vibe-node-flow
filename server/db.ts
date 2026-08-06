@@ -120,6 +120,8 @@ export function insertRun(record: RunRecord): void {
 export function listRuns(
   workflowId?: string,
   status?: string,
+  startAt?: string,
+  endAt?: string,
   limit = 20,
   offset = 0
 ): { runs: RunSummary[]; total: number } {
@@ -129,6 +131,8 @@ export function listRuns(
   const params: any[] = [];
   if (workflowId) { conditions.push("r.workflow_id = ?"); params.push(workflowId); }
   if (status) { conditions.push("r.status = ?"); params.push(status); }
+  if (startAt) { conditions.push("r.started_at >= ?"); params.push(startAt); }
+  if (endAt) { conditions.push("r.started_at <= ?"); params.push(endAt); }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 

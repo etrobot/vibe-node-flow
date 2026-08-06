@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { RunSummary, WorkflowItem } from '../../types';
 import { DEFAULT_WORKFLOW_ICON, DEFAULT_WORKFLOW_COLOR } from '../../types';
 import { api } from '../../utils/api';
@@ -6,7 +6,10 @@ import { renderLucideIcon } from './IconPicker';
 import {
   AlertCircle,
   ArrowLeft,
+  CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Eye,
   History,
@@ -45,6 +48,30 @@ const formatTime = (iso: string): string => {
 const formatDuration = (ms: number): string =>
   ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
 
+const localDateStr = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, '0');
+  const day = `${d.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const addDays = (dateStr: string, delta: number): string => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return localDateStr(new Date(y, m - 1, d + delta));
+};
+
+const toLocalIsoStart = (dateStr: string): string => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+};
+
+const toLocalIsoEnd = (dateStr: string): string => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+};
+
+const TODAY = localDateStr(new Date());
+
 const statusChip = (status: string) => {
   if (status === 'success') {
     return <span className="status-badge status-badge-success"><CheckCircle2 className="w-3 h-3" />Success</span>;
@@ -76,6 +103,12 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fromDate, setFromDate] = useState<string | null>(TODAY);
+  const [toDate, setToDate] = useState<string | null>(TODAY);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState(TODAY);
+  const [draftTo, setDraftTo] = useState(TODAY);
+  const datePickerRef = useRef<HTMLDivElement>(null);
 
   const loadRuns = async (targetPage = page) => {
     setLoading(true);
@@ -83,7 +116,14 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
     try {
       const wf = filterWorkflowId !== 'all' ? filterWorkflowId : undefined;
       const st = filterStatus !== 'all' ? filterStatus : undefined;
-      const res = await api.listRuns(wf, targetPage * pageSize, pageSize, st);
+      const res = await api.listRuns(
+        wf,
+        targetPage * pageSize,
+        pageSize,
+        st,
+        fromDate ? toLocalIsoStart(fromDate) : undefined,
+        toDate ? toLocalIsoEnd(toDate) : undefined
+      );
       setRuns(res.runs ?? []);
       setTotal(res.total ?? 0);
     } catch (err) {
@@ -102,7 +142,18 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
     setPage(0);
     void loadRuns(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterWorkflowId, filterStatus]);
+  }, [filterWorkflowId, filterStatus, fromDate, toDate]);
+
+  useEffect(() => {
+    if (!datePickerOpen) return;
+    const handler = (event: MouseEvent) => {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+        setDatePickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [datePickerOpen]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -143,10 +194,55 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
     }
   };
 
+  const hasDateFilter = !!(fromDate || toDate);
+  const singleDay = !!(fromDate && toDate && fromDate === toDate);
+  const dateLabel = singleDay
+    ? (fromDate ?? '')
+    : fromDate && toDate
+      ? `${fromDate} ~ ${toDate}`
+      : 'All dates';
+
+  const applyRange = (from: string | null, to: string | null) => {
+    setFromDate(from);
+    setToDate(to);
+    setDatePickerOpen(false);
+  };
+
+  const togglePicker = () => {
+    setDatePickerOpen((open) => {
+      if (!open) {
+        setDraftFrom(fromDate || '');
+        setDraftTo(toDate || '');
+      }
+      return !open;
+    });
+  };
+
+  const prevDay = () => {
+    if (!fromDate) return;
+    const next = addDays(fromDate, -1);
+    setFromDate(next);
+    setToDate(next);
+  };
+
+  const nextDay = () => {
+    if (!fromDate) return;
+    const next = addDays(fromDate, 1);
+    setFromDate(next);
+    setToDate(next);
+  };
+
+  const presets = [
+    { label: '近一天', from: TODAY, to: TODAY },
+    { label: '近3天', from: addDays(TODAY, -2), to: TODAY },
+    { label: '近7天', from: addDays(TODAY, -6), to: TODAY },
+    { label: '近30天', from: addDays(TODAY, -29), to: TODAY },
+  ];
+
   const renderContent = () => (
-    <div className="max-w-7xl mx-auto space-y-3 sm:space-y-4">
-      <section className="card-panel p-3 flex flex-col md:flex-row items-stretch md:items-center gap-3 text-xs">
-        <div className="flex flex-wrap items-center gap-2 text-muted shrink-0">
+    <div className="max-w-7xl mx-auto space-y-2">
+      <section className="card-panel p-2 flex flex-col md:flex-row items-stretch md:items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted shrink-0">
           <span>Total <strong className="text-ink font-semibold">{total}</strong></span>
           <span className="text-hairline-soft">|</span>
           <span>Success <strong className="text-timeline-grep font-semibold">{successCount}</strong></span>
@@ -158,7 +254,117 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
 
         <div className="hidden md:block flex-1" />
 
-        <div className="grid grid-cols-1 xs:grid-cols-3 sm:flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-1 shrink-0">
+            {singleDay && (
+              <button
+                type="button"
+                onClick={prevDay}
+                title="Previous day"
+                className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <div ref={datePickerRef} className="relative shrink-0">
+              <button
+                type="button"
+                onClick={togglePicker}
+                className="btn-pill bg-surface-canvas-soft hover:bg-surface-card text-ink border border-hairline flex items-center gap-1.5 px-3 py-1.5"
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span className="whitespace-nowrap">{dateLabel}</span>
+              </button>
+              {datePickerOpen && (
+                <div className="absolute right-0 top-full mt-2 z-40 card-panel p-3 w-72 shadow-lg">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {presets.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          setDraftFrom(preset.from);
+                          setDraftTo(preset.to);
+                          applyRange(preset.from, preset.to);
+                        }}
+                        className="btn-pill bg-surface-canvas-soft hover:bg-surface-card text-ink border border-hairline px-2 py-1.5 text-[11px]"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => applyRange(null, null)}
+                      className="btn-pill bg-surface-canvas-soft hover:bg-surface-card text-ink border border-hairline px-2 py-1.5 text-[11px]"
+                    >
+                      全部
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={draftFrom}
+                      onChange={(event) => setDraftFrom(event.target.value)}
+                      className="input-pill text-xs flex-1 min-w-0"
+                    />
+                    <span className="text-muted">~</span>
+                    <input
+                      type="date"
+                      value={draftTo}
+                      onChange={(event) => setDraftTo(event.target.value)}
+                      className="input-pill text-xs flex-1 min-w-0"
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftFrom(fromDate || '');
+                        setDraftTo(toDate || '');
+                        setDatePickerOpen(false);
+                      }}
+                      className="btn-pill bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border border-hairline px-3 py-1.5 flex-1"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const from = draftFrom.trim() || null;
+                        const to = draftTo.trim() || null;
+                        applyRange(from, to);
+                      }}
+                      className="btn-pill bg-ink text-white hover:opacity-90 px-3 py-1.5 flex-1"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            {hasDateFilter && (
+              <button
+                type="button"
+                onClick={() => applyRange(null, null)}
+                title="Clear date range"
+                className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {singleDay && (
+              <button
+                type="button"
+                onClick={nextDay}
+                disabled={(fromDate ? addDays(fromDate, 1) : '') > TODAY}
+                title="Next day"
+                className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
           <div className="relative flex-1 sm:w-44">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
@@ -206,12 +412,12 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
 
       <section className="card-panel overflow-hidden">
         {loading ? (
-          <div className="p-16 flex flex-col items-center justify-center text-muted text-xs gap-3">
+          <div className="p-10 flex flex-col items-center justify-center text-muted text-xs gap-3">
             <Loader2 className="w-6 h-6 animate-spin" />
             Loading run records...
           </div>
         ) : visibleRuns.length === 0 ? (
-          <div className="p-16 flex flex-col items-center justify-center text-muted text-xs gap-3">
+          <div className="p-10 flex flex-col items-center justify-center text-muted text-xs gap-3">
             <Clock className="w-8 h-8" />
             <span>{runs.length === 0 ? 'No run records yet. Run a workflow and records will appear here.' : 'No records match the current filters.'}</span>
           </div>
@@ -220,13 +426,13 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-hairline-soft text-muted text-[10px] uppercase tracking-wider">
-                  <th className="py-3 px-4 font-medium w-24">Status</th>
-                  <th className="py-3 px-3 font-medium">Workflow</th>
-                  <th className="py-3 px-3 font-medium hidden md:table-cell">Run ID</th>
-                  <th className="py-3 px-3 font-medium hidden sm:table-cell">Started</th>
-                  <th className="py-3 px-3 font-medium">Duration</th>
-                  <th className="py-3 px-3 font-medium hidden lg:table-cell">Nodes</th>
-                  <th className="py-3 px-3 font-medium">Actions</th>
+                  <th className="py-2 px-3 font-medium w-24">Status</th>
+                  <th className="py-2 px-2.5 font-medium">Workflow</th>
+                  <th className="py-2 px-2.5 font-medium hidden md:table-cell">Run ID</th>
+                  <th className="py-2 px-2.5 font-medium hidden sm:table-cell">Started</th>
+                  <th className="py-2 px-2.5 font-medium">Duration</th>
+                  <th className="py-2 px-2.5 font-medium hidden lg:table-cell">Nodes</th>
+                  <th className="py-2 px-2.5 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-hairline-soft">
@@ -236,12 +442,12 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                     onClick={() => onOpenRun(run.id)}
                     className="group cursor-pointer hover:bg-surface-canvas/60 transition-colors"
                   >
-                    <td className="py-3 px-4">
+                    <td className="py-2 px-3">
                       <div className="flex items-center gap-2">
                         {statusChip(run.status)}
                       </div>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-2 px-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
                           className="p-1 rounded-md border shrink-0 flex items-center justify-center"
@@ -256,15 +462,15 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                         <div className="text-sm font-medium text-ink truncate max-w-[280px] lg:max-w-[420px]">{run.workflowName}</div>
                       </div>
                     </td>
-                    <td className="py-3 px-3 hidden md:table-cell">
+                    <td className="py-2 px-2.5 hidden md:table-cell">
                       <code className="text-[10px] font-mono text-muted">{run.id.slice(0, 12)}</code>
                     </td>
-                    <td className="py-3 px-3 hidden sm:table-cell whitespace-nowrap text-muted">{formatTime(run.startedAt)}</td>
-                    <td className="py-3 px-3 font-mono text-muted whitespace-nowrap">{formatDuration(run.durationMs)}</td>
-                    <td className="py-3 px-3 hidden lg:table-cell">
+                    <td className="py-2 px-2.5 hidden sm:table-cell whitespace-nowrap text-muted">{formatTime(run.startedAt)}</td>
+                    <td className="py-2 px-2.5 font-mono text-muted whitespace-nowrap">{formatDuration(run.durationMs)}</td>
+                    <td className="py-2 px-2.5 hidden lg:table-cell">
                       <span className="font-mono text-muted text-[11px]">{run.nodeCount}</span>
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-2 px-2.5">
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
@@ -329,7 +535,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
 
   if (embedded) {
     return (
-      <div className="h-full overflow-y-auto custom-scrollbar p-5 lg:p-8">
+      <div className="h-full overflow-y-auto custom-scrollbar p-2 lg:p-3">
         {renderContent()}
       </div>
     );
@@ -337,7 +543,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
 
   return (
     <div className="w-screen h-screen flex flex-col bg-surface-canvas text-body font-sans overflow-hidden">
-      <header className="h-14 px-5 lg:px-7 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
+      <header className="h-12 px-4 lg:px-6 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
@@ -364,7 +570,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
         </button>
       </header>
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-5 lg:p-8">
+      <main className="flex-1 overflow-y-auto custom-scrollbar p-2 lg:p-3">
         {renderContent()}
       </main>
     </div>

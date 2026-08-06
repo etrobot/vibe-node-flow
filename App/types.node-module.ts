@@ -22,7 +22,7 @@ export interface NodeModule {
   description?: string; // one-liner shown in the add-node menu
   icon?: string; // Lucide icon name; defaults to 'Puzzle'
   color?: string; // theme color (hex); defaults to '#64748b'
-  badge?: string; // sublabel under the node on canvas; defaults to type
+  badge?: string; // optional sublabel under the node on canvas
   /** Lower values appear first in the add-node menu. Defaults to 1000. */
   menuOrder?: number;
   /** Legacy modules can still render persisted nodes without appearing in the add menu. */

@@ -520,12 +520,11 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                   {!readOnly && <PencilLine className="h-3 w-3 shrink-0 text-muted opacity-0 transition-opacity group-hover/title:opacity-100" />}
                 </div>
                 <div className="text-[10px] text-muted flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className="font-mono bg-surface-canvas-soft px-1.5 py-0.5 rounded border border-hairline-soft leading-none">
-                    {activeModule.badge}
-                  </span>
-                  <span className="font-mono bg-surface-canvas-soft px-1.5 py-0.5 rounded border border-hairline-soft leading-none">
-                    {node.lane}
-                  </span>
+                  {activeModule.badge && (
+                    <span className="font-mono bg-surface-canvas-soft px-1.5 py-0.5 rounded border border-hairline-soft leading-none">
+                      {activeModule.badge}
+                    </span>
+                  )}
 
                   {node.status === 'success' ? (
                     <span className="status-badge status-badge-success py-0 px-1.5 text-[10px]">

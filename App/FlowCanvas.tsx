@@ -819,7 +819,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                 )}
 
                 <div
-                  className={`relative w-[149px] h-[48px] px-2.5 rounded-lg flex items-center gap-2 transition-all duration-200 bg-surface-card border shadow-2xs ${
+                  className={`relative w-[149px] h-[48px] px-1.5 rounded-lg flex items-center gap-1.5 transition-all duration-200 bg-surface-card border shadow-2xs ${
                     isSelected
                       ? 'border-black ring-2 ring-black/20 z-30'
                       : node.status === 'running'
@@ -834,16 +834,18 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                   }`}
                 >
                   <div style={{ color: node.color || nodeModule.color }}>
-                    {renderLucideIcon(node.icon, 'w-4.5 h-4.5')}
+                    {renderLucideIcon(node.icon, 'w-4 h-4')}
                   </div>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <div className={`text-xs font-medium tracking-tight truncate ${isSelected ? 'text-primary font-medium' : 'text-ink'}`}>
                       {node.title}
                     </div>
-                    <div className="text-[10px] text-muted font-mono truncate">
-                      {nodeModule.badge}
-                    </div>
+                    {nodeModule.badge && (
+                      <div className="text-[10px] text-muted font-mono truncate">
+                        {nodeModule.badge}
+                      </div>
+                    )}
                   </div>
 
                   {node.status === 'running' && (
@@ -870,17 +872,17 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                   {/* Left (Input) Port */}
                   <div
                     onMouseUp={(e) => handleEndConnect(e, node.id)}
-                    className={`absolute -left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-card border-2 border-hairline flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
+                    className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-card border border-hairline flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
                   >
-                    <div className="w-1.5 h-1.5 rounded-full bg-muted group-hover/port:bg-white transition-colors" />
+                    <div className="w-1 h-1 rounded-full bg-muted group-hover/port:bg-white transition-colors" />
                   </div>
 
                   {/* Right (Output) Port */}
                   <div
                     onMouseDown={(e) => handleStartConnect(e, node.id)}
-                    className={`absolute -right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-card border-2 border-hairline flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
+                    className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-card border border-hairline flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
                   >
-                    <div className="w-1.5 h-1.5 rounded-full bg-muted group-hover/port:bg-white transition-colors" />
+                    <div className="w-1 h-1 rounded-full bg-muted group-hover/port:bg-white transition-colors" />
                   </div>
                 </div>
 

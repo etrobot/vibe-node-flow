@@ -298,7 +298,6 @@ export const appVideoRenderModule: NodeModule = {
   description: 'Interactive HTML5 Motion Canvas Preview and Playwright/ffmpeg MP4 exporter.',
   icon: 'Film',
   color: '#7c3aed',
-  badge: 'Render',
   menuOrder: 50,
   createConfig: () => ({ ...DEFAULT_APP_VIDEO_RENDER_CONFIG }),
   RenderPage: RenderEntrypoint,

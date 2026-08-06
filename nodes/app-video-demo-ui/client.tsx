@@ -8,7 +8,6 @@ export const appVideoDemoUiModule: NodeModule = {
   description: 'Generate deterministic, self-contained product UI HTML for storyboard demo shots.',
   icon: 'PanelsTopLeft',
   color: '#0891b2',
-  badge: 'Demo UI',
   menuOrder: 31,
   createConfig: () => ({ ...DEFAULT_APP_VIDEO_DEMO_UI_CONFIG }),
 };
