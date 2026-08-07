@@ -8,7 +8,7 @@ A workflow is the composition layer, not the home of business logic. A node is a
 
 ### 1. Node design comes first
 
-For every requirement, ask "What node capability should exist?" before "How should the nodes be connected?"
+For every requirement, ask "What node capability should exist?" before "How should the nodes be connected?" Workflows should start with three nodes: data acquisition, data processing, and formatted output. If a problem can be solved without adding complexity, do not increase it; under this principle, these three types of nodes should be prioritized.
 
 Before a node enters a workflow it must have one clear responsibility, readable input/output/side-effect contracts, validation of configuration, input, and output, actionable success/warning/error diagnostics, and core logic that does not depend on one specific graph. This keeps the capability independently testable and reusable, and keeps domain rules out of edges, canvas state, and host code.
 
