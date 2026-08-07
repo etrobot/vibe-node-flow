@@ -1,6 +1,7 @@
 import {
   NodeInputError,
   NodeValidationError,
+  createNodeLogger,
   type NodePluginContext,
   type NodePluginResult,
 } from '../../server/plugins.ts';
@@ -8,6 +9,8 @@ import { callLLM } from '../../server/llm.ts';
 import { parseStoryboardJson, type StoryboardDocument } from '../clip-storyboard/contract.ts';
 import {
   findDemoUiTargets,
+  listDemoUiCandidates,
+  normalizeDemoHtml,
   validateDemoHtml,
   type DemoUiTarget,
 } from './contract.ts';
@@ -47,6 +50,12 @@ function normalizeConfig(value: unknown): UiHtmlGenerationConfig {
       DEFAULT_UI_HTML_GENERATION_CONFIG.maxHtmlLength,
       2_000,
       1_000_000,
+    )),
+    maxTargets: Math.round(numberInRange(
+      raw.maxTargets,
+      DEFAULT_UI_HTML_GENERATION_CONFIG.maxTargets,
+      0,
+      8,
     )),
     systemPrompt: clean(raw.systemPrompt) || DEFAULT_UI_HTML_GENERATION_CONFIG.systemPrompt,
     repairPrompt: clean(raw.repairPrompt) || DEFAULT_UI_HTML_GENERATION_CONFIG.repairPrompt,
@@ -96,12 +105,15 @@ export function buildUiHtmlPrompt(
     '',
     '## Hard output contract',
     '',
-    '<!doctype html> must be the first document marker.',
+    'Return one complete HTML document with html, head, and body.',
     'Include a data-demo-ui marker and make the document runnable offline in local Chromium.',
-    'Use inline style and optional inline script only; never use external URLs, imports, assets, or network APIs.',
-    'Escape every user-controlled string before placing it in HTML. Do not use innerHTML or document.write.',
+    'Use inline <style>, inline SVG, and optional inline <script> only.',
+    'Allowed: JS // comments, SVG xmlns="http://www.w3.org/2000/svg", plain text that mentions a URL.',
+    'Forbidden: remote src/href/@import/url(), CDN assets, Google Fonts, fetch/XHR/WebSocket/EventSource, innerHTML/document.write.',
+    'Escape every user-controlled string before placing it in HTML.',
     'Keep the document within ' + config.width + 'x' + config.height + ' composition and under '
       + config.maxHtmlLength + ' characters.',
+    'Do not wrap the HTML in markdown fences.',
     '',
     '## Verified brief and factual boundaries',
     '',
@@ -139,7 +151,9 @@ async function generateTarget(
   document: StoryboardDocument,
   brief: string,
   config: UiHtmlGenerationConfig,
-  logs: string[],
+  log: { logs: string[]; push: (...lines: string[]) => void },
+  targetOrdinal: number,
+  targetTotal: number,
 ): Promise<{ html: string; model: string; attempt: number; providerAttempts: number }> {
   const attemptLimit = config.retryLimit + 1;
   const baseMessages: Array<{ role: string; content: string }> = [
@@ -162,35 +176,51 @@ async function generateTarget(
       });
     }
 
+    log.push(
+      'Calling LLM for target ' + targetOrdinal + '/' + targetTotal
+      + ' (' + targetLabel(target) + ') attempt ' + attempt + '/' + attemptLimit + '...',
+    );
+    const requestStarted = Date.now();
     let result;
     try {
       result = await callLLM({ temperature: config.temperature, messages });
     } catch (error) {
-      logs.push(
+      log.push(
         'UI HTML ' + targetLabel(target) + ' attempt ' + attempt + '/' + attemptLimit
-        + ' provider failure: ' + (error instanceof Error ? error.message : String(error)),
+        + ' provider failure after ' + (Date.now() - requestStarted) + 'ms: '
+        + (error instanceof Error ? error.message : String(error)),
       );
       const failure = new NodeValidationError(
         'UI HTML generation failed for ' + targetLabel(target) + ' because the LLM was unavailable: '
         + (error instanceof Error ? error.message : String(error)),
       );
-      (failure as Error & { logs?: string[] }).logs = logs;
+      (failure as Error & { logs?: string[] }).logs = log.logs;
       throw failure;
     }
 
     previousContent = result.content;
-    logs.push(
+    const html = normalizeDemoHtml(result.content);
+    if (html.length !== result.content.trim().length) {
+      log.push(
+        '[UI ' + targetLabel(target) + ' attempt ' + attempt
+        + '] normalized LLM packaging: rawChars=' + result.content.length
+        + '; htmlChars=' + html.length + '.',
+      );
+    }
+    log.push(
       '[UI ' + targetLabel(target) + ' attempt ' + attempt + '] model=' + result.model
-      + '; providerAttempts=' + result.attempts + '.',
+      + '; providerAttempts=' + result.attempts
+      + '; elapsed=' + (Date.now() - requestStarted) + 'ms'
+      + '; chars=' + html.length + '.',
     );
-    const errors = validateDemoHtml(result.content, target, config.maxHtmlLength);
+    const errors = validateDemoHtml(html, target, config.maxHtmlLength);
     if (!errors.length) {
-      logs.push(
+      log.push(
         'UI HTML ' + targetLabel(target) + ' attempt ' + attempt + '/' + attemptLimit
         + ' passed offline HTML contract.',
       );
       return {
-        html: result.content,
+        html,
         model: result.model,
         attempt,
         providerAttempts: result.attempts,
@@ -198,7 +228,7 @@ async function generateTarget(
     }
 
     lastErrors = errors;
-    logs.push(
+    log.push(
       'UI HTML ' + targetLabel(target) + ' attempt ' + attempt + '/' + attemptLimit
       + ' failed validation:',
       ...errors.map((error) => '[UI ' + targetLabel(target) + ' attempt ' + attempt + '] ' + error),
@@ -210,24 +240,55 @@ async function generateTarget(
     + ' repair retries (' + attemptLimit + ' total attempts):\n'
     + lastErrors.map((error) => '- ' + error).join('\n'),
   );
-  (failure as Error & { logs?: string[] }).logs = logs;
+  (failure as Error & { logs?: string[] }).logs = log.logs;
   throw failure;
 }
 
-async function execute({ node, input }: NodePluginContext): Promise<NodePluginResult> {
+async function execute({ node, input, onLog }: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const source = readGenerationInput(input);
-  const targets = findDemoUiTargets(source.storyboard);
-  const logs: string[] = [
+  const candidates = listDemoUiCandidates(source.storyboard);
+  const targets = findDemoUiTargets(source.storyboard, config.maxTargets);
+  const log = createNodeLogger(onLog);
+  log.push(
     'UI HTML contract: ' + config.width + 'x' + config.height + ', max '
-      + config.maxHtmlLength + ' characters per target.',
+      + config.maxHtmlLength + ' characters per target, maxTargets=' + config.maxTargets + '.',
     'Each target has an isolated initial prompt and up to ' + config.retryLimit + ' repair retries.',
-    'Found ' + targets.length + ' Demo UI target(s).',
-  ];
+    'Found ' + candidates.length + ' Demo UI candidate(s); generating HTML for '
+      + targets.length + '.',
+  );
+  if (candidates.length > targets.length) {
+    const skipped = candidates.filter((candidate) => (
+      !targets.some((target) => (
+        target.clipIndex === candidate.clipIndex && target.itemIndex === candidate.itemIndex
+      ))
+    ));
+    log.push(
+      'Skipping ' + skipped.length + ' candidate(s) (built-in React UI fallback): '
+      + skipped.map((target) => (
+        targetLabel(target) + '/' + String(target.item?.type || 'unknown')
+      )).join(', ') + '.',
+    );
+  }
+  if (!targets.length) {
+    log.push('No Demo UI targets selected; returning an empty demos list.');
+  }
   const demos: Array<Record<string, unknown>> = [];
 
-  for (const target of targets) {
-    const generated = await generateTarget(target, source.storyboard, source.brief, config, logs);
+  for (const [index, target] of targets.entries()) {
+    log.push(
+      'Starting Demo UI target ' + (index + 1) + '/' + targets.length
+      + ' (' + targetLabel(target) + ', type=' + String(target.item?.type || 'unknown') + ').',
+    );
+    const generated = await generateTarget(
+      target,
+      source.storyboard,
+      source.brief,
+      config,
+      log,
+      index + 1,
+      targets.length,
+    );
     demos.push({
       clipIndex: target.clipIndex,
       itemIndex: target.itemIndex,
@@ -238,6 +299,10 @@ async function execute({ node, input }: NodePluginContext): Promise<NodePluginRe
         providerAttempts: generated.providerAttempts,
       },
     });
+    log.push(
+      'Finished Demo UI target ' + (index + 1) + '/' + targets.length
+      + ' on attempt ' + generated.attempt + '.',
+    );
   }
 
   const manifest = {
@@ -248,8 +313,8 @@ async function execute({ node, input }: NodePluginContext): Promise<NodePluginRe
     document: source.storyboard,
     demos,
   };
-  logs.push('UI HTML generation completed all ' + demos.length + ' target(s); no files were written by this LLM node.');
-  return { output: JSON.stringify(manifest, null, 2), logs };
+  log.push('UI HTML generation completed all ' + demos.length + ' target(s); no files were written by this LLM node.');
+  return { output: JSON.stringify(manifest, null, 2), logs: log.logs };
 }
 
 export default {

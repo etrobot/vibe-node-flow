@@ -128,6 +128,7 @@ export interface RunSummary {
 export type RunEvent =
   | { type: 'run-start'; runId: string; order: string[] }
   | { type: 'node-start'; nodeId: string }
+  | { type: 'node-log'; nodeId: string; line: string }
   | {
       type: 'node-finish';
       nodeId: string;

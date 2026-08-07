@@ -280,10 +280,9 @@ export const DIRECT_COMPONENT_GUIDE = [
   'text-zoom: one important conclusion.',
   'text-impact: stacked keyword build; include cumulative `words` array.',
   'text-title / text-logo: closing beat only, and always used as a pair.',
-  'ui-dropfiles: importing files, screenshots, evidence, notes, or assets.',
-  'ui-prompt-input: a concrete AI or tool instruction; must include `prompt`.',
-  'ui-render-loading: generating, analyzing, exporting, or processing.',
-  'ui-video-preview: previewing the product, demo, or final video.',
+  'ui-dropfiles / ui-prompt-input / ui-render-loading / ui-video-preview:'
+  + ' product Demo UI beats. Use at most two of these in the whole storyboard'
+  + ' (prefer one input moment + one result moment). ui-prompt-input must include `prompt`.',
   'ui-icon-text: one principle, benefit, boundary, or status; must include a lucide `icon` name.',
   'flowing-stats: growth, usage, reach, revenue, count, or speed metric.',
   'element-growth: something compounding or scaling up.',
@@ -375,6 +374,16 @@ export function estimateDurationSeconds(clips: StoryboardClip[], mode: TimingMod
   return (clips || []).reduce((total, clip) => total + estimateSpeechSeconds(clip?.speech), 0);
 }
 
+/** Item types that become LLM HTML Demo surfaces downstream. */
+export const DEMO_UI_HTML_ITEM_TYPES = new Set([
+  'ui-dropfiles',
+  'ui-prompt-input',
+  'ui-render-loading',
+  'ui-video-preview',
+]);
+
+export const DEFAULT_MAX_DEMO_UI_HTML_ITEMS = 2;
+
 export interface StoryboardValidationOptions {
   minClips: number;
   maxClips: number;
@@ -383,6 +392,8 @@ export interface StoryboardValidationOptions {
   durationTolerance: number;
   timingMode: TimingMode;
   maxGlobalComponents: number;
+  /** Ceiling on product Demo UI HTML placeholders across the whole storyboard. */
+  maxDemoUiHtmlItems?: number;
 }
 
 export interface StoryboardReport {
@@ -757,6 +768,23 @@ export function validateStoryboard(
   });
   validateChapters(document, clips.length, errors);
 
+  const maxDemoUiHtmlItems = options.maxDemoUiHtmlItems ?? DEFAULT_MAX_DEMO_UI_HTML_ITEMS;
+  const demoUiItems: string[] = [];
+  clips.forEach((clip, clipIndex) => {
+    (clip?.items || []).forEach((item, itemIndex) => {
+      if (DEMO_UI_HTML_ITEM_TYPES.has(String(item?.type || ''))) {
+        demoUiItems.push(`clip ${clipIndex + 1} item ${itemIndex + 1} (${item.type})`);
+      }
+    });
+  });
+  if (maxDemoUiHtmlItems >= 0 && demoUiItems.length > maxDemoUiHtmlItems) {
+    errors.push(
+      `Storyboard has ${demoUiItems.length} Demo UI HTML placeholders`
+      + ` (${demoUiItems.join(', ')}); keep at most ${maxDemoUiHtmlItems}`
+      + ' (prefer one input + one result). Extra product beats should use other component types.',
+    );
+  }
+
   const componentTypes = new Set<string>();
   const referenced = new Set<string>();
   for (const clip of clips) {
@@ -800,6 +828,7 @@ export function validateStoryboard(
       chapters: Array.isArray(document.chapters) ? document.chapters.length : 0,
       componentTypes: componentTypes.size,
       globalComponents: globals.size,
+      demoUiHtmlItems: demoUiItems.length,
       estimatedSeconds: Number(duration.toFixed(1)),
       speechWords,
     },

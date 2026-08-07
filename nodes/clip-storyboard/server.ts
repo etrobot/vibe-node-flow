@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   NodeInputError,
   NodeValidationError,
+  createNodeLogger,
   type NodePluginContext,
   type NodePluginResult,
 } from '../../server/plugins.ts';
@@ -67,6 +68,12 @@ function normalizeConfig(value: unknown): ClipStoryboardConfig {
       DEFAULT_CLIP_STORYBOARD_CONFIG.maxGlobalComponents,
       0,
       24,
+    ),
+    maxDemoUiHtmlItems: integer(
+      raw.maxDemoUiHtmlItems,
+      DEFAULT_CLIP_STORYBOARD_CONFIG.maxDemoUiHtmlItems,
+      0,
+      8,
     ),
     temperature: Number.isFinite(temperature)
       ? Math.max(0, Math.min(2, temperature))
@@ -177,6 +184,9 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
     `Use at least ${config.minComponentTypes} distinct item types across the storyboard.`,
     'text-typing may only be the first item of its clip.',
     'The final clip, and only the final clip, pairs text-title with text-logo.',
+    `Use at most ${config.maxDemoUiHtmlItems} Demo UI HTML placeholders total`
+      + ' (ui-prompt-input, ui-dropfiles, ui-render-loading, ui-video-preview).'
+      + ' Prefer one input moment and one result moment; do not stack loading/preview copies.',
     'Chapters must start at clip 0 and their clipCount values must sum to the number of clips.',
     'Every factual claim must trace back to the brief. Do not invent numbers, customers, or endorsements.',
     ...globalRules,
@@ -206,6 +216,7 @@ async function execute({
   input,
   workflowDefinitionDir,
   workflowDir,
+  onLog,
 }: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const brief = briefText(input);
@@ -222,16 +233,22 @@ async function execute({
   if (systemPrompt.trim()) messages.push({ role: 'system', content: systemPrompt.trim() });
   messages.push({ role: 'user', content: prompt });
 
-  const logs: string[] = [
+  const log = createNodeLogger(onLog);
+  log.push(
     `Storyboard contract: ${config.minClips}-${config.maxClips} clips, `
     + `${config.targetDurationSeconds}s ±${Math.round(config.durationTolerance * 100)}%, `
     + `${config.minComponentTypes}+ component types, ${config.timingMode} timing.`,
     `Repair policy: initial generation plus up to ${STORYBOARD_RETRY_LIMIT} retries.`,
-  ];
+  );
   let lastErrors: string[] = ['Storyboard was never produced.'];
 
   for (let attempt = 1; attempt <= STORYBOARD_ATTEMPT_LIMIT; attempt += 1) {
+    log.push(`Calling LLM for storyboard attempt ${attempt}/${STORYBOARD_ATTEMPT_LIMIT}...`);
+    const requestStarted = Date.now();
     const { content } = await callLLM({ temperature: config.temperature, messages });
+    log.push(
+      `LLM returned ${content.length} chars for attempt ${attempt} in ${Date.now() - requestStarted}ms.`,
+    );
 
     let document: StoryboardDocument | undefined;
     let errors: string[];
@@ -247,6 +264,7 @@ async function execute({
         durationTolerance: config.durationTolerance,
         timingMode: config.timingMode,
         maxGlobalComponents: config.maxGlobalComponents,
+        maxDemoUiHtmlItems: config.maxDemoUiHtmlItems,
       });
       errors = report.errors;
       warnings = report.warnings;
@@ -258,16 +276,16 @@ async function execute({
 
     if (document) {
       if (config.slug) document.slug = config.slug;
-      logs.push(
+      log.push(
         `Attempt ${attempt}/${STORYBOARD_ATTEMPT_LIMIT} passed the storyboard contract.`,
         ...Object.entries(metrics).map(([key, value]) => `[Metric] ${key}: ${value}`),
         ...warnings.map((warning) => `[Warning] ${warning}`),
       );
-      return { output: JSON.stringify(document, null, 2), logs };
+      return { output: JSON.stringify(document, null, 2), logs: log.logs };
     }
 
     lastErrors = errors;
-    logs.push(
+    log.push(
       `Attempt ${attempt}/${STORYBOARD_ATTEMPT_LIMIT} failed the storyboard contract:`,
       ...errors.map((issue) => `[Attempt ${attempt}] ${issue}`),
     );
@@ -279,7 +297,7 @@ async function execute({
     `Storyboard failed after ${STORYBOARD_RETRY_LIMIT} repair retries:\n`
     + lastErrors.map((issue) => `- ${issue}`).join('\n'),
   );
-  (failure as Error & { logs?: string[] }).logs = logs;
+  (failure as Error & { logs?: string[] }).logs = log.logs;
   throw failure;
 }
 

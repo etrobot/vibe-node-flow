@@ -1,8 +1,8 @@
 # UI HTML Generation
 
-This node is the LLM boundary for Demo UI surfaces. It finds every DemoUiTarget in one storyboard and makes an independent model request for each target. A repair request contains only that target's previous response and validation errors; another target never shares model conversation state.
+This node is the LLM boundary for Demo UI surfaces. It selects at most `maxTargets` Demo UI items (default 2, preferring one input and one preview) and makes an independent model request for each selected target. Unselected `ui-*` items keep the built-in React clip renderers. A repair request contains only that target's previous response and validation errors; another target never shares model conversation state.
 
-Each response must be a complete offline HTML document for the configured 1920x1080 composition. The deterministic contract checks doctype, html/head/body structure, inline style, data-demo-ui, network independence, browser network APIs, DOM HTML injection APIs, size limits, and escaping of special characters in target text.
+Each response must be a complete offline HTML document for the configured 1920x1080 composition. The node normalizes common LLM packaging (markdown fences, leading prose) before validation. The contract checks html/head/body structure, inline style, data-demo-ui, remote resource loads (src/href/@import/url), browser network API calls, DOM HTML injection APIs, size limits, and escaping of special characters in target text. Doctype position is not required. Inline JS comments, SVG xmlns URLs, and plain-text URL mentions are allowed.
 
 The node returns a generation manifest in memory. It does not write any HTML file. The downstream app-video-render node validates every target again, writes all HTML files, and attaches their same-run references to the storyboard before rendering.
 

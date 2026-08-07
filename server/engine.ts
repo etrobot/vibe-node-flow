@@ -100,6 +100,7 @@ async function execNode(
   nodeOutputs: Record<string, string>,
   workflowId: string,
   runId: string,
+  onLog?: (line: string) => void,
 ): Promise<{ output: any; logs: string[]; status: "success" | "warning"; error: string | null }> {
   const plugin = getNodePlugin(node.type);
   if (!plugin) {
@@ -115,6 +116,7 @@ async function execNode(
     workflowDefinitionDir: workflowDefinitionDir(workflowId),
     assetsDir: workflowRunAssetsDir(workflowId, runId),
     nodeAssetsDir: nodeAssetsDir(node.id),
+    onLog,
   });
   if (!result || typeof result !== "object" || !("output" in result)) {
     throw new Error(`Node ${node.type} execute must return { output, logs? }`);
@@ -177,10 +179,16 @@ export async function executeWorkflow(
       break;
     }
 
-    // Run all ready nodes in parallel
+    // Run all ready nodes in parallel. Finish/log events are emitted as each
+    // sibling settles so a fast branch is not held hostage by a slow one.
     const levelResults = await Promise.all(
       readyNodes.map(async (node) => {
         emit({ type: "node-start", nodeId: node.id });
+        const onLog = (line: string) => {
+          console.log(`[run ${runId}] [${node.title}] ${line}`);
+          emit({ type: "node-log", nodeId: node.id, line });
+        };
+        onLog(`Node started (${node.type}).`);
         const upstreamInput = computeUpstreamInput(node.id, wf.edges, outputsById);
         const start = Date.now();
         try {
@@ -190,6 +198,7 @@ export async function executeWorkflow(
             outputsCombined,
             wf.id,
             runId,
+            onLog,
           );
           const executionTime = Date.now() - start;
           const edgeText = nodeOutputToText(output);
@@ -197,54 +206,52 @@ export async function executeWorkflow(
           outputsCombined[node.id] = edgeText;
           outputsCombined[node.title] = edgeText;
 
-          return {
-            node,
-            record: {
-              nodeId: node.id,
-              nodeTitle: node.title,
-              nodeType: node.type,
-              status,
-              output,
-              logs,
-              error,
-              executionTime,
-            },
-            finish: {
-              type: "node-finish" as const,
-              nodeId: node.id,
-              status,
-              output,
-              logs,
-              error,
-              executionTime,
-            },
+          const record: RunNodeRecord = {
+            nodeId: node.id,
+            nodeTitle: node.title,
+            nodeType: node.type,
+            status,
+            output,
+            logs,
+            error,
+            executionTime,
           };
+          const finish: RunEvent = {
+            type: "node-finish",
+            nodeId: node.id,
+            status,
+            output,
+            logs,
+            error,
+            executionTime,
+          };
+          emit(finish);
+          return { node, record };
         } catch (err: any) {
           const executionTime = Date.now() - start;
           const message = err?.message || "Execution error";
           const logs: string[] = err?.logs || [];
+          onLog(`Node failed after ${executionTime}ms: ${message}`);
           const warning = isNodeWarning(err);
-          return {
-            node,
-            record: {
-              nodeId: node.id,
-              nodeTitle: node.title,
-              nodeType: node.type,
-              status: warning ? "warning" as const : "error" as const,
-              output: null,
-              logs,
-              error: message,
-              executionTime,
-            },
-            finish: {
-              type: "node-finish" as const,
-              nodeId: node.id,
-              status: warning ? "warning" as const : "error" as const,
-              error: message,
-              logs,
-              executionTime,
-            },
+          const record: RunNodeRecord = {
+            nodeId: node.id,
+            nodeTitle: node.title,
+            nodeType: node.type,
+            status: warning ? "warning" : "error",
+            output: null,
+            logs,
+            error: message,
+            executionTime,
           };
+          emit({
+            type: "node-finish",
+            nodeId: node.id,
+            status: warning ? "warning" : "error",
+            error: message,
+            logs,
+            executionTime,
+          });
+          return { node, record };
         }
       }),
     );
@@ -252,7 +259,6 @@ export async function executeWorkflow(
     for (const res of levelResults) {
       executedNodeIds.add(res.node.id);
       records.push(res.record);
-      emit(res.finish);
       if (res.record.status === "error") {
         status = "error";
       }

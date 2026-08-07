@@ -16,8 +16,6 @@ interface HomePageProps {
   ) => void;
   onOpenRun: (runId: string) => void;
   onChangeTab?: (tab: 'history' | 'workflows', workflowId?: string | null) => void;
-  onCopyWorkflowLink?: (workflowId: string) => void;
-  onCopyRunLink?: (runId: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -30,8 +28,6 @@ export const HomePage: React.FC<HomePageProps> = ({
   onEditWorkflowMeta,
   onOpenRun,
   onChangeTab,
-  onCopyWorkflowLink,
-  onCopyRunLink,
 }) => {
   const [activeTab, setActiveTab] = useState<'history' | 'workflows'>(
     initialTab || 'history'
@@ -101,7 +97,6 @@ export const HomePage: React.FC<HomePageProps> = ({
             initialWorkflowId={historyFilterWorkflowId}
             onBack={() => changeTab('workflows')}
             onOpenRun={onOpenRun}
-            onCopyRunLink={onCopyRunLink}
             embedded
           />
         ) : (
@@ -115,7 +110,6 @@ export const HomePage: React.FC<HomePageProps> = ({
               setHistoryFilterWorkflowId(workflowId);
               changeTab('history', workflowId);
             }}
-            onCopyLink={onCopyWorkflowLink}
             embedded
           />
         )}

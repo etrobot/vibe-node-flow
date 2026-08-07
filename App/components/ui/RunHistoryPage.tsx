@@ -14,7 +14,6 @@ import {
   Eye,
   History,
   Loader2,
-  Link2,
   RefreshCw,
   Search,
   Trash2,
@@ -27,7 +26,6 @@ interface RunHistoryPageProps {
   onBack: () => void;
   backLabel?: string;
   onOpenRun: (runId: string) => void;
-  onCopyRunLink?: (runId: string) => void;
   /** When true, renders without the outer wrapper and header — for embedding in a tabbed layout. */
   embedded?: boolean;
 }
@@ -91,7 +89,6 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
   onBack,
   backLabel,
   onOpenRun,
-  onCopyRunLink,
   embedded = false,
 }) => {
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -472,17 +469,6 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                     </td>
                     <td className="py-2 px-2.5">
                       <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onCopyRunLink?.(run.id);
-                          }}
-                          title="Copy link"
-                          className="p-1.5 rounded-md text-muted hover:text-primary hover:bg-surface-canvas-soft transition-colors"
-                        >
-                          <Link2 className="w-3.5 h-3.5" />
-                        </button>
                         <button
                           type="button"
                           onClick={(event) => void handleDelete(run.id, event)}

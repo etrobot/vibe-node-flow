@@ -90,6 +90,20 @@ function fixture(): StoryboardDocument {
   } as StoryboardDocument;
 }
 
+test('rejects more than two Demo UI HTML placeholders', () => {
+  const document = fixture();
+  document.clips[0].items = [
+    { type: 'ui-prompt-input', prompt: 'One' } as any,
+    { type: 'ui-render-loading' } as any,
+  ];
+  document.clips[1].items = [
+    { type: 'ui-video-preview' } as any,
+    { type: 'ui-dropfiles' } as any,
+  ];
+  const { errors } = validateStoryboard(document, { ...OPTIONS, maxDemoUiHtmlItems: 2 });
+  assert.ok(errors.some((issue) => /at most 2/.test(issue)));
+});
+
 test('a conforming anchor-timed storyboard passes and reports its metrics', () => {
   const report = validateStoryboard(fixture(), OPTIONS);
   assert.deepEqual(report.errors, []);
@@ -97,6 +111,7 @@ test('a conforming anchor-timed storyboard passes and reports its metrics', () =
   assert.equal(report.metrics.chapters, 2);
   assert.equal(report.metrics.globalComponents, 1);
   assert.equal(report.metrics.componentTypes, 7);
+  assert.equal(report.metrics.demoUiHtmlItems, 1);
   // No authored seconds: runtime is estimated from the narration itself.
   assert.equal(
     report.metrics.estimatedSeconds,

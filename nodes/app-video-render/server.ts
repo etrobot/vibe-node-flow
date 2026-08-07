@@ -9,8 +9,10 @@ import {
 } from '../../server/plugins.ts';
 import {
   demoFileName,
-  findDemoUiTargets,
+  listDemoUiCandidates,
+  normalizeDemoHtml,
   validateDemoHtml,
+  type DemoUiTarget,
 } from '../ui-html-generation/contract.ts';
 import {
   DEFAULT_APP_VIDEO_RENDER_CONFIG,
@@ -100,11 +102,10 @@ async function attachGeneratedDemos(
   workflowId: string,
   runId: string,
 ): Promise<Record<string, any>> {
-  const targets = findDemoUiTargets(document);
-  if (generatedDemos.length !== targets.length) {
-    throw new NodeValidationError(
-      `Demo UI generation produced ${generatedDemos.length} target(s), but the storyboard requires ${targets.length}.`,
-    );
+  const candidates = listDemoUiCandidates(document);
+  const byCandidate = new Map<string, DemoUiTarget>();
+  for (const target of candidates) {
+    byCandidate.set(`${target.clipIndex}:${target.itemIndex}`, target);
   }
 
   const byTarget = new Map<string, GeneratedDemoHtml>();
@@ -113,18 +114,20 @@ async function attachGeneratedDemos(
     if (byTarget.has(key)) {
       throw new NodeValidationError(`Demo UI generation contains a duplicate target ${key}.`);
     }
+    if (!byCandidate.has(key)) {
+      throw new NodeValidationError(
+        `Demo UI generation references unknown target ${key}; storyboard has no matching Demo UI item.`,
+      );
+    }
     byTarget.set(key, demo);
   }
 
   const output = structuredClone(document);
   await fs.mkdir(path.join(assetsDir, 'demo'), { recursive: true });
-  for (const target of targets) {
-    const key = `${target.clipIndex}:${target.itemIndex}`;
-    const generated = byTarget.get(key);
-    if (!generated) {
-      throw new NodeValidationError(`Demo UI generation is missing target ${key}.`);
-    }
-    const errors = validateDemoHtml(generated.html, target);
+  for (const [key, generated] of byTarget) {
+    const target = byCandidate.get(key)!;
+    const html = normalizeDemoHtml(generated.html);
+    const errors = validateDemoHtml(html, target);
     if (errors.length) {
       throw new NodeValidationError(
         `Demo UI target ${key} failed validation:\n${errors.map((error) => `- ${error}`).join('\n')}`,
@@ -132,7 +135,7 @@ async function attachGeneratedDemos(
     }
 
     const htmlFile = demoFileName(target.clipIndex, target.itemIndex);
-    await fs.writeFile(path.join(assetsDir, htmlFile), generated.html, 'utf8');
+    await fs.writeFile(path.join(assetsDir, htmlFile), html, 'utf8');
     output.clips[target.clipIndex].items[target.itemIndex] = {
       ...output.clips[target.clipIndex].items[target.itemIndex],
       demoUi: {
@@ -283,8 +286,8 @@ async function preflight(
       continue;
     }
     try {
-      const html = await fs.readFile(target, 'utf8');
-      if (!/^\s*<!doctype html>/i.test(html) || !html.includes('data-demo-ui')) {
+      const html = normalizeDemoHtml(await fs.readFile(target, 'utf8'));
+      if (!/<html\b/i.test(html) || !html.includes('data-demo-ui')) {
         problems.push(`Demo UI HTML is not loadable: ${htmlFile}.`);
       }
     } catch {

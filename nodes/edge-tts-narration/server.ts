@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   NodeInputError,
   NodeValidationError,
+  createNodeLogger,
   type NodePluginContext,
   type NodePluginResult,
 } from '../../server/plugins.ts';
@@ -250,7 +251,14 @@ function applyTimingToDocument(document: Record<string, any>, timeline: ClipTime
   return copy;
 }
 
-async function execute({ node, input, assetsDir, workflowId, runId }: NodePluginContext): Promise<NodePluginResult> {
+async function execute({
+  node,
+  input,
+  assetsDir,
+  workflowId,
+  runId,
+  onLog,
+}: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const values = Object.values(input).map((value) => String(value ?? '').trim()).filter(Boolean);
   if (values.length !== 1) {
@@ -265,16 +273,22 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
   const outputDir = assetsDir;
   await fs.mkdir(outputDir, { recursive: true });
 
-  const logs: string[] = [
+  const log = createNodeLogger(onLog);
+  log.push(
     `Synthesizing ${source.clips.length} clip(s) with ${config.voice} `
-    + `(rate ${config.rate}, volume ${config.volume}, pitch ${config.pitch}).`,
-  ];
-  if (proxyUrl) logs.push(`Routing Edge TTS through proxy ${proxyUrl}.`);
+    + `(rate ${config.rate}, volume ${config.volume}, pitch ${config.pitch}, `
+    + `concurrency ${config.concurrency}, timeout ${config.timeoutMs}ms).`,
+  );
+  if (proxyUrl) log.push(`Routing Edge TTS through proxy ${proxyUrl}.`);
+  else log.push('No HTTP proxy configured for Edge TTS; connecting directly.');
 
   let firstFailure: unknown;
-  const synthesized = await mapWithConcurrency(source.clips, config.concurrency, async (clip) => {
+  let completedClips = 0;
+  const synthesized = await mapWithConcurrency(source.clips, config.concurrency, async (clip, index) => {
+    log.push(`Synthesizing clip ${index + 1}/${source.clips.length}...`);
+    const started = Date.now();
     try {
-      return await synthesizeSpeech({
+      const result = await synthesizeSpeech({
         // Anchors mark where the picture cuts; the voice must not read them.
         text: stripAnchors(clip.speech).plain,
         voice: config.voice,
@@ -284,8 +298,18 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
         proxyUrl,
         timeoutMs: config.timeoutMs,
       });
+      completedClips += 1;
+      log.push(
+        `Clip ${index + 1}/${source.clips.length} synthesized in ${Date.now() - started}ms `
+        + `(${result.durationSeconds.toFixed(2)}s audio, ${result.audio.length} bytes).`,
+      );
+      return result;
     } catch (error) {
       firstFailure = firstFailure ?? error;
+      log.push(
+        `Clip ${index + 1}/${source.clips.length} failed after ${Date.now() - started}ms: `
+        + (error instanceof Error ? error.message : String(error)),
+      );
       return null;
     }
   });
@@ -294,8 +318,12 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
     const detail = firstFailure instanceof EdgeTtsError
       ? await describeVoiceFailure(config.voice, proxyUrl, firstFailure)
       : (firstFailure instanceof Error ? firstFailure.message : String(firstFailure));
-    throw new NodeValidationError(`Edge TTS synthesis failed: ${detail}`);
+    const failure = new NodeValidationError(`Edge TTS synthesis failed: ${detail}`);
+    (failure as Error & { logs?: string[] }).logs = log.logs;
+    throw failure;
   }
+
+  log.push(`All ${completedClips} clip(s) synthesized; writing assets to ${outputDir}.`);
 
   const warnings: string[] = [];
   const parts: Buffer[] = [];
@@ -361,7 +389,7 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
   const combined = Buffer.concat(parts);
   if (config.writeCombined) {
     await fs.writeFile(path.join(outputDir, 'narration.mp3'), combined);
-    logs.push(`Wrote narration.mp3 (${(combined.length / 1024).toFixed(0)} KB).`);
+    log.push(`Wrote narration.mp3 (${(combined.length / 1024).toFixed(0)} KB).`);
   }
 
   const totalSeconds = combined.length * 8 / 48_000;
@@ -393,12 +421,12 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
 
   if (config.applyTiming && source.assetDir && source.chapterFiles.length) {
     const patched = await applyTimingToRunAssets(source.assetDir, source.chapterFiles, timeline);
-    logs.push(
+    log.push(
       `Applied measured shot timing to ${patched} clip(s) across ${source.chapterFiles.length} chapter file(s).`,
     );
   }
 
-  logs.push(`Resolved shot timing from anchors for ${measuredClips}/${entries.length} clip(s).`);
+  log.push(`Resolved shot timing from anchors for ${measuredClips}/${entries.length} clip(s).`);
 
   await fs.writeFile(
     path.join(outputDir, 'narration.json'),
@@ -406,21 +434,22 @@ async function execute({ node, input, assetsDir, workflowId, runId }: NodePlugin
     'utf8',
   );
 
-  logs.push(
+  log.push(
     `Synthesized ${entries.length} clip(s), ${totalSeconds.toFixed(1)}s total.`,
     `Assets written to ${outputDir}.`,
   );
 
   if (warnings.length) {
+    log.push(...warnings.map((warning) => `[Timing] ${warning}`));
     return {
       output: JSON.stringify(manifest, null, 2),
-      logs: [...logs, ...warnings.map((warning) => `[Timing] ${warning}`)],
+      logs: log.logs,
       status: 'warning',
       error: `Narration timing needs attention for ${warnings.length} clip(s).`,
     };
   }
 
-  return { output: JSON.stringify(manifest, null, 2), logs };
+  return { output: JSON.stringify(manifest, null, 2), logs: log.logs };
 }
 
 export default {

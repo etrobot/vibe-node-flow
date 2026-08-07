@@ -49,7 +49,7 @@ A clip with N items carries exactly N-1 anchors: anchor 1 starts item 2, and ite
 
 `slug` pins the downstream project folder name; leaving it blank lets the model derive one. `language` and `tone` steer narration and hue. `minClips`/`maxClips`, `minComponentTypes`, `targetDurationSeconds`, and `durationTolerance` define the accepted shape — under anchor timing the duration window applies to the *estimated narration*, since no item carries seconds.
 
-`timingMode` selects the contract. `anchor` (default) is the above. `duration` restores the older shape: plain speech with no `**`, and a required `0.6`-`6` second `duration` on every item. `maxGlobalComponents` caps reusable structures; `0` disables them and forces every payload inline.
+`timingMode` selects the contract. `anchor` (default) is the above. `duration` restores the older shape: plain speech with no `**`, and a required `0.6`-`6` second `duration` on every item. `maxGlobalComponents` caps reusable structures; `0` disables them and forces every payload inline. `maxDemoUiHtmlItems` (default 2) caps product Demo UI HTML placeholders (`ui-prompt-input`, `ui-dropfiles`, `ui-render-loading`, `ui-video-preview`).
 
 `systemPromptFile` and `promptFile` swap in workflow-owned prompt files, resolved relative to the workflow definition directory.
 

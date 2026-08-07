@@ -16,7 +16,6 @@ import {
   Layers,
   Loader2,
   LockKeyhole,
-  Link2,
   Zap,
 } from 'lucide-react';
 
@@ -24,7 +23,6 @@ interface RunDetailPageProps {
   runId: string;
   onBack: () => void;
   onOpenWorkflow?: (workflowId: string) => void;
-  onCopyLink?: () => void;
 }
 
 const formatTime = (iso: string): string => {
@@ -68,7 +66,6 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
   runId,
   onBack,
   onOpenWorkflow,
-  onCopyLink,
 }) => {
   const [record, setRecord] = useState<RunRecord | null>(null);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowItem | null>(null);
@@ -266,14 +263,6 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
               <span className="hidden sm:inline">Open Workflow</span>
             </button>
           )}
-          <button
-            onClick={onCopyLink}
-            title="Copy run link"
-            className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary border border-hairline flex items-center gap-1.5 text-xs"
-          >
-            <Link2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Copy Link</span>
-          </button>
         </div>
       </header>
 

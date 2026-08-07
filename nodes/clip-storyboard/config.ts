@@ -23,6 +23,8 @@ export interface ClipStoryboardConfig {
   timingMode: TimingMode;
   /** Ceiling on reusable structures declared in `global-components`. */
   maxGlobalComponents: number;
+  /** Ceiling on product Demo UI HTML placeholders (ui-prompt-input, etc.). */
+  maxDemoUiHtmlItems: number;
   temperature: number;
   systemPrompt: string;
   /** Optional UTF-8 file relative to the workflow definition directory. Overrides systemPrompt. */
@@ -46,6 +48,7 @@ export const DEFAULT_CLIP_STORYBOARD_CONFIG: ClipStoryboardConfig = {
   durationTolerance: 0.25,
   timingMode: 'anchor',
   maxGlobalComponents: 12,
+  maxDemoUiHtmlItems: 2,
   temperature: 0.6,
   systemPrompt: [
     'You are a storyboard director for a local motion-graphics video renderer.',

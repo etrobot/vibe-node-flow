@@ -9,6 +9,8 @@ import {
   type NodePluginDiagnostic,
 } from "./plugin-discovery.ts";
 
+export type NodeLogFn = (line: string) => void;
+
 export interface NodePluginContext {
   node: FlowNode;
   input: NodeTextInput;
@@ -25,6 +27,31 @@ export interface NodePluginContext {
   assetsDir: string;
   /** Persistent assets owned by this node and reused across runs. */
   nodeAssetsDir: string;
+  /** Stream one console line to the live run UI while the node is still executing. */
+  onLog?: NodeLogFn;
+}
+
+/** Collect logs and optionally stream each line as soon as it is produced. */
+export function createNodeLogger(onLog?: NodeLogFn): {
+  logs: string[];
+  push: (...lines: string[]) => void;
+} {
+  const logs: string[] = [];
+  return {
+    logs,
+    push(...lines: string[]) {
+      for (const line of lines) {
+        const text = String(line);
+        logs.push(text);
+        if (!onLog) continue;
+        try {
+          onLog(text);
+        } catch (error) {
+          console.error("[node-log] listener failed:", error);
+        }
+      }
+    },
+  };
 }
 
 export interface NodePluginResult {

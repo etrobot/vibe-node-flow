@@ -104,8 +104,10 @@ test("executeWorkflow runs nodes according to edge connections and parallelism",
 
   const startTimes: Record<string, number> = {};
   const finishTimes: Record<string, number> = {};
+  const events: Array<{ type: string; nodeId?: string }> = [];
 
   const result = await executeWorkflow(wf, (event) => {
+    events.push({ type: event.type, nodeId: "nodeId" in event ? event.nodeId : undefined });
     if (event.type === "node-start") {
       startTimes[event.nodeId] = Date.now();
     } else if (event.type === "node-finish") {
@@ -121,6 +123,21 @@ test("executeWorkflow runs nodes according to edge connections and parallelism",
   assert.ok(finishTimes["start"] <= startTimes["branch2"]);
   assert.ok(finishTimes["branch1"] <= startTimes["end"]);
   assert.ok(finishTimes["branch2"] <= startTimes["end"]);
+
+  // Live logs must stream before finish, and a finished sibling must not wait
+  // for the rest of its parallel wave before emitting node-finish.
+  assert.ok(events.some((event) => event.type === "node-log"));
+  const branchWave = events.filter((event) =>
+    event.nodeId === "branch1" || event.nodeId === "branch2"
+  );
+  const firstBranchFinish = branchWave.findIndex((event) => event.type === "node-finish");
+  assert.ok(firstBranchFinish >= 0);
+  assert.ok(
+    branchWave.slice(firstBranchFinish + 1).some((event) =>
+      event.type === "node-log" || event.type === "node-finish"
+    ),
+    "expected activity from the other parallel branch after the first finish",
+  );
 });
 
 test("a warning can continue when another branch succeeds in the same wave", async () => {

@@ -28,7 +28,7 @@ export const VOICE_LIST_URL = `https://${BASE_URL}/voices/list?trustedclienttoke
  * far behind the shipping Edge build. Bump both constants together when
  * synthesis starts failing with `handshake rejected`.
  */
-export const CHROMIUM_FULL_VERSION = '143.0.3650.75';
+export const CHROMIUM_FULL_VERSION = '151.0.4129.72';
 export const CHROMIUM_MAJOR_VERSION = CHROMIUM_FULL_VERSION.split('.')[0];
 export const SEC_MS_GEC_VERSION = `1-${CHROMIUM_FULL_VERSION}`;
 

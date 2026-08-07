@@ -24,6 +24,31 @@ const initialRoute = parseRoute(window.location);
 
 type AppView = 'home' | 'canvas' | 'run-detail';
 
+/** Persistable node shape only — runtime status/output must not mark the canvas dirty. */
+function persistableNode(node: FlowNode) {
+  return {
+    id: node.id,
+    type: node.type,
+    title: node.title,
+    icon: node.icon,
+    lane: node.lane,
+    color: node.color,
+    x: node.x,
+    y: node.y,
+    config: node.config,
+    tags: node.tags,
+  };
+}
+
+/** Persistable edge shape only — edge run status is ephemeral UI state. */
+function persistableEdge(edge: FlowEdge) {
+  return {
+    id: edge.id,
+    fromNodeId: edge.fromNodeId,
+    toNodeId: edge.toNodeId,
+  };
+}
+
 export default function App() {
   // Navigation View State
   // 'home' = RunHistoryPage (default home), 'workflows' = WorkflowListHome,
@@ -98,22 +123,15 @@ export default function App() {
     applyRoute(route);
   }, [applyRoute]);
 
-  const copyRouteLink = useCallback(async (route: AppRoute) => {
-    try {
-      await navigator.clipboard.writeText(absoluteRouteUrl(route));
-      window.alert('Link copied');
-    } catch {
-      window.prompt('Copy link', absoluteRouteUrl(route));
-    }
-  }, []);
-
-  // Dirty state: true when current canvas differs from last saved state
+  // Dirty state: true when persistable graph/config differs from last saved snapshot.
+  // Running a workflow mutates status/output/logs — those must not count as unsaved edits.
   const isDirty = useMemo(() => {
     if (!activeWorkflowId) return false;
     if (nodes.length !== lastSavedNodes.length || edges.length !== lastSavedEdges.length) return true;
-    // Quick JSON comparison for structural changes
-    const nodesChanged = JSON.stringify(nodes) !== JSON.stringify(lastSavedNodes);
-    const edgesChanged = JSON.stringify(edges) !== JSON.stringify(lastSavedEdges);
+    const nodesChanged =
+      JSON.stringify(nodes.map(persistableNode)) !== JSON.stringify(lastSavedNodes.map(persistableNode));
+    const edgesChanged =
+      JSON.stringify(edges.map(persistableEdge)) !== JSON.stringify(lastSavedEdges.map(persistableEdge));
     const tagCatalogChanged = JSON.stringify(tagCatalog) !== JSON.stringify(lastSavedTagCatalog);
     const laneLabelsChanged = JSON.stringify(laneLabels) !== JSON.stringify(lastSavedLaneLabels);
     return nodesChanged || edgesChanged || tagCatalogChanged || laneLabelsChanged;
@@ -539,10 +557,22 @@ export default function App() {
           setFullRunId(event.runId);
         } else if (event.type === 'node-start') {
           setNodes((prev) =>
-            prev.map((n) => (n.id === event.nodeId ? { ...n, status: 'running' } : n))
+            prev.map((n) =>
+              n.id === event.nodeId
+                ? { ...n, status: 'running', logs: [], error: null }
+                : n
+            )
           );
           setEdges((prev) =>
             prev.map((e) => (e.toNodeId === event.nodeId ? { ...e, status: 'running' } : e))
+          );
+        } else if (event.type === 'node-log') {
+          setNodes((prev) =>
+            prev.map((n) =>
+              n.id === event.nodeId
+                ? { ...n, logs: [...(n.logs || []), event.line] }
+                : n
+            )
           );
         } else if (event.type === 'node-finish') {
           setNodes((prev) =>
@@ -552,7 +582,9 @@ export default function App() {
                     ...n,
                     status: event.status,
                     output: event.output,
-                    logs: event.logs,
+                    // Prefer the final log array from the node; keep streamed lines
+                    // if the finish payload omitted them.
+                    logs: event.logs && event.logs.length > 0 ? event.logs : n.logs,
                     error: event.error ?? null,
                     executionTime: event.executionTime,
                   }
@@ -683,8 +715,6 @@ export default function App() {
           onEditWorkflowMeta={handleEditWorkflowMeta}
           onOpenRun={handleOpenRunDetail}
           onChangeTab={handleHomeTabChange}
-          onCopyWorkflowLink={(id) => void copyRouteLink({ view: 'canvas', workflowId: id })}
-          onCopyRunLink={(id) => void copyRouteLink({ view: 'run-detail', runId: id })}
         />
       </>
     );
@@ -696,7 +726,6 @@ export default function App() {
         runId={selectedRunId}
         onBack={() => handleOpenHistory(null)}
         onOpenWorkflow={(workflowId) => void handleOpenWorkflow(workflowId)}
-        onCopyLink={() => void copyRouteLink({ view: 'run-detail', runId: selectedRunId })}
       />
     );
   }
