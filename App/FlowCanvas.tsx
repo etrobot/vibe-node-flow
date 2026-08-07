@@ -118,6 +118,20 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   const beginEditLane = (colIndex: number) => {
     if (readOnly || !onUpdateLaneLabel) return;
     const current = laneLabels?.[colIndex] ?? `Lane ${colIndex + 1}`;
+    const centerX = columnX(colIndex) + NODE_WIDTH / 2;
+    // Keep input in the same HTML transform layer as nodes — SVG foreignObject
+    // under CSS scale/translate drifts far from the label in WebKit/Blink.
+    const inputTop = TOP_MARGIN - 44;
+    const inputLeft = centerX - 70;
+    console.log('[lane-label-edit] begin', {
+      colIndex,
+      current,
+      centerX,
+      inputTop,
+      inputLeft,
+      pan,
+      zoom,
+    });
     setLaneDraft(current);
     setEditingLane(colIndex);
   };
@@ -379,49 +393,23 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       // visual (pointer-events disabled) so it never blocks canvas panning or
       // node dragging, even when a node is snapped to the top row beneath it.
       // Editing is triggered via double-click hit-testing on canvas coordinates
-      // (see handleCanvasDoubleClick), not via DOM events on the text itself.
+      // (see handleCanvasDoubleClick); the input overlay is HTML (not foreignObject).
       const laneLabel = laneLabels?.[i] ?? `Lane ${i + 1}`;
-      const isEditingThisLane = editingLane === i;
+      if (editingLane === i) {
+        // Text is replaced by the HTML input overlay while editing.
+        continue;
+      }
       guides.push(
-        <g key={`col-header-group-${i}`}>
-          {isEditingThisLane ? (
-            <foreignObject
-              x={centerX - 64}
-              y={TOP_MARGIN - 8}
-              width={140}
-              height={24}
-              style={{ pointerEvents: 'auto' }}
-            >
-              <input
-                ref={laneInputRef}
-                value={laneDraft}
-                onChange={(e) => setLaneDraft(e.target.value)}
-                onBlur={commitLaneEdit}
-                onMouseDown={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitLaneEdit();
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cancelLaneEdit();
-                  }
-                }}
-                className="w-full h-full px-1.5 text-center text-[11px] font-mono text-ink bg-white border border-hairline-strong rounded outline-none focus:ring-1 focus:ring-primary/40"
-              />
-            </foreignObject>
-          ) : (
-            <text
-              x={centerX}
-              y={TOP_MARGIN - 31}
-              textAnchor="middle"
-              className="fill-gray-400 font-mono select-none"
-              fontSize={11}
-            >
-              {laneLabel}
-            </text>
-          )}
-        </g>
+        <text
+          key={`col-header-${i}`}
+          x={centerX}
+          y={TOP_MARGIN - 31}
+          textAnchor="middle"
+          className="fill-gray-400 font-mono select-none"
+          fontSize={11}
+        >
+          {laneLabel}
+        </text>
       );
     }
     return guides;
@@ -772,6 +760,35 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             );
           })()}
         </svg>
+
+        {/* Lane label edit overlay — HTML absolute (same transform as nodes).
+            SVG foreignObject under CSS pan/zoom scale mis-positions the input. */}
+        {editingLane !== null && (
+          <input
+            ref={laneInputRef}
+            data-no-pan="true"
+            value={laneDraft}
+            onChange={(e) => setLaneDraft(e.target.value)}
+            onBlur={commitLaneEdit}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitLaneEdit();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelLaneEdit();
+              }
+            }}
+            style={{
+              left: `${columnX(editingLane) + NODE_WIDTH / 2 - 70}px`,
+              top: `${TOP_MARGIN - 44}px`,
+              width: '140px',
+              height: '24px',
+            }}
+            className="absolute z-30 px-1.5 text-center text-[11px] font-mono text-ink bg-white border border-hairline-strong rounded outline-none focus:ring-1 focus:ring-primary/40 pointer-events-auto"
+          />
+        )}
 
         {/* Nodes Layer */}
         <div className="absolute inset-0 pointer-events-none z-20">
