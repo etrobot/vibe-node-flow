@@ -402,7 +402,13 @@ export interface StoryboardReport {
   metrics: Record<string, string | number | boolean>;
 }
 
-function validateCard(card: any, label: string, seen: Set<string>, errors: string[]): void {
+function validateCard(
+  card: any,
+  label: string,
+  seen: Set<string>,
+  errors: string[],
+  requireIcon = false,
+): void {
   if (!card || typeof card !== 'object' || Array.isArray(card)) {
     errors.push(`${label} is not an object.`);
     return;
@@ -416,6 +422,9 @@ function validateCard(card: any, label: string, seen: Set<string>, errors: strin
     seen.add(key);
   }
   if (!text(card.title)) errors.push(`${label} is missing title.`);
+  if (requireIcon && !text(card.icon)) {
+    errors.push(`${label} must include a lucide icon name.`);
+  }
 }
 
 function validateGlobalComponent(
@@ -457,8 +466,10 @@ function validateGlobalComponent(
 
   if (Array.isArray(component.cards)) {
     const seenCards = new Set<string>();
+    const requireIcon = component.component === 'process-card-highlight'
+      || component.component === 'pyramid-highlight';
     component.cards.forEach((card: any, cardIndex: number) => {
-      validateCard(card, `${named} card ${cardIndex + 1}`, seenCards, errors);
+      validateCard(card, `${named} card ${cardIndex + 1}`, seenCards, errors, requireIcon);
     });
   }
 

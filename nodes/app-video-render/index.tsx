@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { NodeModule, NodeModuleEditorProps } from '@/App/types.node-module';
 import { api } from '@/App/utils/api';
 import { DEFAULT_APP_VIDEO_RENDER_CONFIG } from './config';
-import { hydrateDocument } from '../clip-storyboard/resolve.ts';
+import { parseJsonObject, toRendererDocument } from './document.ts';
 import { InteractivePlayer } from './renderer/InteractivePlayer';
 import { RenderEntrypoint } from './renderer/RenderEntrypoints';
 import type { ClipsDocument } from './renderer/clipTypes';
@@ -55,44 +55,15 @@ function parseManifest(output: unknown): RenderManifest | null {
   }
 }
 
-function parseObject(value: unknown): Record<string, any> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, any>;
-  if (typeof value !== 'string') return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, any>
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * A compact storyboard still carries `key`/`spot` references and no seconds.
- * The player reads the flat shape, so expand before previewing.
- */
-function needsHydration(candidate: Record<string, any>): boolean {
-  if (Array.isArray(candidate['global-components']) && candidate['global-components'].length) return true;
-  return candidate.clips.some((clip: any) => (clip?.items || []).some(
-    (item: any) => item?.key || !(Number(item?.duration) > 0),
-  ));
-}
-
 /** Convert a full storyboard or a legacy summary into a preview document. */
 function toPreviewDocument(value: unknown): ClipsDocument | null {
-  const parsed = parseObject(value);
+  const rendered = toRendererDocument(value);
+  if (rendered) return rendered as ClipsDocument;
+
+  const parsed = parseJsonObject(value);
   if (!parsed) return null;
-
-  const candidate = parseObject(parsed.document) || parsed;
+  const candidate = parseJsonObject(parsed.document) || parsed;
   if (!Array.isArray(candidate.clips) || candidate.clips.length === 0) return null;
-
-  const hasRendererItems = candidate.clips.some((clip: any) => Array.isArray(clip?.items));
-  if (hasRendererItems) {
-    return (needsHydration(candidate)
-      ? hydrateDocument(candidate as any)
-      : candidate) as ClipsDocument;
-  }
 
   // Legacy manifests may contain speech/background summaries only. Keep those
   // historical runs previewable.

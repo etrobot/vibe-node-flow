@@ -8,6 +8,7 @@ import TransitionOverlay from './TransitionOverlay';
 import {defaultClipsData as clipsData} from './defaultData';
 import type {ClipBackground, ClipsDocument} from './clipTypes';
 import {clamp, getClipDuration, getTotalDuration} from './clipModel';
+import {toRendererDocument} from '../document.ts';
 
 declare global {
   interface Window {
@@ -156,11 +157,15 @@ function useProjectData(projectName: string | null) {
           ? await fetch(`/api/video/spec/${encodeURIComponent(runId)}`)
           : await fetch(`/api/projects/${encodeURIComponent(projectName)}`);
         if (!response.ok) throw new Error(`Failed to load render project: ${response.status}`);
-        let data = await response.json();
-        if (typeof data === 'string') data = JSON.parse(data);
-        data = data?.document && typeof data.document === 'object' ? data.document : data;
-        if (!Array.isArray(data?.clips)) throw new Error('Project clip data is missing a clips array.');
-        if (!cancelled) setData(data);
+        let payload = await response.json();
+        if (typeof payload === 'string') payload = JSON.parse(payload);
+        // Same hydration as HTML5 preview: expand global-components onto items.
+        // Without this, process/feedback cards fall back to hardcoded defaults.
+        const data = toRendererDocument(payload);
+        if (!data || !Array.isArray(data.clips)) {
+          throw new Error('Project clip data is missing a clips array.');
+        }
+        if (!cancelled) setData(data as ClipsDocument);
       } catch (err: any) {
         window.__renderError = err?.message || String(err);
       }

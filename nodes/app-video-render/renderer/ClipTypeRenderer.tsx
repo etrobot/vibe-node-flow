@@ -42,12 +42,33 @@ interface ClipTypeRendererProps {
   projectName?: string | null;
 }
 
+/** Demo HTML is authored for the export composition; scale the iframe into its host. */
+const DEMO_UI_DESIGN_WIDTH = 1920;
+const DEMO_UI_DESIGN_HEIGHT = 1080;
+
 function DemoUiEmbed({item, localTime}: ClipTypeRendererProps) {
   const [loaded, setLoaded] = useState(false);
+  const [scale, setScale] = useState(1);
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const url = item.demoUi?.url || '';
 
   useEffect(() => {
     setLoaded(false);
+  }, [url]);
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const updateScale = () => {
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      if (width <= 0 || height <= 0) return;
+      setScale(Math.min(width / DEMO_UI_DESIGN_WIDTH, height / DEMO_UI_DESIGN_HEIGHT));
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(host);
+    return () => observer.disconnect();
   }, [url]);
 
   useEffect(() => {
@@ -62,13 +83,19 @@ function DemoUiEmbed({item, localTime}: ClipTypeRendererProps) {
   }
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-black" data-demo-ui-frame>
+    <div ref={hostRef} className="absolute inset-0 overflow-hidden bg-black" data-demo-ui-frame>
       {!loaded && <div className="absolute inset-0 z-10 flex items-center justify-center bg-black text-white/60">Loading product UI…</div>}
       <iframe
         title="Generated product UI"
         src={url}
         data-demo-ui={`${item.demoUi?.clipIndex}:${item.demoUi?.itemIndex}`}
-        className="h-full w-full border-0"
+        className="border-0"
+        style={{
+          width: DEMO_UI_DESIGN_WIDTH,
+          height: DEMO_UI_DESIGN_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+        }}
         onLoad={(event) => {
           if (!event.currentTarget.contentDocument?.querySelector('[data-demo-ui]')) {
             window.__renderError = `Demo UI HTML did not expose a product surface: ${url}`;
@@ -2814,7 +2841,10 @@ function ProcessCardHighlight(props: ClipTypeRendererProps) {
         transition={{type: 'spring', stiffness: 140, damping: 16}}
       >
         {cards.map((card, index) => {
-          const Icon = (LucideIcons as any)[card.icon];
+          const Icon = ((card.icon && (LucideIcons as any)[card.icon]) || Sparkles) as ComponentType<{
+            className?: string;
+            style?: CSSProperties;
+          }>;
           const isActive = isHighlighted && index === targetIndex;
 
           return (

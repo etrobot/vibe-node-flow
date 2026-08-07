@@ -137,6 +137,41 @@ test('manifests written before the timeline fall back to the clip start offsets'
   assert.deepEqual(facts.narrationClips.map((clip) => clip.startSeconds), [0, 3.1]);
 });
 
+test('toRendererDocument expands global-components so preview and MP4 share the same cards', async () => {
+  const { toRendererDocument } = await import('./document.ts');
+  const compact = {
+    title: 'Forge',
+    hue: 220,
+    'global-components': [{
+      key: 'build-flow',
+      component: 'process-card-highlight',
+      cards: [
+        { key: 'describe', icon: 'MessageSquare', title: 'Describe' },
+        { key: 'generate', icon: 'Sparkles', title: 'Generate' },
+        { key: 'ship', icon: 'Rocket', title: 'Ship' },
+      ],
+    }],
+    clips: [{
+      speech: 'Watch it **generate**.',
+      background: 'aurora',
+      items: [
+        { type: 'text-typing', title: 'Idea' },
+        { type: 'process-card-highlight', key: 'build-flow', spot: 'generate' },
+      ],
+    }],
+  };
+
+  const rendered = toRendererDocument(compact) as any;
+  const cards = rendered.clips[0].items[1].cards;
+  assert.deepEqual(cards.map((card: any) => [card.icon, card.title]), [
+    ['MessageSquare', 'Describe'],
+    ['Sparkles', 'Generate'],
+    ['Rocket', 'Ship'],
+  ]);
+  assert.equal(rendered.clips[0].items[1].targetIndex, 1);
+  assert.equal(rendered.clips[0].items[1].key, undefined);
+});
+
 test('render facts preserve an embedded storyboard document for preview recovery', () => {
   const document = {
     slug: 'forge-app-launch',

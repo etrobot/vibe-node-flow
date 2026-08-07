@@ -14,6 +14,7 @@ import {
   validateDemoHtml,
   type DemoUiTarget,
 } from '../ui-html-generation/contract.ts';
+import { toRendererDocument } from './document.ts';
 import {
   DEFAULT_APP_VIDEO_RENDER_CONFIG,
   RENDER_RESOLUTIONS,
@@ -371,7 +372,20 @@ export async function executeAppVideoRender(
       runId,
     );
   }
+  // Persist the same flat document the preview and Playwright paths render, so
+  // global-components are not lost and cards never fall back to hardcoded defaults.
+  let hydratedReferences = false;
+  if (facts.document) {
+    const rendered = toRendererDocument(facts.document);
+    if (rendered) {
+      facts.document = rendered;
+      hydratedReferences = true;
+    }
+  }
   const { problems, notes } = await (services.preflight ?? preflight)(assetDir, slug, facts.document);
+  if (hydratedReferences) {
+    notes.push('Hydrated storyboard references into renderer-flat clip items.');
+  }
 
   if (facts.document && facts.narrationClips.length && hasCompleteItemTiming(facts.document)) {
     const timeline = clipTimeline([facts.document]);

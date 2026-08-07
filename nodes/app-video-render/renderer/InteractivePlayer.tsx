@@ -43,6 +43,10 @@ interface TimedChapter {
   duration: number;
 }
 
+/** Same composition as Playwright MP4 export (1080p). Preview layouts here, then scales down. */
+const PREVIEW_DESIGN_WIDTH = 1920;
+const PREVIEW_DESIGN_HEIGHT = 1080;
+
 function formatTime(value: number) {
   const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
   const minutes = Math.floor(safeValue / 60).toString().padStart(2, '0');
@@ -226,11 +230,16 @@ export const InteractivePlayer = ({
     if (!viewport) return;
 
     const updateScale = () => {
-      // The motion scenes are authored against a 1120px canvas. The node
-      // inspector is usually much narrower than the standalone player, so
-      // scale only the foreground to the actual preview width.
+      // Layout foreground at the export composition (1920x1080), then scale the
+      // whole stage into the preview pane. Scaling a full-size layout box made
+      // rem/px elements ~2x larger than the MP4 (preview used 1120, render 1920).
       const width = viewport.clientWidth;
-      if (width > 0) setForegroundScale(Math.max(0.45, Math.min(1, width / 1120)));
+      const height = viewport.clientHeight;
+      if (width <= 0 || height <= 0) return;
+      setForegroundScale(Math.min(
+        width / PREVIEW_DESIGN_WIDTH,
+        height / PREVIEW_DESIGN_HEIGHT,
+      ));
     };
 
     updateScale();
@@ -404,20 +413,26 @@ export const InteractivePlayer = ({
               palette={document.palette}
               time={currentTime}
             />
-            <div
-              className="pointer-events-none absolute inset-0 overflow-hidden"
-              style={{
-                transform: `scale(${foregroundScale})`,
-                transformOrigin: 'center center',
-              }}
-            >
-              {activeClip && (
-                <ClipRenderer
-                  key={`${activeClipIndex}:${activeClip.speech}`}
-                  clip={activeClip}
-                  localTime={located?.localTime ?? 0}
-                />
-              )}
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <div
+                className="absolute left-1/2 top-1/2 overflow-hidden"
+                style={{
+                  width: PREVIEW_DESIGN_WIDTH,
+                  height: PREVIEW_DESIGN_HEIGHT,
+                  transform: `translate(-50%, -50%) scale(${foregroundScale})`,
+                  transformOrigin: 'center center',
+                }}
+              >
+                {activeClip && (
+                  <div className="absolute inset-0 pointer-events-auto">
+                    <ClipRenderer
+                      key={`${activeClipIndex}:${activeClip.speech}`}
+                      clip={activeClip}
+                      localTime={located?.localTime ?? 0}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
