@@ -74,7 +74,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   const [showNodeDocModal, setShowNodeDocModal] = useState(false);
   const [nodeTitleDraft, setNodeTitleDraft] = useState(node?.title || '');
   const titleBeforeEditRef = useRef(node?.title || '');
-  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>('console-logs');
 
   const activeModule = node ? getModule(node.type) : null;
   const nodeDoc = node ? getNodeDoc(node.type) : null;
@@ -104,9 +104,9 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showFullPanelModal]);
 
-  // Reset accordion expansion when the selected node changes
+  // Reset accordion expansion when the selected node changes (default to expanding console-logs)
   useEffect(() => {
-    setExpandedItemId(null);
+    setExpandedItemId('console-logs');
   }, [node?.id]);
 
   useEffect(() => {
