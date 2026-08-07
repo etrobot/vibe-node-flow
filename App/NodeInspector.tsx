@@ -161,7 +161,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       items.push({
         id: 'manual-input-data',
         category: 'input',
-        title: '手动输入',
+        title: 'Manual Input',
         content: lastManualInput || '(Empty input)',
       });
     } else if (hasUpstream) {

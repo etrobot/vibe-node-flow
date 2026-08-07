@@ -37,15 +37,15 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
       <div className="w-full max-w-6xl rounded-xl border border-hairline bg-surface-card p-6 shadow-2xl">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-ink">手动输入上游数据</h2>
+            <h2 className="text-sm font-semibold text-ink">Manual input</h2>
             <p className="mt-1 text-xs text-muted">
-              节点「{nodeTitle}」没有可用的上游输出，请输入本次运行的输入数据（不会保存到工作流）。
+              &ldquo;{nodeTitle}&rdquo; has no upstream output available. Enter input for this run only — it is not saved to the workflow.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            title="取消"
+            title="Cancel"
             className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
           >
             <X className="h-4 w-4" />
@@ -61,7 +61,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
               handleRun();
             }
           }}
-          placeholder="粘贴或编写本次运行的输入内容..."
+          placeholder="Paste or write the input for this run..."
           className="mt-4 min-h-[26rem] w-full resize-y rounded-lg border border-hairline bg-white p-4 font-mono text-xs leading-relaxed text-ink shadow-inner outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
         />
         <div className="mt-3 flex justify-end gap-2">
@@ -70,7 +70,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
             onClick={onClose}
             className="btn-pill border border-hairline bg-surface-card text-muted hover:bg-surface-canvas-soft hover:text-ink text-xs cursor-pointer"
           >
-            取消
+            Cancel
           </button>
           <button
             type="button"
@@ -78,7 +78,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
             className="btn-pill bg-black text-white hover:bg-black/80 text-xs flex items-center gap-1.5 cursor-pointer"
           >
             <Play className="h-3.5 w-3.5 fill-current" />
-            运行
+            Run
           </button>
         </div>
       </div>
