@@ -7,6 +7,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { NodeInputError, NodeValidationError } from '../../server/plugins.ts';
+import {
+  CLIP_BACKGROUNDS,
+  CLIP_ITEM_TYPES,
+} from './renderer/clipTypes.ts';
 
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,48}$/;
 
@@ -50,6 +54,18 @@ export interface UpstreamFacts {
   audioDir: string | null;
   narrationClips: NarrationClipRef[];
   generatedDemos: GeneratedDemoHtml[];
+  /** Upstream node ids whose non-empty output was not a supported manifest. */
+  unparsedUpstream: string[];
+}
+
+export interface RenderProjectValidationReport {
+  errors: string[];
+  warnings: string[];
+  metrics: {
+    clips: number;
+    items: number;
+    timedItems: number;
+  };
 }
 
 export interface TimelineClip {
@@ -71,14 +87,178 @@ function round(value: number): number {
   return Number(value.toFixed(3));
 }
 
+function isRecord(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function isSafeDemoFile(value: unknown): boolean {
+  const file = typeof value === 'string' ? value.trim() : '';
+  return Boolean(file)
+    && !file.startsWith('/')
+    && !file.includes('\\')
+    && file.split('/').every((part) => Boolean(part) && part !== '.' && part !== '..')
+    && file.startsWith('demo/');
+}
+
+/** True only when every renderer item already has measured or authored timing. */
+export function hasCompleteItemTiming(document: unknown): boolean {
+  if (!isRecord(document) || !Array.isArray(document.clips) || !document.clips.length) return false;
+  return document.clips.every((clip: unknown) => (
+    isRecord(clip)
+    && Array.isArray(clip.items)
+    && clip.items.length > 0
+    && clip.items.every((item: unknown) => isRecord(item) && isPositiveNumber(item.duration))
+  ));
+}
+
+/**
+ * Validate the renderer's own input contract. This intentionally accepts every
+ * item implemented by app-video-render and does not apply the upstream LLM
+ * author's style rules (closing pairs, chapter coverage, anchor counts, etc.).
+ */
+export function validateRenderProject(value: unknown): RenderProjectValidationReport {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  let itemCount = 0;
+  let timedItems = 0;
+
+  if (!isRecord(value)) {
+    return {
+      errors: ['Render project must be a JSON object.'],
+      warnings,
+      metrics: { clips: 0, items: 0, timedItems: 0 },
+    };
+  }
+
+  if (value.hue !== undefined) {
+    const hue = value.hue;
+    if (typeof hue !== 'number' || !Number.isFinite(hue) || hue < 0 || hue > 360) {
+      errors.push('hue must be a number between 0 and 360 when present.');
+    }
+  }
+
+  if (value.palette !== undefined) {
+    if (!isRecord(value.palette)) {
+      errors.push('palette must be an object when present.');
+    } else {
+      for (const role of ['background', 'foreground', 'muted', 'accent', 'secondary']) {
+        const color = value.palette[role];
+        if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color.trim())) {
+          errors.push(`palette.${role} must be a #rrggbb hex color.`);
+        }
+      }
+    }
+  }
+
+  if (value['global-components'] !== undefined && !Array.isArray(value['global-components'])) {
+    errors.push('global-components must be an array when present.');
+  }
+
+  if (!Array.isArray(value.clips) || !value.clips.length) {
+    errors.push('clips must be a non-empty array.');
+    return {
+      errors,
+      warnings,
+      metrics: { clips: 0, items: 0, timedItems: 0 },
+    };
+  }
+
+  const backgrounds = new Set<string>(CLIP_BACKGROUNDS);
+  const itemTypes = new Set<string>(CLIP_ITEM_TYPES);
+  value.clips.forEach((clip: unknown, clipIndex: number) => {
+    const label = `Clip ${clipIndex + 1}`;
+    if (!isRecord(clip)) {
+      errors.push(`${label} must be an object.`);
+      return;
+    }
+    if (typeof clip.speech !== 'string') {
+      errors.push(`${label} speech must be a string.`);
+    } else if (!clip.speech.trim()) {
+      warnings.push(`${label} speech is empty.`);
+    }
+    if (!backgrounds.has(String(clip.background ?? ''))) {
+      errors.push(`${label} background must be one of ${CLIP_BACKGROUNDS.join(', ')}.`);
+    }
+    if (!Array.isArray(clip.items) || !clip.items.length) {
+      errors.push(`${label} items must be a non-empty array.`);
+      return;
+    }
+
+    clip.items.forEach((item: unknown, itemIndex: number) => {
+      itemCount += 1;
+      const itemLabel = `${label} item ${itemIndex + 1}`;
+      if (!isRecord(item)) {
+        errors.push(`${itemLabel} must be an object.`);
+        return;
+      }
+      if (!itemTypes.has(String(item.type ?? ''))) {
+        errors.push(`${itemLabel} has unsupported type ${JSON.stringify(item.type ?? null)}.`);
+      }
+      if (item.duration !== undefined) {
+        if (!isPositiveNumber(item.duration)) {
+          errors.push(`${itemLabel} duration must be a positive number when present.`);
+        } else {
+          timedItems += 1;
+        }
+      }
+      if (item.effect !== undefined && item.effect !== 'shockwave') {
+        errors.push(`${itemLabel} has unsupported effect ${JSON.stringify(item.effect)}.`);
+      }
+      if (isRecord(item.demoUi) && item.demoUi.htmlFile !== undefined && !isSafeDemoFile(item.demoUi.htmlFile)) {
+        errors.push(`${itemLabel} has an unsafe Demo UI htmlFile.`);
+      }
+    });
+  });
+
+  if (value.chapters !== undefined) {
+    if (!Array.isArray(value.chapters)) {
+      errors.push('chapters must be an array when present.');
+    } else {
+      value.chapters.forEach((chapter: unknown, chapterIndex: number) => {
+        const label = `Chapter ${chapterIndex + 1}`;
+        if (!isRecord(chapter)) {
+          errors.push(`${label} must be an object.`);
+          return;
+        }
+        if (chapter.startClip !== undefined
+          && (!Number.isInteger(chapter.startClip) || chapter.startClip < 0)) {
+          errors.push(`${label} startClip must be a non-negative integer when present.`);
+        }
+        if (chapter.clipCount !== undefined
+          && (!Number.isInteger(chapter.clipCount) || chapter.clipCount <= 0)) {
+          errors.push(`${label} clipCount must be a positive integer when present.`);
+        }
+      });
+    }
+  }
+
+  if (timedItems < itemCount) {
+    warnings.push(
+      `${itemCount - timedItems} renderer item(s) have no positive duration; timing must be derived before frame capture.`,
+    );
+  }
+
+  return {
+    errors,
+    warnings,
+    metrics: { clips: value.clips.length, items: itemCount, timedItems },
+  };
+}
+
 /**
  * Collect what the render needs from every upstream manifest. The node accepts
  * storyboard, Demo UI, and narration manifests, so parallel workflow branches
  * can fan in here without an intermediate packager node.
  */
 export function mergeUpstreamManifests(input: Record<string, string>): UpstreamFacts {
-  const values = Object.values(input).map((value) => String(value ?? '').trim()).filter(Boolean);
-  if (!values.length) {
+  const entries = Object.entries(input)
+    .map(([nodeId, value]) => [nodeId, String(value ?? '').trim()] as const)
+    .filter(([, value]) => Boolean(value));
+  if (!entries.length) {
     throw new NodeInputError('App Video Render requires at least one non-empty upstream manifest; received none.');
   }
 
@@ -89,20 +269,38 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     audioDir: null,
     narrationClips: [],
     generatedDemos: [],
+    unparsedUpstream: [],
   };
 
-  let parsedAny = false;
-  for (const value of values) {
+  let recognizedAny = false;
+  let selectedDocument: {
+    value: Record<string, unknown>;
+    score: number;
+    source: string;
+  } | null = null;
+
+  for (const [nodeId, value] of entries) {
     let parsed: any;
     try {
       parsed = JSON.parse(value);
     } catch {
+      facts.unparsedUpstream.push(nodeId);
       continue;
     }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
-    parsedAny = true;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      facts.unparsedUpstream.push(nodeId);
+      continue;
+    }
+    let recognized = false;
+
+    const audioDir = trimmed(parsed.audioDir);
+    const audioClips = Array.isArray(parsed.clips)
+      ? parsed.clips.filter((clip: any) => CLIP_AUDIO_PATTERN.test(trimmed(clip?.file)))
+      : [];
+    const isNarrationManifest = Boolean(audioDir && audioClips.length);
 
     if (parsed.kind === 'ui-html-generation' && Array.isArray(parsed.demos)) {
+      recognized = true;
       facts.generatedDemos.push(
         ...parsed.demos
           .filter((demo: any) => Number.isInteger(demo?.clipIndex)
@@ -124,24 +322,45 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
       : null;
     const candidateDocument = embeddedDocument || parsed;
     if (
-      !facts.document
-      && candidateDocument
+      candidateDocument
+      && typeof candidateDocument === 'object'
+      && !Array.isArray(candidateDocument)
       && Array.isArray(candidateDocument.clips)
       && candidateDocument.clips.some((clip: any) => Array.isArray(clip?.items))
     ) {
-      facts.document = candidateDocument as Record<string, unknown>;
+      recognized = true;
+      let score = 10;
+      if (hasCompleteItemTiming(candidateDocument)) score += 30;
+      if (isNarrationManifest) score += 100;
+      if (Array.isArray(parsed.timeline) && parsed.timeline.length) score += 20;
+      if (parsed.kind === 'ui-html-generation') score -= 5;
+
+      if (
+        !selectedDocument
+        || score > selectedDocument.score
+        || (score === selectedDocument.score && nodeId.localeCompare(selectedDocument.source) < 0)
+      ) {
+        selectedDocument = {
+          value: candidateDocument as Record<string, unknown>,
+          score,
+          source: nodeId,
+        };
+      }
     }
 
-    if (!facts.slug && trimmed(parsed.slug)) facts.slug = trimmed(parsed.slug);
+    if (trimmed(parsed.slug)) {
+      recognized = true;
+      if (!facts.slug) facts.slug = trimmed(parsed.slug);
+    }
     if (!facts.assetDir && trimmed(parsed.assetDir)) {
+      recognized = true;
       facts.assetDir = trimmed(parsed.assetDir);
+    } else if (trimmed(parsed.assetDir)) {
+      recognized = true;
     }
 
-    const audioDir = trimmed(parsed.audioDir);
-    const clips = Array.isArray(parsed.clips)
-      ? parsed.clips.filter((clip: any) => CLIP_AUDIO_PATTERN.test(trimmed(clip?.file)))
-      : [];
-    if (audioDir && clips.length && !facts.narrationClips.length) {
+    if (isNarrationManifest && !facts.narrationClips.length) {
+      recognized = true;
       // `timeline` is what the narration measured; a clip entry's own
       // `startSeconds` is the same number, kept as the fallback for manifests
       // written before the timeline existed.
@@ -151,7 +370,7 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
           .map((entry: any) => [Number(entry.clipIndex), Number(entry.startSeconds) || 0]),
       );
       facts.audioDir = audioDir;
-      facts.narrationClips = clips
+      facts.narrationClips = audioClips
         .map((clip: any, position: number) => {
           const index = Number.isInteger(clip.index) ? Number(clip.index) : position;
           return {
@@ -162,11 +381,26 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
           };
         })
         .sort((left: NarrationClipRef, right: NarrationClipRef) => left.index - right.index);
+    } else if (isNarrationManifest) {
+      recognized = true;
+    }
+
+    if (recognized) {
+      recognizedAny = true;
+    } else {
+      facts.unparsedUpstream.push(nodeId);
     }
   }
 
-  if (!parsedAny) {
-    throw new NodeValidationError('No upstream output parsed as a JSON manifest.');
+  facts.document = selectedDocument?.value ?? null;
+
+  if (!recognizedAny) {
+    const ids = facts.unparsedUpstream.join(', ');
+    throw new NodeInputError(
+      ids
+        ? `No upstream output was recognized as a supported JSON manifest. Unsupported upstream: ${ids}.`
+        : 'No upstream output was recognized as a supported JSON manifest.',
+    );
   }
   return facts;
 }

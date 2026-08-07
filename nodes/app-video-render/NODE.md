@@ -43,6 +43,14 @@ brew install ffmpeg
 - Output: JSON manifest with the video path and playable URL, byte size, measured and planned duration, encode settings, the audio mix summary, per-clip start offsets with their narration file, and the exact commands that ran.
 - Side effects: writes `video.mp4` and `render.json` into `data/assets/<workflow-id>/generated/<run-id>/`. Reusable video-node assets, such as background music, live under `data/assets/<node-id>/`.
 
+## Project Validation
+
+Validation belongs to this node and follows the renderer's own contract. It accepts every scene type implemented under `renderer/`, including `image`, `video`, and the Semrush scenes. It does not reuse the storyboard author's quality rules, so measured item durations may coexist with the original `**anchor**` markers in speech.
+
+The node deterministically prefers the narration document when it carries measured timing, even if an untimed Demo UI document reaches the render node first. Unsupported extra upstream outputs and missing item durations are recorded in logs and in the output manifest's `warnings` array. They are advisory and do not change an otherwise successful node into workflow warning status.
+
+Missing required render input, an invalid renderer document, an unusable slug, or an unready render environment remains blocking. Narration overrun checks run only when every item has positive timing; otherwise the node logs that the check was skipped instead of comparing audio against 0.1-second fallback slots.
+
 ## Audio Mix
 
 Each clip MP3 becomes one ffmpeg input, normalized to 48 kHz stereo (`amix` rejects inputs whose rate or layout differ) and delayed with `adelay` to its clip start. Background music from `data/assets/<node-id>/music/bgm.*` is looped, scaled by `musicVolume`, and trimmed to the timeline length. The mix is padded with `apad` so `-shortest` trims the audio to the video instead of cutting the video down to a shorter narration.
@@ -51,7 +59,7 @@ Each clip MP3 becomes one ffmpeg input, normalized to 48 kHz stereo (`amix` reje
 
 `slug` overrides the slug from the upstream manifest; blank uses the upstream value. `resolution` (`1080p` or `4k`), `fps`, `crf`, and `x264Preset` map to the builder's own flags — the defaults trade a little quality for render time, since the builder's own defaults (`crf 12`, `slow`) are tuned for a final master.
 
-`narration` and `music` toggle the two audio sources, `musicVolume` sets the music gain, and `audioBitrate` sets the AAC bitrate. `validateProject` runs the builder's `validate-project` first so a contract error costs seconds instead of a full render. `timeoutMs` bounds the render; the whole process group is terminated on expiry, because `npm run` is only the parent of the renderer.
+`narration` and `music` toggle the two audio sources, `musicVolume` sets the music gain, and `audioBitrate` sets the AAC bitrate. `validateProject` applies this node's renderer-owned input contract before any render work starts. `timeoutMs` bounds the render; the whole process group is terminated on expiry, because `npm run` is only the parent of the renderer.
 
 `cleanIntermediates` deletes the silent master and the working directory `render-video.ts` fills with one MP4 per clip. Those intermediates are created on every render regardless of `--output`, so leaving them costs roughly the size of the finished video again per run. Only directories that appeared during this run and contain a `clips/` folder are removed.
 
@@ -59,7 +67,7 @@ Each clip MP3 becomes one ffmpeg input, normalized to 48 kHz stereo (`amix` reje
 
 ## Failure Behavior
 
-Missing upstream input, an unusable slug, and an unready toolchain are warnings (`⚠️`). `dryRun` reports the same preflight without committing to a render.
+Missing upstream input, a missing or invalid render document, an unusable slug, and an unready toolchain are node-owned blocking warnings (`⚠️`). `dryRun` reports preflight problems without committing to a render. Advisory validation messages stay in the logs and output manifest without setting warning status.
 
 The editor's **Stop** action terminates the server-side Worker, which does not reach processes that Worker spawned. A render already in flight keeps running to completion. The node logs its process group id at spawn time so it can be stopped by hand:
 

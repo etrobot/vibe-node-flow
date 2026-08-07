@@ -21,15 +21,16 @@ import {
   type RenderResolution,
 } from './config.ts';
 import {
-  buildMuxArgs,
-  describeCommand,
+  clipTimeline,
   findNodeMusic,
+  hasCompleteItemTiming,
   mergeUpstreamManifests,
   narrationOverruns,
   resolvePackageDir,
   SLUG_PATTERN,
   tailLines,
   timelineSeconds,
+  validateRenderProject,
   type GeneratedDemoHtml,
   type MuxTrack,
   type NarrationClipRef,
@@ -80,6 +81,11 @@ function normalizeConfig(value: unknown): AppVideoRenderConfig {
     timeoutMs: integer(raw.timeoutMs, defaults.timeoutMs, 60_000, 21_600_000),
     dryRun: raw.dryRun === undefined ? defaults.dryRun : Boolean(raw.dryRun),
   };
+}
+
+function unparsedUpstreamWarning(nodeIds: string[]): string | null {
+  if (!nodeIds.length) return null;
+  return `${nodeIds.length} upstream output(s) were not recognized as supported manifests: ${nodeIds.join(', ')}.`;
 }
 
 /**
@@ -311,11 +317,20 @@ function failure(step: string, result: CommandResult): string {
   return `${step} exited with code ${result.code}.`;
 }
 
-async function execute(
+export interface AppVideoRenderServices {
+  preflight?: typeof preflight;
+}
+
+export async function executeAppVideoRender(
   { node, input, assetsDir, nodeAssetsDir, workflowId, runId }: NodePluginContext,
+  services: AppVideoRenderServices = {},
 ): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const facts = mergeUpstreamManifests(input);
+  const validationWarnings: string[] = [];
+
+  const unparsedWarning = unparsedUpstreamWarning(facts.unparsedUpstream);
+  if (unparsedWarning) validationWarnings.push(unparsedWarning);
 
   const slug = config.slug || facts.slug || '';
   if (!SLUG_PATTERN.test(slug)) {
@@ -323,6 +338,22 @@ async function execute(
       `No usable project slug: upstream reported ${JSON.stringify(facts.slug)} and config.slug is `
       + `${JSON.stringify(config.slug)}. Expected lowercase kebab-case.`,
     );
+  }
+
+  if (!config.dryRun && !facts.document) {
+    throw new NodeValidationError(
+      'App Video Render requires a storyboard document from an upstream node when rendering.',
+    );
+  }
+
+  if (config.validateProject && facts.document) {
+    const report = validateRenderProject(facts.document);
+    if (report.errors.length) {
+      throw new NodeValidationError(
+        `Render project failed validation:\n${report.errors.map((error) => `- ${error}`).join('\n')}`,
+      );
+    }
+    validationWarnings.push(...report.warnings.map((warning) => `[Validate] ${warning}`));
   }
 
   // In the compact graph all generated assets share the current run directory.
@@ -337,7 +368,14 @@ async function execute(
       runId,
     );
   }
-  const { problems, notes } = await preflight(assetDir, slug, facts.document);
+  const { problems, notes } = await (services.preflight ?? preflight)(assetDir, slug, facts.document);
+
+  if (facts.document && facts.narrationClips.length && hasCompleteItemTiming(facts.document)) {
+    const timeline = clipTimeline([facts.document]);
+    validationWarnings.push(...narrationOverruns(timeline, facts.narrationClips));
+  } else if (facts.document && facts.narrationClips.length) {
+    notes.push('Narration overrun check skipped because the selected document has incomplete item timing.');
+  }
 
   const assetId = runId;
   const outputDir = assetsDir;
@@ -349,6 +387,7 @@ async function execute(
   const logs: string[] = [
     `Rendering project ${slug} natively in vibe-node-flow.`,
     ...notes.map((note) => `[Preflight] ${note}`),
+    ...validationWarnings.map((warning) => `[Warning] ${warning}`),
   ];
   const commands: string[] = [];
 
@@ -361,6 +400,7 @@ async function execute(
         ...(facts.document ? { document: facts.document } : {}),
         ready: problems.length === 0,
         problems,
+        warnings: validationWarnings,
         commands,
       }, null, 2),
       logs: [
@@ -380,7 +420,6 @@ async function execute(
     );
   }
 
-  const warnings: string[] = [];
   const tracks: MuxTrack[] = [];
   const usedClips: NarrationClipRef[] = [];
   const musicPath = config.music ? findNodeMusic(nodeAssetsDir) : null;
@@ -434,6 +473,7 @@ async function execute(
         durationSeconds: clip.durationSeconds,
       })),
     },
+    warnings: validationWarnings,
     commands,
   };
 
@@ -441,6 +481,10 @@ async function execute(
   logs.push(`Asset written to ${finalPath}.`);
 
   return { output: JSON.stringify(manifest, null, 2), logs };
+}
+
+async function execute(context: NodePluginContext): Promise<NodePluginResult> {
+  return executeAppVideoRender(context);
 }
 
 export default {

@@ -1,12 +1,21 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import type { FlowNode } from '../../App/types.ts';
+import type { NodePluginContext } from '../../server/plugins.ts';
+import { CLIP_ITEM_TYPES } from './renderer/clipTypes.ts';
 import {
   buildMuxArgs,
+  hasCompleteItemTiming,
   mergeUpstreamManifests,
   narrationOverruns,
   resolvePackageDir,
   tailLines,
+  validateRenderProject,
 } from './render.ts';
+import { executeAppVideoRender } from './server.ts';
 
 const RUN_ASSET_MANIFEST = JSON.stringify({
   slug: 'forge-app-launch',
@@ -22,6 +31,50 @@ const NARRATION_MANIFEST = JSON.stringify({
     { index: 1, file: 'clip-02.mp3', durationSeconds: 4.4 },
   ],
 });
+
+const TIMED_ANCHOR_DOCUMENT = {
+  slug: 'forge-app-launch',
+  hue: 220,
+  clips: [{
+    speech: 'Turn an idea into a product. **Ship the measured result.**',
+    background: 'aurora',
+    items: [
+      { type: 'image', url: 'assets/launch.png', duration: 1.2 },
+      { type: 'video', url: 'assets/demo.mp4', duration: 1.8 },
+    ],
+  }],
+};
+
+function renderNode(config: Record<string, unknown>): FlowNode {
+  return {
+    id: 'node-render',
+    type: 'app-video-render',
+    title: 'App Video Render',
+    icon: 'Film',
+    lane: 'Output',
+    x: 0,
+    y: 0,
+    config,
+    status: 'idle',
+  };
+}
+
+function renderContext(
+  root: string,
+  input: Record<string, string>,
+  config: Record<string, unknown> = {},
+): NodePluginContext {
+  return {
+    node: renderNode(config),
+    input,
+    nodeOutputs: {},
+    workflowId: 'workflow-test',
+    runId: 'run-test',
+    workflowDir: root,
+    assetsDir: path.join(root, 'generated'),
+    nodeAssetsDir: path.join(root, 'node-assets'),
+  };
+}
 
 test('upstream manifests merge into the slug, audio directory, and clip list', () => {
   const facts = mergeUpstreamManifests({
@@ -105,6 +158,81 @@ test('render facts preserve an embedded storyboard document for preview recovery
   assert.deepEqual(facts.document, document);
 });
 
+test('renderer validation accepts measured durations while authored anchors remain in speech', () => {
+  const report = validateRenderProject(TIMED_ANCHOR_DOCUMENT);
+
+  assert.deepEqual(report.errors, []);
+  assert.deepEqual(report.warnings, []);
+  assert.deepEqual(report.metrics, { clips: 1, items: 2, timedItems: 2 });
+  assert.equal(hasCompleteItemTiming(TIMED_ANCHOR_DOCUMENT), true);
+});
+
+test('renderer validation accepts every item type implemented by the app node', () => {
+  const report = validateRenderProject({
+    clips: [{
+      speech: 'Exercise the complete renderer-owned scene catalog.',
+      background: 'semrush-glow',
+      items: CLIP_ITEM_TYPES.map((type) => ({ type, duration: 0.5 })),
+    }],
+  });
+
+  assert.deepEqual(report.errors, []);
+  assert.equal(report.metrics.items, CLIP_ITEM_TYPES.length);
+  assert.equal(report.metrics.timedItems, CLIP_ITEM_TYPES.length);
+});
+
+test('renderer validation rejects unsupported shapes but treats missing timing as advisory', () => {
+  const invalid = validateRenderProject({
+    clips: [{
+      speech: 'Invalid render input.',
+      background: 'unknown',
+      items: [
+        { type: 'not-a-renderer-item', duration: 0 },
+        { type: 'image', duration: '2' },
+        { type: 'video' },
+      ],
+    }],
+  });
+
+  assert.match(invalid.errors.join('\n'), /background must be one of/);
+  assert.match(invalid.errors.join('\n'), /unsupported type/);
+  assert.equal(invalid.errors.filter((error) => /duration must be a positive number/.test(error)).length, 2);
+  assert.match(invalid.warnings.join('\n'), /renderer item\(s\) have no positive duration/);
+  assert.equal(hasCompleteItemTiming({ clips: [{ items: [{ duration: '2' }] }] }), false);
+
+  const empty = validateRenderProject({ clips: [] });
+  assert.match(empty.errors.join('\n'), /clips must be a non-empty array/);
+});
+
+test('timed narration document wins over an earlier untimed UI document', () => {
+  const untimedDocument = {
+    slug: 'forge-app-launch',
+    clips: [{
+      speech: 'An early UI document.',
+      background: 'blur',
+      items: [{ type: 'text-typing', title: 'Early' }],
+    }],
+  };
+  const facts = mergeUpstreamManifests({
+    'node-ui': JSON.stringify({
+      kind: 'ui-html-generation',
+      slug: 'forge-app-launch',
+      document: untimedDocument,
+      demos: [],
+    }),
+    'node-narration': JSON.stringify({
+      slug: 'forge-app-launch',
+      document: TIMED_ANCHOR_DOCUMENT,
+      audioDir: '/voice',
+      timeline: [{ clipIndex: 0, startSeconds: 0, durationSeconds: 3 }],
+      clips: [{ index: 0, file: 'clip-01.mp3', durationSeconds: 2.8 }],
+    }),
+  });
+
+  assert.deepEqual(facts.document, TIMED_ANCHOR_DOCUMENT);
+  assert.equal(hasCompleteItemTiming(facts.document), true);
+});
+
 test('clip file names that are not clip-NN.mp3 are refused', () => {
   const facts = mergeUpstreamManifests({
     'node-narration': JSON.stringify({
@@ -121,10 +249,84 @@ test('clip file names that are not clip-NN.mp3 are refused', () => {
   assert.equal(facts.audioDir, null);
 });
 
-test('empty and unparseable upstream output are node-owned warnings', () => {
+test('empty, unparseable, and unsupported upstream output are rejected by the node', () => {
   assert.throws(() => mergeUpstreamManifests({}), /at least one non-empty upstream manifest/);
   assert.throws(() => mergeUpstreamManifests({ a: '   ' }), /at least one non-empty upstream manifest/);
-  assert.throws(() => mergeUpstreamManifests({ a: 'not json' }), /No upstream output parsed/);
+  assert.throws(
+    () => mergeUpstreamManifests({ a: 'not json' }),
+    /No upstream output was recognized as a supported JSON manifest\. Unsupported upstream: a\./,
+  );
+  assert.throws(
+    () => mergeUpstreamManifests({ empty: '{}', metadata: '{"foo":"bar"}' }),
+    /Unsupported upstream: empty, metadata\./,
+  );
+});
+
+test('unsupported extra upstream is accepted and records every skipped node id', () => {
+  const facts = mergeUpstreamManifests({
+    'node-storyboard': RUN_ASSET_MANIFEST,
+    'node-notes': 'plain text brief',
+    'node-empty': '{}',
+    'node-metadata': '{"foo":"bar"}',
+  });
+
+  assert.equal(facts.slug, 'forge-app-launch');
+  assert.deepEqual(facts.unparsedUpstream, ['node-notes', 'node-empty', 'node-metadata']);
+});
+
+test('execute keeps validation advisories in output without warning the workflow', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vibe-render-'));
+  try {
+    const untimedDocument = {
+      slug: 'forge-app-launch',
+      clips: [{
+        speech: 'Timing will be derived later.',
+        background: 'blur',
+        items: [{ type: 'text-typing', title: 'Derived timing' }],
+      }],
+    };
+    const result = await executeAppVideoRender(
+      renderContext(root, {
+        'node-storyboard': JSON.stringify(untimedDocument),
+        'node-notes': 'A plain-text note that is not a render manifest.',
+      }, { dryRun: true }),
+      { preflight: async () => ({ problems: [], notes: [] }) },
+    );
+    const manifest = JSON.parse(String(result.output));
+
+    assert.equal(result.status, undefined);
+    assert.equal(result.error, undefined);
+    assert.equal(manifest.ready, true);
+    assert.ok(manifest.warnings.some((warning: unknown) => String(warning).includes('node-notes')));
+    assert.ok(manifest.warnings.some((warning: unknown) => String(warning).includes('no positive duration')));
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('execute accepts the timed anchor document emitted by narration', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vibe-render-'));
+  try {
+    const result = await executeAppVideoRender(
+      renderContext(root, {
+        'node-narration': JSON.stringify({
+          slug: 'forge-app-launch',
+          document: TIMED_ANCHOR_DOCUMENT,
+          audioDir: '/voice',
+          timeline: [{ clipIndex: 0, startSeconds: 0, durationSeconds: 3 }],
+          clips: [{ index: 0, file: 'clip-01.mp3', durationSeconds: 2.8 }],
+        }),
+      }, { dryRun: true }),
+      { preflight: async () => ({ problems: [], notes: [] }) },
+    );
+    const manifest = JSON.parse(String(result.output));
+
+    assert.equal(result.status, undefined);
+    assert.deepEqual(manifest.warnings, []);
+    assert.match(manifest.document.clips[0].speech, /\*\*Ship the measured result\.\*\*/);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 
 test('each clip MP3 is delayed to its own start and mixed without normalization', () => {
