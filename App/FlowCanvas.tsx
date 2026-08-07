@@ -57,8 +57,8 @@ interface FlowCanvasProps {
   onDeleteNodeTag?: (tag: string) => void;
   /** Custom lane labels keyed by canvas column index. */
   laneLabels?: string[];
-  /** Commit an edited lane label for the given column index. */
-  onUpdateLaneLabel?: (colIndex: number, label: string) => void;
+  /** Commit an edited lane label for the given column index. Return false to keep editing. */
+  onUpdateLaneLabel?: (colIndex: number, label: string) => boolean;
   readOnly?: boolean;
 }
 
@@ -127,7 +127,8 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const trimmed = laneDraft.trim();
     // Empty draft falls back to the default "Lane N"
     const next = trimmed || `Lane ${editingLane + 1}`;
-    onUpdateLaneLabel?.(editingLane, next);
+    const accepted = onUpdateLaneLabel?.(editingLane, next);
+    if (accepted === false) return;
     setEditingLane(null);
     setLaneDraft('');
   };

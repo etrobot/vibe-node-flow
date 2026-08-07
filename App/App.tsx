@@ -16,7 +16,7 @@ import {
   normalizeNodeTag,
   uniqueNodeTags,
 } from '../lib/workflow-tags';
-import { columnIndexOf, columnX, snapY } from '../lib/canvas-layout';
+import { columnIndexOf, columnX, snapY, effectiveLaneLabel, findLaneLabelConflict } from '../lib/canvas-layout';
 import { AppRoute, absoluteRouteUrl, parseRoute, routePath } from './utils/routes';
 
 const initialRoute = parseRoute(window.location);
@@ -404,8 +404,23 @@ export default function App() {
 
   // Commit an edited lane label for the given canvas column index and keep
   // every node in that column's required lane property in sync.
-  const handleUpdateLaneLabel = (colIndex: number, label: string) => {
+  const handleUpdateLaneLabel = useCallback((colIndex: number, label: string): boolean => {
     const nextLabel = label.trim() || `Lane ${colIndex + 1}`;
+    const columnCount = Math.max(
+      colIndex + 1,
+      laneLabels.length,
+      ...nodes.map((node) => columnIndexOf(node.x) + 1),
+      1,
+    );
+    const conflict = findLaneLabelConflict(laneLabels, colIndex, nextLabel, columnCount);
+    if (conflict !== null) {
+      const existingLabel = effectiveLaneLabel(laneLabels, conflict);
+      window.alert(
+        `Lane name "${nextLabel}" is already used by column ${conflict + 1} ("${existingLabel}").`,
+      );
+      return false;
+    }
+
     const nextLaneLabels = [...laneLabels];
     while (nextLaneLabels.length < colIndex) {
       nextLaneLabels.push(`Lane ${nextLaneLabels.length + 1}`);
@@ -423,7 +438,8 @@ export default function App() {
           : workflow
       )));
     }
-  };
+    return true;
+  }, [activeWorkflowId, laneLabels, nodes]);
 
   const handleAddNodeTag = (nodeId: string, rawTag: string) => {
     const normalizedTag = normalizeNodeTag(rawTag);

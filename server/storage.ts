@@ -27,7 +27,7 @@ import {
   readWorkflowSchedule,
   saveWorkflowSchedule,
 } from "./schedule-config";
-import { columnIndexOf, columnX, snapY } from "../lib/canvas-layout";
+import { columnIndexOf, columnX, snapY, assertUniqueLaneLabels } from "../lib/canvas-layout";
 
 // Shape stored inside workflow.json. Node configuration is opaque to the host,
 // so an extension can add fields without changing persistence.
@@ -279,6 +279,7 @@ export function saveWorkflow(item: WorkflowItem): WorkflowItem {
     })),
     edges: item.edges,
   });
+  assertUniqueLaneLabels(normalized.laneLabels);
 
   const disk: DiskWorkflow = {
     id: item.id,

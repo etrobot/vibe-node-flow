@@ -58,3 +58,44 @@ export function columnX(colIndex: number): number {
 export function snapY(y: number): number {
   return Math.max(TOP_MARGIN - LANE_HEADER_HEIGHT, Math.round(y / GRID_Y_SIZE) * GRID_Y_SIZE);
 }
+
+/** Resolve the display label for a canvas column, including the default fallback. */
+export function effectiveLaneLabel(laneLabels: string[] | undefined, colIndex: number): string {
+  return laneLabels?.[colIndex]?.trim() || `Lane ${colIndex + 1}`;
+}
+
+/**
+ * Return the column index of another lane that already uses the same label
+ * (case-insensitive). Returns null when the name is available.
+ */
+export function findLaneLabelConflict(
+  laneLabels: string[] | undefined,
+  colIndex: number,
+  nextLabel: string,
+  columnCount: number,
+): number | null {
+  const nextKey = nextLabel.trim().toLocaleLowerCase();
+  if (!nextKey) return null;
+  for (let i = 0; i < columnCount; i++) {
+    if (i === colIndex) continue;
+    if (effectiveLaneLabel(laneLabels, i).toLocaleLowerCase() === nextKey) return i;
+  }
+  return null;
+}
+
+/** Reject duplicate lane labels before persisting a workflow layout. */
+export function assertUniqueLaneLabels(laneLabels: string[] | undefined): void {
+  const labels = laneLabels ?? [];
+  const seen = new Map<string, number>();
+  for (let i = 0; i < labels.length; i++) {
+    const label = effectiveLaneLabel(labels, i);
+    const key = label.toLocaleLowerCase();
+    const previous = seen.get(key);
+    if (previous !== undefined) {
+      throw new Error(
+        `Lane labels must be unique: "${label}" is used by column ${previous + 1} and column ${i + 1}.`,
+      );
+    }
+    seen.set(key, i);
+  }
+}
