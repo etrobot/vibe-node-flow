@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { FlowNode, FlowEdge, WorkflowItem } from './types';
 import { api } from './utils/api';
-import { nodeOutputToText, resolveUpstreamInput } from './utils/upstream';
+import { hasUpstreamData, nodeOutputToText, resolveUpstreamInput } from './utils/upstream';
+import { ManualInputModal } from './components/ui/ManualInputModal';
 import type { NodeTextInput } from '../lib/node-io';
 import { Header } from './components/ui/Header';
 import { HomePage } from './components/ui/HomePage';
@@ -60,6 +61,8 @@ export default function App() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [fullRunId, setFullRunId] = useState<string | null>(null);
   const [singleRunIds, setSingleRunIds] = useState<Record<string, string>>({});
+  const [manualInputPromptNodeId, setManualInputPromptNodeId] = useState<string | null>(null);
+  const [lastManualInputs, setLastManualInputs] = useState<Record<string, string>>({});
 
   // Last-saved snapshot for dirty tracking & reset
   const [lastSavedNodes, setLastSavedNodes] = useState<FlowNode[]>([]);
@@ -580,9 +583,11 @@ export default function App() {
   };
 
   // Run Single Node Test — executes one node server-side
-  const handleRunSingleNode = async (nodeId: string, manualInput?: string) => {
+  const executeSingleNode = async (nodeId: string, manualInput?: string) => {
     const nodeToRun = nodes.find((n) => n.id === nodeId);
     if (!nodeToRun || !activeWorkflowId) return;
+
+    console.log('[runSingleNode] start', { nodeId, hasManualInput: manualInput !== undefined });
 
     setNodes((prev) => prev.map((n) => (n.id === nodeId ? { ...n, status: 'running' } : n)));
 
@@ -598,6 +603,17 @@ export default function App() {
     const input: NodeTextInput = manualInput === undefined
       ? resolveUpstreamInput(nodeId, edges, nodes)
       : { __manual__: manualInput };
+
+    if (manualInput !== undefined) {
+      setLastManualInputs((previous) => ({ ...previous, [nodeId]: manualInput }));
+    } else {
+      setLastManualInputs((previous) => {
+        if (!(nodeId in previous)) return previous;
+        const next = { ...previous };
+        delete next[nodeId];
+        return next;
+      });
+    }
 
     await flushSave();
 
@@ -623,6 +639,7 @@ export default function App() {
         )
       );
     } catch (e) {
+      console.error('[runSingleNode] failed', { nodeId, error: (e as Error).message });
       setNodes((prev) =>
         prev.map((n) =>
           n.id === nodeId ? { ...n, status: 'error', error: (e as Error).message } : n
@@ -631,8 +648,27 @@ export default function App() {
     }
   };
 
+  const handleRunSingleNode = (nodeId: string, manualInput?: string) => {
+    if (manualInput !== undefined) {
+      void executeSingleNode(nodeId, manualInput);
+      return;
+    }
+
+    const hasData = hasUpstreamData(nodeId, edges, nodes);
+    console.log('[runSingleNode] check upstream', { nodeId, hasData });
+    if (!hasData) {
+      setManualInputPromptNodeId(nodeId);
+      return;
+    }
+
+    void executeSingleNode(nodeId);
+  };
+
   const activeWorkflow = workflows.find((w) => w.id === activeWorkflowId);
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
+  const manualInputPromptNode = manualInputPromptNodeId
+    ? nodes.find((n) => n.id === manualInputPromptNodeId) ?? null
+    : null;
 
   if (currentView === 'home') {
     return (
@@ -745,9 +781,21 @@ export default function App() {
             onToggleCollapse={() => setIsInspectorCollapsed(!isInspectorCollapsed)}
             workflowId={activeWorkflowId || undefined}
             runId={(selectedNodeId ? singleRunIds[selectedNodeId] : undefined) || fullRunId || undefined}
+            lastManualInput={selectedNodeId ? lastManualInputs[selectedNodeId] ?? null : null}
           />
         </div>
 
+        {manualInputPromptNode && (
+          <ManualInputModal
+            nodeTitle={manualInputPromptNode.title}
+            onClose={() => setManualInputPromptNodeId(null)}
+            onRun={(value) => {
+              const nodeId = manualInputPromptNode.id;
+              setManualInputPromptNodeId(null);
+              void executeSingleNode(nodeId, value);
+            }}
+          />
+        )}
       </div>
     </ErrorBoundary>
   );

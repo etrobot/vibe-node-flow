@@ -40,6 +40,7 @@ interface NodeInspectorProps {
   readOnly?: boolean;
   workflowId?: string;
   runId?: string;
+  lastManualInput?: string | null;
 }
 
 type LogCategory = 'all' | 'input' | 'output' | 'logs' | 'error';
@@ -63,6 +64,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   readOnly = false,
   workflowId,
   runId,
+  lastManualInput = null,
 }) => {
   const [filterCategory, setFilterCategory] = useState<LogCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,9 +72,6 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   const [showIconModal, setShowIconModal] = useState(false);
   const [showFullPanelModal, setShowFullPanelModal] = useState(false);
   const [showNodeDocModal, setShowNodeDocModal] = useState(false);
-  const [showManualInput, setShowManualInput] = useState(false);
-  const [manualInputDraft, setManualInputDraft] = useState('');
-  const [lastManualInput, setLastManualInput] = useState<string | null>(null);
   const [nodeTitleDraft, setNodeTitleDraft] = useState(node?.title || '');
   const titleBeforeEditRef = useRef(node?.title || '');
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -104,12 +103,6 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showFullPanelModal]);
-
-  useEffect(() => {
-    setShowManualInput(false);
-    setManualInputDraft('');
-    setLastManualInput(null);
-  }, [node?.id]);
 
   // Reset accordion expansion when the selected node changes
   useEffect(() => {
@@ -168,7 +161,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       items.push({
         id: 'manual-input-data',
         category: 'input',
-        title: 'Manual Input',
+        title: '手动输入',
         content: lastManualInput || '(Empty input)',
       });
     } else if (hasUpstream) {
@@ -430,14 +423,6 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
     return str.length > 80 ? str.slice(0, 80) + '…' : str;
   };
 
-  const handleManualInputRun = () => {
-    if (!node) return;
-    const value = manualInputDraft;
-    setLastManualInput(value);
-    setShowManualInput(false);
-    onRunSingleNode(node.id, value);
-  };
-
   if (isCollapsed) {
     return (
       <button
@@ -568,28 +553,14 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
               )}
 
               {!readOnly && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setManualInputDraft('');
-                      setShowManualInput(true);
-                    }}
-                    title="Run with temporary manual input"
-                    className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline text-xs flex items-center gap-1.5 active:scale-97 cursor-pointer"
-                  >
-                    <PencilLine className="w-3.5 h-3.5" />
-                    Manual
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onRunSingleNode(node.id)}
-                    className="btn-pill bg-black hover:bg-black/80 text-white text-xs flex items-center gap-1.5 active:scale-97 cursor-pointer"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current text-on-primary" />
-                    Run
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => onRunSingleNode(node.id)}
+                  className="btn-pill bg-black hover:bg-black/80 text-white text-xs flex items-center gap-1.5 active:scale-97 cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current text-on-primary" />
+                  Run
+                </button>
               )}
             </div>
           )}
@@ -770,59 +741,6 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       </div>
 
       {!readOnly && node && (
-        <>
-          {showManualInput && createPortal(
-            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-label="Manual input">
-              <div className="w-full max-w-6xl rounded-xl border border-hairline bg-surface-card p-6 shadow-2xl">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-sm font-semibold text-ink">Manual input</h2>
-                    <p className="mt-1 text-xs text-muted">Use this text for one run only. It is not saved to the workflow.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowManualInput(false)}
-                    title="Cancel manual input"
-                    className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <textarea
-                  autoFocus
-                  value={manualInputDraft}
-                  onChange={(event) => setManualInputDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                      event.preventDefault();
-                      handleManualInputRun();
-                    }
-                  }}
-                  placeholder="Paste or write the input for this run..."
-                  className="mt-4 min-h-[26rem] w-full resize-y rounded-lg border border-hairline bg-white p-4 font-mono text-xs leading-relaxed text-ink shadow-inner outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
-                />
-                <div className="mt-3 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowManualInput(false)}
-                    className="btn-pill border border-hairline bg-surface-card text-muted hover:bg-surface-canvas-soft hover:text-ink text-xs cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleManualInputRun}
-                    className="btn-pill bg-black text-white hover:bg-black/80 text-xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Play className="h-3.5 w-3.5 fill-current" />
-                    Close &amp; run
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )}
-
         <IconPickerModal
           isOpen={showIconModal}
           onClose={() => setShowIconModal(false)}
@@ -830,7 +748,6 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           currentColor={node.color || getModule(node.type).color}
           onSave={handleSaveIconAndColor}
         />
-        </>
       )}
 
       {/* Fullscreen Custom Node Panel Modal */}

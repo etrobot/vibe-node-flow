@@ -18,4 +18,14 @@ export function resolveUpstreamInput(
   );
 }
 
+/** True when the node has at least one non-empty upstream value available. */
+export function hasUpstreamData(
+  nodeId: string,
+  edges: FlowEdge[],
+  nodes: FlowNode[],
+): boolean {
+  const input = resolveUpstreamInput(nodeId, edges, nodes);
+  return Object.values(input).some((value) => value.trim().length > 0);
+}
+
 export { nodeOutputToText };
