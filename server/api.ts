@@ -13,7 +13,11 @@ import {
   nodePluginHasCapability,
   nodePluginScript,
 } from "./plugins";
-import { workflowAssetDir, workflowRunAssetsDir } from "./paths";
+import {
+  resolveWorkflowRunAssetsDir,
+  workflowReusableGeneratedAssetsDir,
+  workflowRunAssetsDir,
+} from "./paths";
 import { getWorkflowRunJob, startSingleNodeRun, startWorkflowRun } from "./run-service";
 import { openVideoRenderTerminal, VIDEO_RENDER_SCRIPT } from "./video-render-terminal";
 import { saveWorkflowSchedule } from "./schedule-config";
@@ -70,15 +74,46 @@ export function registerApiRoutes(app: Express): void {
       ) {
         return res.status(404).json({ error: "Workflow asset not found" });
       }
-      const root = workflowAssetDir(String(req.params.id || ""), String(req.params.assetId || ""));
-      const filePath = path.resolve(root, relative);
-      if (filePath !== path.resolve(root) && !filePath.startsWith(`${path.resolve(root)}${path.sep}`)) {
+      const workflowId = String(req.params.id || "");
+      const assetId = String(req.params.assetId || "");
+      // Prefer the per-run root; fall back to the shared overwrite root so run
+      // history can still load assets written with reuseOverwriteGeneratedAssets.
+      const candidateRoots = [
+        { root: workflowRunAssetsDir(workflowId, assetId), reusable: false },
+        { root: workflowReusableGeneratedAssetsDir(workflowId), reusable: true },
+      ];
+      let filePath: string | null = null;
+      let fromReusable = false;
+      for (const { root, reusable } of candidateRoots) {
+        const resolvedRoot = path.resolve(root);
+        const candidate = path.resolve(resolvedRoot, relative);
+        if (candidate !== resolvedRoot && !candidate.startsWith(`${resolvedRoot}${path.sep}`)) {
+          continue;
+        }
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+          filePath = candidate;
+          fromReusable = reusable;
+          console.log(
+            `[assets] serve workflow=${workflowId} assetId=${assetId}`
+            + ` relative=${relative} reusable=${reusable} path=${candidate}`,
+          );
+          break;
+        }
+      }
+      if (!filePath) {
+        console.log(
+          `[assets] miss workflow=${workflowId} assetId=${assetId} relative=${relative}`
+          + ` tried=${candidateRoots.map((c) => c.root).join(" | ")}`,
+        );
         return res.status(404).json({ error: "Workflow asset not found" });
       }
-      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-        return res.status(404).json({ error: "Workflow asset not found" });
-      }
-      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      // Per-run assets are immutable; the shared overwrite root must revalidate.
+      res.setHeader(
+        "Cache-Control",
+        fromReusable
+          ? "public, max-age=0, must-revalidate"
+          : "public, max-age=31536000, immutable",
+      );
       return res.sendFile(filePath);
     }),
   );
@@ -349,7 +384,18 @@ export function registerApiRoutes(app: Express): void {
       }
       const baseUrl = (process.env.STUDIO_URL?.trim()
         || `http://127.0.0.1:${process.env.PORT || 3000}`).replace(/\/$/, "");
-      const outputPath = path.join(workflowRunAssetsDir(run.workflowId, run.id), "video.mp4");
+      const reuseOverwrite = Boolean(
+        run.workflowSnapshot?.reuseOverwriteGeneratedAssets
+        ?? storage.getWorkflow(run.workflowId)?.reuseOverwriteGeneratedAssets,
+      );
+      const outputPath = path.join(
+        resolveWorkflowRunAssetsDir(run.workflowId, run.id, reuseOverwrite),
+        "video.mp4",
+      );
+      console.log(
+        `[render-video] run=${run.id} reuseOverwriteGeneratedAssets=${reuseOverwrite}`
+        + ` outputPath=${outputPath}`,
+      );
       // The node ships the renderer; the host only launches it. Nothing here
       // names a node type or a package.json script.
       const scriptPath = nodePluginScript(videoNode.nodeType, VIDEO_RENDER_SCRIPT);

@@ -77,6 +77,7 @@ export default function App() {
   const [tagCatalog, setTagCatalog] = useState<string[]>([...DEFAULT_NODE_TAG_CATALOG]);
   // Custom lane labels keyed by canvas column index (undefined entry → default "Lane N")
   const [laneLabels, setLaneLabels] = useState<string[]>([]);
+  const [reuseOverwriteGeneratedAssets, setReuseOverwriteGeneratedAssets] = useState(false);
 
   // Inspector & Layout state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export default function App() {
   const [lastSavedEdges, setLastSavedEdges] = useState<FlowEdge[]>([]);
   const [lastSavedTagCatalog, setLastSavedTagCatalog] = useState<string[]>([...DEFAULT_NODE_TAG_CATALOG]);
   const [lastSavedLaneLabels, setLastSavedLaneLabels] = useState<string[]>([]);
+  const [lastSavedReuseOverwriteGeneratedAssets, setLastSavedReuseOverwriteGeneratedAssets] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const applyRoute = useCallback((route: AppRoute) => {
@@ -134,8 +136,9 @@ export default function App() {
       JSON.stringify(edges.map(persistableEdge)) !== JSON.stringify(lastSavedEdges.map(persistableEdge));
     const tagCatalogChanged = JSON.stringify(tagCatalog) !== JSON.stringify(lastSavedTagCatalog);
     const laneLabelsChanged = JSON.stringify(laneLabels) !== JSON.stringify(lastSavedLaneLabels);
-    return nodesChanged || edgesChanged || tagCatalogChanged || laneLabelsChanged;
-  }, [activeWorkflowId, nodes, edges, tagCatalog, laneLabels, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels]);
+    const reuseOverwriteChanged = reuseOverwriteGeneratedAssets !== lastSavedReuseOverwriteGeneratedAssets;
+    return nodesChanged || edgesChanged || tagCatalogChanged || laneLabelsChanged || reuseOverwriteChanged;
+  }, [activeWorkflowId, nodes, edges, tagCatalog, laneLabels, reuseOverwriteGeneratedAssets, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels, lastSavedReuseOverwriteGeneratedAssets]);
 
   // Explicit save: persist current nodes/edges to backend and update snapshot
   const handleSave = useCallback(async () => {
@@ -144,16 +147,33 @@ export default function App() {
     try {
       const base = workflows.find((w) => w.id === activeWorkflowId);
       if (!base) return;
-      const wf: WorkflowItem = { ...base, nodes, edges, tagCatalog, laneLabels, updatedAt: nowLabel() };
+      const wf: WorkflowItem = {
+        ...base,
+        nodes,
+        edges,
+        tagCatalog,
+        laneLabels,
+        reuseOverwriteGeneratedAssets,
+        updatedAt: nowLabel(),
+      };
       await api.saveWorkflow(wf);
       setLastSavedNodes(nodes);
       setLastSavedEdges(edges);
       setLastSavedTagCatalog(tagCatalog);
       setLastSavedLaneLabels(laneLabels);
+      setLastSavedReuseOverwriteGeneratedAssets(reuseOverwriteGeneratedAssets);
       setWorkflows((prev) =>
         prev.map((w) => (
           w.id === activeWorkflowId
-            ? { ...w, nodes, edges, tagCatalog, laneLabels, updatedAt: nowLabel() }
+            ? {
+                ...w,
+                nodes,
+                edges,
+                tagCatalog,
+                laneLabels,
+                reuseOverwriteGeneratedAssets,
+                updatedAt: nowLabel(),
+              }
             : w
         ))
       );
@@ -163,7 +183,7 @@ export default function App() {
     } finally {
       setIsSaving(false);
     }
-  }, [activeWorkflowId, isSaving, workflows, nodes, edges, tagCatalog, laneLabels]);
+  }, [activeWorkflowId, isSaving, workflows, nodes, edges, tagCatalog, laneLabels, reuseOverwriteGeneratedAssets]);
 
   // Reset: discard unsaved changes, restore to last saved state
   const handleReset = useCallback(() => {
@@ -172,6 +192,7 @@ export default function App() {
     setEdges(lastSavedEdges);
     setTagCatalog(lastSavedTagCatalog);
     setLaneLabels(lastSavedLaneLabels);
+    setReuseOverwriteGeneratedAssets(lastSavedReuseOverwriteGeneratedAssets);
     setWorkflows((prev) =>
       prev.map((workflow) => (
         workflow.id === activeWorkflowId
@@ -181,12 +202,13 @@ export default function App() {
               edges: lastSavedEdges,
               tagCatalog: lastSavedTagCatalog,
               laneLabels: lastSavedLaneLabels,
+              reuseOverwriteGeneratedAssets: lastSavedReuseOverwriteGeneratedAssets,
             }
           : workflow
       ))
     );
     setSelectedNodeId(null);
-  }, [activeWorkflowId, isDirty, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels]);
+  }, [activeWorkflowId, isDirty, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels, lastSavedReuseOverwriteGeneratedAssets]);
 
   // Flush save before running workflow (safety measure)
   const flushSave = async () => {
@@ -252,10 +274,12 @@ export default function App() {
       setEdges(full.edges);
       setTagCatalog(loadedTagCatalog);
       setLaneLabels(full.laneLabels ?? []);
+      setReuseOverwriteGeneratedAssets(Boolean(full.reuseOverwriteGeneratedAssets));
       setLastSavedNodes(full.nodes);
       setLastSavedEdges(full.edges);
       setLastSavedTagCatalog(loadedTagCatalog);
       setLastSavedLaneLabels(full.laneLabels ?? []);
+      setLastSavedReuseOverwriteGeneratedAssets(Boolean(full.reuseOverwriteGeneratedAssets));
       setFullRunId(null);
       setSingleRunIds({});
       setSelectedNodeId(full.nodes.length > 0 ? full.nodes[0].id : null);
@@ -270,6 +294,7 @@ export default function App() {
                 color: full.color || w.color,
                 tagCatalog: loadedTagCatalog,
                 laneLabels: full.laneLabels ?? [],
+                reuseOverwriteGeneratedAssets: Boolean(full.reuseOverwriteGeneratedAssets),
               }
             : w
         )
@@ -811,6 +836,21 @@ export default function App() {
             workflowId={activeWorkflowId || undefined}
             runId={(selectedNodeId ? singleRunIds[selectedNodeId] : undefined) || fullRunId || undefined}
             lastManualInput={selectedNodeId ? lastManualInputs[selectedNodeId] ?? null : null}
+            reuseOverwriteGeneratedAssets={reuseOverwriteGeneratedAssets}
+            onUpdateReuseOverwriteGeneratedAssets={(value) => {
+              console.log(
+                `[App] reuseOverwriteGeneratedAssets → ${value} workflowId=${activeWorkflowId}`,
+              );
+              setReuseOverwriteGeneratedAssets(value);
+              if (!activeWorkflowId) return;
+              setWorkflows((prev) =>
+                prev.map((workflow) => (
+                  workflow.id === activeWorkflowId
+                    ? { ...workflow, reuseOverwriteGeneratedAssets: value, updatedAt: nowLabel() }
+                    : workflow
+                ))
+              );
+            }}
           />
         </div>
 

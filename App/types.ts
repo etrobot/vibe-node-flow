@@ -70,6 +70,11 @@ export interface WorkflowItem {
   tags?: string[];
   /** Optional custom labels for canvas column lanes, keyed by column index. */
   laneLabels?: string[];
+  /**
+   * When true, node-generated artifacts overwrite `data/assets/<workflowId>/assets/generated`.
+   * When false (default), each run writes to `data/assets/<workflowId>/generated/<runId>`.
+   */
+  reuseOverwriteGeneratedAssets?: boolean;
 }
 
 // ---- Run records (persisted in SQLite) ----
@@ -95,6 +100,8 @@ export interface SingleNodeRunRecord extends RunNodeRecord {
 export interface RunWorkflowSnapshot {
   nodes: FlowNode[];
   edges: FlowEdge[];
+  /** Captured at run time so history can resolve the correct asset root. */
+  reuseOverwriteGeneratedAssets?: boolean;
 }
 
 export interface RunRecord {

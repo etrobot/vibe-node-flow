@@ -12,7 +12,6 @@ import {
   WORKFLOWS_DIR,
   workflowDir,
   workflowAssetsDir,
-  workflowGeneratedAssetsDir,
   workflowAssetRoot,
   workflowScheduleFile,
 } from "./paths";
@@ -57,6 +56,7 @@ interface DiskWorkflow {
   tagCatalog?: string[];
   tags?: string[];
   laneLabels?: string[];
+  reuseOverwriteGeneratedAssets?: boolean;
   nodes: DiskNode[];
   edges: FlowEdge[];
 }
@@ -191,6 +191,7 @@ export function listWorkflows(): WorkflowItem[] {
       tagCatalog: workflowTagCatalog(dw),
       tags: dw.tags,
       laneLabels: dw.laneLabels,
+      reuseOverwriteGeneratedAssets: Boolean(dw.reuseOverwriteGeneratedAssets),
       nodes: dw.nodes.map(summaryNode),
       edges: dw.edges,
       _updated: Date.parse(dw.updatedAt) || 0,
@@ -215,6 +216,7 @@ export function getWorkflow(id: string): WorkflowItem | null {
     tagCatalog: workflowTagCatalog(dw),
     tags: dw.tags,
     laneLabels: dw.laneLabels,
+    reuseOverwriteGeneratedAssets: Boolean(dw.reuseOverwriteGeneratedAssets),
     nodes: dw.nodes.map((dn) => fromDiskNode(id, dn)),
     edges: dw.edges,
   };
@@ -233,12 +235,13 @@ export function ensureWorkflowAssets(id: string): void {
 function copyWorkflowStaticAssets(sourceId: string, targetId: string): void {
   const source = workflowAssetsDir(sourceId);
   if (!fs.existsSync(source)) return;
-  const generated = workflowGeneratedAssetsDir(sourceId);
+  // Skip the reusable overwrite root under assets/generated; only copy static inputs.
+  const reusableGenerated = path.join(source, "generated");
   fs.cpSync(source, workflowAssetsDir(targetId), {
     recursive: true,
     force: true,
     filter: (candidate) =>
-      candidate !== generated && !candidate.startsWith(`${generated}${path.sep}`),
+      candidate !== reusableGenerated && !candidate.startsWith(`${reusableGenerated}${path.sep}`),
   });
 }
 
@@ -265,6 +268,7 @@ export function saveWorkflow(item: WorkflowItem): WorkflowItem {
     tagCatalog: item.tagCatalog,
     tags: item.tags,
     laneLabels: item.laneLabels,
+    reuseOverwriteGeneratedAssets: Boolean(item.reuseOverwriteGeneratedAssets),
     nodes: item.nodes.map((node) => ({
       id: node.id,
       type: node.type,
@@ -295,6 +299,7 @@ export function saveWorkflow(item: WorkflowItem): WorkflowItem {
     ),
     tags: item.tags,
     laneLabels: normalized.laneLabels,
+    reuseOverwriteGeneratedAssets: Boolean(item.reuseOverwriteGeneratedAssets),
     nodes: normalized.nodes.map((node) => toDiskNode({
       ...node,
       lane: node.lane,
@@ -365,6 +370,7 @@ export function duplicateWorkflow(id: string): WorkflowItem | null {
     color: src.color || DEFAULT_WORKFLOW_COLOR,
     tagCatalog: src.tagCatalog,
     laneLabels: src.laneLabels,
+    reuseOverwriteGeneratedAssets: Boolean(src.reuseOverwriteGeneratedAssets),
     nodes,
     edges,
   });

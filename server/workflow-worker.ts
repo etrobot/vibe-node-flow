@@ -20,6 +20,7 @@ interface SingleNodeWorkerData {
   nodeOutputs: Record<string, string>;
   workflowId: string;
   runId: string;
+  reuseOverwriteGeneratedAssets?: boolean;
 }
 
 type WorkflowWorkerMessage =
@@ -45,6 +46,7 @@ async function main(): Promise<void> {
       data.nodeOutputs,
       data.workflowId,
       data.runId,
+      Boolean(data.reuseOverwriteGeneratedAssets),
     );
     port.postMessage({ type: "single-result", record } satisfies WorkflowWorkerMessage);
     return;

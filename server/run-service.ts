@@ -175,6 +175,9 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
                 input: this.singleNodeRequest.input,
                 nodeOutputs: this.singleNodeRequest.nodeOutputs,
                 workflowId: this.workflow.id,
+                reuseOverwriteGeneratedAssets: Boolean(
+                  this.workflow.reuseOverwriteGeneratedAssets,
+                ),
               }
             : {
                 mode: "workflow",
@@ -240,6 +243,9 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
       workflowSnapshot: {
         nodes: this.workflow.nodes,
         edges: this.workflow.edges,
+        reuseOverwriteGeneratedAssets: Boolean(
+          this.workflow.reuseOverwriteGeneratedAssets,
+        ),
       },
     };
 

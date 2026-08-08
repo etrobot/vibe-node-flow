@@ -41,6 +41,9 @@ interface NodeInspectorProps {
   workflowId?: string;
   runId?: string;
   lastManualInput?: string | null;
+  /** Workflow-level: overwrite shared generated assets instead of per-run folders. */
+  reuseOverwriteGeneratedAssets?: boolean;
+  onUpdateReuseOverwriteGeneratedAssets?: (value: boolean) => void;
 }
 
 type LogCategory = 'all' | 'input' | 'output' | 'logs' | 'error';
@@ -65,6 +68,8 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   workflowId,
   runId,
   lastManualInput = null,
+  reuseOverwriteGeneratedAssets = false,
+  onUpdateReuseOverwriteGeneratedAssets,
 }) => {
   const [filterCategory, setFilterCategory] = useState<LogCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,7 +133,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   };
 
   const toggleOpenPanelOnClickNode = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!node) return;
+    if (!node || readOnly) return;
     onUpdateNode({
       ...node,
       config: {
@@ -136,6 +141,15 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
         openPanelOnClickNode: e.target.checked,
       },
     });
+  };
+
+  const toggleReuseOverwriteGeneratedAssets = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly || !onUpdateReuseOverwriteGeneratedAssets) return;
+    console.log(
+      `[NodeInspector] reuseOverwriteGeneratedAssets → ${e.target.checked}`
+      + ` workflowId=${workflowId ?? '(none)'}`,
+    );
+    onUpdateReuseOverwriteGeneratedAssets(e.target.checked);
   };
 
   const handleSaveIconAndColor = (newIcon: string, newColor: string) => {
@@ -583,12 +597,13 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           {/* Custom Panel Link Line */}
           {hasCustomPanel && (
               <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b border-hairline-soft">
-                <label className="flex items-center gap-1.5 text-xs hover:text-ink cursor-pointer select-none">
+                <label className={`flex items-center gap-1.5 text-xs select-none ${readOnly ? 'text-muted' : 'hover:text-ink cursor-pointer'}`}>
                   <input
                     type="checkbox"
                     checked={openPanelOnClickNode}
                     onChange={toggleOpenPanelOnClickNode}
-                    className="accent-black rounded cursor-pointer"
+                    disabled={readOnly}
+                    className="accent-black rounded cursor-pointer disabled:cursor-not-allowed"
                   />
                   <span>Open panel on click node</span>
                 </label>
@@ -603,6 +618,19 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 </button>
               </div>
             )}
+          {/* Workflow-level generated-assets path (not node config). */}
+          <div className="flex items-center px-4 py-2 shrink-0 border-b border-hairline-soft">
+            <label className={`flex items-center gap-1.5 text-xs select-none ${readOnly || !onUpdateReuseOverwriteGeneratedAssets ? 'text-muted' : 'hover:text-ink cursor-pointer'}`}>
+              <input
+                type="checkbox"
+                checked={reuseOverwriteGeneratedAssets}
+                onChange={toggleReuseOverwriteGeneratedAssets}
+                disabled={readOnly || !onUpdateReuseOverwriteGeneratedAssets}
+                className="accent-black rounded cursor-pointer disabled:cursor-not-allowed"
+              />
+              <span>Reuse/Overwrite Generated Assets</span>
+            </label>
+          </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-2 flex flex-col space-y-4 min-h-0">
             {/* Unified Log Stream Section Header & Filters */}
             <div className="space-y-1 shrink-0">

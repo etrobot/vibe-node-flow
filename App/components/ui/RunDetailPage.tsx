@@ -49,12 +49,12 @@ function syntheticSnapshot(record: RunRecord): RunWorkflowSnapshot {
         id: runNode.nodeId,
         type: runNode.nodeType,
         title: runNode.nodeTitle,
-        icon: nodeModule.icon,
+        icon: nodeModule.icon ?? 'Puzzle',
         lane: `Lane ${(index % 4) + 1}`,
         color: nodeModule.color,
         x: 100 + (index % 4) * 210,
         y: 160 + Math.floor(index / 4) * 160,
-        config: nodeModule.createConfig(),
+        config: nodeModule.createConfig?.() ?? {},
         status: 'idle',
       };
     }),
@@ -142,12 +142,12 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         id: execution.nodeId,
         type: execution.nodeType,
         title: execution.nodeTitle,
-        icon: nodeModule.icon,
+        icon: nodeModule.icon ?? 'Puzzle',
         lane: `Lane ${((snapshot.nodes.length + index) % 4) + 1}`,
         color: nodeModule.color,
         x: 100 + ((snapshot.nodes.length + index) % 4) * 210,
         y: 160 + Math.floor((snapshot.nodes.length + index) / 4) * 160,
-        config: nodeModule.createConfig(),
+        config: nodeModule.createConfig?.() ?? {},
         status: execution.status,
         output: execution.output,
         logs: execution.logs,
@@ -297,6 +297,10 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
           readOnly
           workflowId={record.workflowId}
           runId={record.id}
+          reuseOverwriteGeneratedAssets={Boolean(
+            record.workflowSnapshot?.reuseOverwriteGeneratedAssets
+            ?? currentWorkflow?.reuseOverwriteGeneratedAssets,
+          )}
         />
       </div>
 

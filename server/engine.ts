@@ -15,7 +15,7 @@ import { getNodePlugin, isNodeWarning } from "./plugins.ts";
 import {
   workflowAssetRoot,
   workflowDir as workflowDefinitionDir,
-  workflowRunAssetsDir,
+  resolveWorkflowRunAssetsDir,
   nodeAssetsDir,
 } from "./paths.ts";
 import { makeRunId } from "./run-id.ts";
@@ -100,12 +100,23 @@ async function execNode(
   nodeOutputs: Record<string, string>,
   workflowId: string,
   runId: string,
+  reuseOverwriteGeneratedAssets = false,
   onLog?: (line: string) => void,
 ): Promise<{ output: any; logs: string[]; status: "success" | "warning"; error: string | null }> {
   const plugin = getNodePlugin(node.type);
   if (!plugin) {
     throw new Error(`Node type "${node.type}" not installed or plugin failed to start`);
   }
+  const assetsDir = resolveWorkflowRunAssetsDir(
+    workflowId,
+    runId,
+    reuseOverwriteGeneratedAssets,
+  );
+  console.log(
+    `[engine] node=${node.id} type=${node.type} run=${runId}`
+    + ` reuseOverwriteGeneratedAssets=${reuseOverwriteGeneratedAssets}`
+    + ` assetsDir=${assetsDir}`,
+  );
   const result = await plugin.execute({
     node,
     input: upstreamInput,
@@ -114,7 +125,7 @@ async function execNode(
     runId,
     workflowDir: workflowAssetRoot(workflowId),
     workflowDefinitionDir: workflowDefinitionDir(workflowId),
-    assetsDir: workflowRunAssetsDir(workflowId, runId),
+    assetsDir,
     nodeAssetsDir: nodeAssetsDir(node.id),
     onLog,
   });
@@ -149,7 +160,14 @@ export async function executeWorkflow(
   emit: EmitFn,
   runId = makeRunId(),
 ): Promise<ExecutionResult> {
-  fs.mkdirSync(workflowRunAssetsDir(wf.id, runId), { recursive: true });
+  const reuseOverwriteGeneratedAssets = Boolean(wf.reuseOverwriteGeneratedAssets);
+  const assetsDir = resolveWorkflowRunAssetsDir(wf.id, runId, reuseOverwriteGeneratedAssets);
+  console.log(
+    `[engine] start workflow=${wf.id} run=${runId}`
+    + ` reuseOverwriteGeneratedAssets=${reuseOverwriteGeneratedAssets}`
+    + ` assetsDir=${assetsDir}`,
+  );
+  fs.mkdirSync(assetsDir, { recursive: true });
   const order = topoOrder(wf.nodes, wf.edges);
   const outputsById: Record<string, string> = {};
   const outputsCombined: Record<string, string> = {}; // keyed by id AND title
@@ -198,6 +216,7 @@ export async function executeWorkflow(
             outputsCombined,
             wf.id,
             runId,
+            reuseOverwriteGeneratedAssets,
             onLog,
           );
           const executionTime = Date.now() - start;
@@ -285,8 +304,19 @@ export async function executeSingleNode(
   nodeOutputs: Record<string, string>,
   workflowId: string,
   runId = makeRunId(),
+  reuseOverwriteGeneratedAssets = false,
 ): Promise<RunNodeRecord> {
-  fs.mkdirSync(workflowRunAssetsDir(workflowId, runId), { recursive: true });
+  const assetsDir = resolveWorkflowRunAssetsDir(
+    workflowId,
+    runId,
+    reuseOverwriteGeneratedAssets,
+  );
+  console.log(
+    `[engine] start single-node=${node.id} workflow=${workflowId} run=${runId}`
+    + ` reuseOverwriteGeneratedAssets=${reuseOverwriteGeneratedAssets}`
+    + ` assetsDir=${assetsDir}`,
+  );
+  fs.mkdirSync(assetsDir, { recursive: true });
   const start = Date.now();
   try {
     const { output, logs, status, error } = await execNode(
@@ -295,6 +325,7 @@ export async function executeSingleNode(
       nodeOutputs || {},
       workflowId,
       runId,
+      reuseOverwriteGeneratedAssets,
     );
     return {
       nodeId: node.id,

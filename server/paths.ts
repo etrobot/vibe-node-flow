@@ -43,9 +43,33 @@ export function workflowGeneratedAssetsDir(id: string): string {
   return path.join(workflowAssetRoot(id), "generated");
 }
 
+/**
+ * Shared overwrite root used when `reuseOverwriteGeneratedAssets` is enabled.
+ * Layout: `data/assets/<workflowId>/assets/generated`.
+ */
+export function workflowReusableGeneratedAssetsDir(id: string): string {
+  return path.join(workflowAssetRoot(id), "assets", "generated");
+}
+
 /** Directory containing every artifact produced by one workflow run. */
 export function workflowRunAssetsDir(workflowId: string, runId: string): string {
   return path.join(workflowGeneratedAssetsDir(workflowId), assertSafeId(runId));
+}
+
+/**
+ * Resolve where a run should write (and history should read) generated assets.
+ * - reuse on  → `<workflowId>/assets/generated` (overwrite across runs)
+ * - reuse off → `<workflowId>/generated/<runId>`
+ */
+export function resolveWorkflowRunAssetsDir(
+  workflowId: string,
+  runId: string,
+  reuseOverwriteGeneratedAssets = false,
+): string {
+  if (reuseOverwriteGeneratedAssets) {
+    return workflowReusableGeneratedAssetsDir(workflowId);
+  }
+  return workflowRunAssetsDir(workflowId, runId);
 }
 
 /** Persistent assets owned by a node, shared across workflow runs. */
