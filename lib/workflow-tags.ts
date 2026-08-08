@@ -19,6 +19,15 @@ const MACARON_TAG_COLORS: NodeTagColors[] = [
   { background: '#F5E3F0', border: '#E5C4DC', foreground: '#744A68' },
 ];
 
+function withAlpha(hex: string, alpha: number): string {
+  const value = hex.replace('#', '');
+  const normalized = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
 export function normalizeNodeTag(value: string): string {
   return value.trim().replace(/\s+/g, ' ').slice(0, MAX_NODE_TAG_LENGTH);
 }
@@ -57,7 +66,10 @@ export function isDefaultNodeTag(tag: string): boolean {
 export function getNodeTagColors(tag: string): NodeTagColors {
   const normalized = normalizeNodeTag(tag).toLocaleUpperCase();
   const defaultIndex = DEFAULT_NODE_TAG_CATALOG.findIndex((defaultTag) => defaultTag === normalized);
-  if (defaultIndex >= 0) return MACARON_TAG_COLORS[defaultIndex];
+  if (defaultIndex >= 0) {
+    const colors = MACARON_TAG_COLORS[defaultIndex];
+    return { ...colors, background: withAlpha(colors.background, 0.7), border: withAlpha(colors.border, 0.9) };
+  }
 
   let hash = 0;
   for (const character of normalized) {
@@ -65,5 +77,6 @@ export function getNodeTagColors(tag: string): NodeTagColors {
   }
   const customColorCount = MACARON_TAG_COLORS.length - DEFAULT_NODE_TAG_CATALOG.length;
   const index = DEFAULT_NODE_TAG_CATALOG.length + (hash % customColorCount);
-  return MACARON_TAG_COLORS[index];
+  const colors = MACARON_TAG_COLORS[index];
+  return { ...colors, background: withAlpha(colors.background, 0.7), border: withAlpha(colors.border, 0.9) };
 }

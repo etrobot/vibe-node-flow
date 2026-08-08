@@ -75,7 +75,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
           <button
             type="button"
             onClick={handleRun}
-            className="btn-pill bg-black text-white hover:bg-black/80 text-xs flex items-center gap-1.5 cursor-pointer"
+            className="btn-pilltext-white hover:bg-black/80 text-xs flex items-center gap-1.5 cursor-pointer"
           >
             <Play className="h-3.5 w-3.5 fill-current" />
             Run

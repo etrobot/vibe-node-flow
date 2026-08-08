@@ -205,7 +205,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         </div>
         <h1 className="text-base font-medium text-ink">Failed to load execution details</h1>
         <p className="text-xs text-muted mt-2 mb-5">{error || 'Run record not found'}</p>
-        <button onClick={onBack} className="btn-pill bg-black hover:bg-black/80 text-white border border-black flex items-center gap-1.5 text-xs">
+        <button onClick={onBack} className="btn-pill borderflex items-center gap-1.5 text-xs">
           <ArrowLeft className="w-4 h-4" />
         </button>
       </div>

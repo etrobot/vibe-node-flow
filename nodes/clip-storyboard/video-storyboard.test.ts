@@ -5,6 +5,7 @@ import {
   estimateSpeechSeconds,
   parseStoryboardJson,
   plainSpeech,
+  sanitizeStoryboard,
   speechAnchors,
   validateStoryboard,
   type StoryboardDocument,
@@ -102,6 +103,58 @@ test('rejects more than two Demo UI HTML placeholders', () => {
   ];
   const { errors } = validateStoryboard(document, { ...OPTIONS, maxDemoUiHtmlItems: 2 });
   assert.ok(errors.some((issue) => /at most 2/.test(issue)));
+});
+
+test('sanitizeStoryboard auto-corrects structural defects in malformed LLM responses', () => {
+  const malformed: any = {
+    slug: 'test-sanitize',
+    title: 'Test App',
+    // Missing hook, summary, closing
+    clips: [
+      {
+        speech: 'First clip speech text with **too** **many** **anchors**.',
+        background: 'aurora',
+        items: [
+          // Direct component with stray key & spot
+          { type: 'flowing-stats', key: 'stray-key', spot: 'stray-spot' },
+          // Text-typing missing title
+          { type: 'text-typing' },
+        ],
+      },
+      {
+        speech: 'Second clip speech text without anchors.',
+        background: 'blur',
+        items: [
+          // Extra Demo UI HTML items beyond max 1
+          { type: 'ui-prompt-input' },
+          { type: 'ui-render-loading' },
+        ],
+      },
+    ],
+    chapters: [
+      { startClip: 1, clipCount: 5 }, // Incorrect counts
+    ],
+  };
+
+  const { document: sanitized, changes } = sanitizeStoryboard(malformed, { maxDemoUiHtmlItems: 1 });
+  assert.ok(changes.length > 0, 'recorded sanitization changes');
+
+  // Verify direct component cleanup
+  assert.equal((sanitized as any).clips[0].items[0].key, undefined);
+  assert.equal((sanitized as any).clips[0].items[0].spot, undefined);
+
+  // Verify missing title auto-fill
+  assert.ok(Boolean((sanitized as any).clips[0].items[1].title));
+
+  // Verify anchor count fix (2 items => target 1 anchor)
+  assert.equal(speechAnchors((sanitized as any).clips[0].speech).length, 1);
+
+  // Verify Demo UI capping & demotion
+  assert.equal((sanitized as any).clips[1].items[1].type, 'ui-icon-text');
+
+  // Verify chapters rebalanced
+  assert.equal((sanitized as any).chapters[0].startClip, 0);
+  assert.equal((sanitized as any).chapters[0].clipCount, 2);
 });
 
 test('a conforming anchor-timed storyboard passes and reports its metrics', () => {

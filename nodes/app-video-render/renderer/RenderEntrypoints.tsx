@@ -131,7 +131,7 @@ export function RenderEntrypoint() {
   if (mode === 'background') return <BackgroundVideoRenderer />;
   if (mode === 'transition') return <TransitionFrameRenderer />;
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black text-white">
+    <div className="fixed inset-0 flex items-center justify-center bg-primary">
       Unknown render mode.
     </div>
   );

@@ -514,14 +514,14 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
     const isError = edge.status === 'error';
 
     const strokeColor = isRunning
-      ? '#f54e00'
+      ? 'var(--color-primary)'
       : isSuccess
-      ? '#1f8a65'
+      ? 'var(--color-semantic-success)'
       : isWarning
-      ? '#c08532'
+      ? 'var(--color-semantic-warning)'
       : isError
-      ? '#cf2d56'
-      : '#26251e';
+      ? 'var(--color-semantic-error)'
+      : 'var(--color-ink)';
 
     return (
       <g key={edge.id} className="group/edge">
@@ -786,7 +786,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
               width: '140px',
               height: '24px',
             }}
-            className="absolute z-30 px-1.5 text-center text-[11px] font-mono text-ink bg-white border border-hairline-strong rounded outline-none focus:ring-1 focus:ring-primary/40 pointer-events-auto"
+            className="absolute z-30 px-1.5 text-center text-[11px] font-mono text-ink bg-surface-card border border-hairline-strong rounded outline-none focus:ring-1 focus:ring-primary/40 pointer-events-auto"
           />
         )}
 
@@ -824,7 +824,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                   {!readOnly && (
                     <div
                       onMouseDown={(e) => e.stopPropagation()}
-                      className={`absolute -top-7 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-surface-card border border-hairline rounded-pill px-1.5 py-0.5 transition-all ${
+                      className={`absolute -top-7 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-surface-card rounded-pill px-1.5 py-0.5 transition-all ${
                         isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto'
                       }`}
                     >
@@ -842,9 +842,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
                   {/* Clean Square Icon Tile */}
                   <div
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-200 bg-surface-card border shadow-2xs ${
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-200 bg-surface-card shadow-2xs ${
                       isSelected
-                        ? 'border-black ring-2 ring-black/20 z-30'
+                        ? 'border-primary ring-2 ring-primary/40 z-30'
                         : node.status === 'running'
                         ? 'border-timeline-done ring-2 ring-timeline-done/20 animate-pulse z-30'
                         : node.status === 'success'
@@ -853,7 +853,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                         ? 'border-semantic-warning hover:border-semantic-warning/80'
                         : node.status === 'error'
                         ? 'border-semantic-error hover:border-semantic-error/80'
-                        : 'border-hairline hover:border-hairline-strong'
+                        : 'hover:ring-1 border'
                     }`}
                     style={{
                       backgroundColor: `${node.color || nodeModule.color}12`,
@@ -888,7 +888,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                   {/* Left (Input) Port */}
                   <div
                     onMouseUp={(e) => handleEndConnect(e, node.id)}
-                    className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-card border border-hairline flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
+                    className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-card border  flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
                   >
                     <div className="w-1 h-1 rounded-full bg-muted group-hover/port:bg-white transition-colors" />
                   </div>
@@ -896,7 +896,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                   {/* Right (Output) Port */}
                   <div
                     onMouseDown={(e) => handleStartConnect(e, node.id)}
-                    className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-card border border-hairline flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
+                    className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-surface-card border  flex items-center justify-center transition-all group/port z-40 ${readOnly ? 'cursor-default' : 'hover:border-primary hover:bg-primary cursor-pointer'}`}
                   >
                     <div className="w-1 h-1 rounded-full bg-muted group-hover/port:bg-white transition-colors" />
                   </div>
@@ -946,7 +946,12 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                         disabled={readOnly}
                         onClick={() => setManagingTagsNodeId(node.id)}
                         title={`${hiddenTagCount} more tag${hiddenTagCount === 1 ? '' : 's'}`}
-                        className="h-5 rounded-md border border-[#D9C9ED] bg-[#EEE5F8] px-1.5 text-[9px] font-medium leading-none text-[#604B7A] shadow-2xs enabled:cursor-pointer disabled:cursor-default"
+                        className="h-5 rounded-md border px-1.5 text-[9px] font-medium leading-none shadow-2xs enabled:cursor-pointer disabled:cursor-default"
+                        style={{
+                          backgroundColor: getNodeTagColors(visibleTags[visibleTags.length - 1] || 'tag').background,
+                          borderColor: getNodeTagColors(visibleTags[visibleTags.length - 1] || 'tag').border,
+                          color: getNodeTagColors(visibleTags[visibleTags.length - 1] || 'tag').foreground,
+                        }}
                       >
                         +{hiddenTagCount}
                       </button>
@@ -957,7 +962,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                         onClick={() => setManagingTagsNodeId(node.id)}
                         title="Manage global operation tags"
                         aria-label={`Manage global operation tags for ${node.title}`}
-                        className="h-5 min-w-5 rounded-md border border-hairline bg-surface-card px-1 text-[9px] text-muted shadow-2xs transition-colors hover:border-hairline-strong hover:text-ink cursor-pointer inline-flex items-center justify-center gap-1"
+                        className="h-5 min-w-5 rounded-md bg-surface-card px-1 text-[9px] text-muted shadow-2xs transition-colors hover:border-hairline-strong hover:text-ink cursor-pointer inline-flex items-center justify-center gap-1"
                       >
                         {selectedTags.length === 0 && <Tags className="w-2.5 h-2.5" />}
                         <Plus className="w-2.5 h-2.5" />
@@ -972,7 +977,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       </div>
 
       {/* Interactive Floating Minimap & Navigation Controls Panel */}
-      <div data-no-pan="true" className="absolute bottom-3 left-3 sm:bottom-5 sm:left-5 z-40 flex flex-col gap-2 p-1.5 sm:p-2 bg-surface-card/95 border border-hairline rounded-xl shadow-lg backdrop-blur-md">
+      <div data-no-pan="true" className="absolute bottom-3 left-3 sm:bottom-5 sm:left-5 z-40 flex flex-col gap-2 p-1.5 sm:p-2 bg-surface-card/95 border  rounded-xl shadow-lg backdrop-blur-md">
         {/* Interactive Canvas Minimap - Hidden on small mobile screens (<640px) to prevent covering canvas */}
         <div
           ref={minimapRef}
@@ -980,7 +985,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
           onPointerMove={handleMinimapPointerMove}
           onPointerUp={handleMinimapPointerUp}
           style={{ width: `${minimapWidth}px`, height: `${minimapHeight}px` }}
-          className="hidden sm:block relative rounded-lg bg-surface-canvas border border-hairline overflow-hidden cursor-crosshair select-none touch-none"
+          className="hidden sm:block relative rounded-lg bg-surface-canvas border  overflow-hidden cursor-crosshair select-none touch-none"
         >
           {/* Miniature Step Column Dividers */}
           {Array.from({ length: columnCount }).map((_, i) => {
@@ -1040,21 +1045,21 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             <button
               onClick={() => setZoom((z) => Math.min(1.8, Math.round((z + 0.1) * 10) / 10))}
               title="Zoom In"
-              className="p-1.5 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border border-hairline transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors cursor-pointer"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setZoom((z) => Math.max(0.4, Math.round((z - 0.1) * 10) / 10))}
               title="Zoom Out"
-              className="p-1.5 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border border-hairline transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors cursor-pointer"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={resetView}
               title="Reset Zoom & Pan"
-              className="px-2 py-1 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border border-hairline transition-colors font-mono text-[10px] cursor-pointer"
+              className="px-2 py-1 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors font-mono text-[10px] cursor-pointer"
             >
               {Math.round(zoom * 100)}%
             </button>

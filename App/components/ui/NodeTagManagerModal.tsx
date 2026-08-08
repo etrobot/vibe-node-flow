@@ -155,7 +155,7 @@ export const NodeTagManagerModal: React.FC<NodeTagManagerModalProps> = ({
               <button
                 type="submit"
                 disabled={!normalizeNodeTag(newTag)}
-                className="btn-pill bg-black hover:bg-black/80 text-white text-xs border border-black inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="btn-pill text-xs borderinline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Add
@@ -169,7 +169,7 @@ export const NodeTagManagerModal: React.FC<NodeTagManagerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="btn-pill bg-black hover:bg-black/80 text-white text-xs border border-black"
+            className="btn-pill text-xs border border-black"
           >
             Done
           </button>

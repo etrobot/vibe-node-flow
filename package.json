@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "theme:extract": "node scripts/extract-theme.mjs",
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server/workflow-worker.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/workflow-worker.mjs && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",

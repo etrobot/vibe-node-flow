@@ -342,6 +342,189 @@ export function plainSpeech(speech: string): string {
 }
 
 /**
+ * Auto-correct common structural oversights in LLM-generated storyboard JSON
+ * before strict contract validation is run.
+ */
+export function sanitizeStoryboard(
+  value: unknown,
+  options?: Partial<StoryboardValidationOptions>,
+): { document: unknown; changes: string[] } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { document: value, changes: [] };
+  }
+
+  // Deep clone to avoid mutating input directly
+  const doc = JSON.parse(JSON.stringify(value)) as any;
+  const changes: string[] = [];
+
+  // 1. Ensure required document fields
+  if (!text(doc.title)) doc.title = 'Untitled Storyboard';
+  if (!text(doc.hook)) doc.hook = doc.title;
+  if (!text(doc.summary)) doc.summary = doc.title;
+  if (!text(doc.closing)) doc.closing = 'Thank you for watching.';
+
+  // 2. Clean items and speech in clips
+  if (Array.isArray(doc.clips)) {
+    const maxDemoUiHtmlItems = options?.maxDemoUiHtmlItems ?? DEFAULT_MAX_DEMO_UI_HTML_ITEMS;
+    let demoUiCount = 0;
+
+    doc.clips.forEach((clip: any, clipIdx: number) => {
+      if (!clip || typeof clip !== 'object') return;
+      const cLabel = `Clip ${clipIdx + 1}`;
+
+      if (Array.isArray(clip.items)) {
+        clip.items.forEach((item: any, itemIdx: number) => {
+          if (!item || typeof item !== 'object') return;
+          const iLabel = `${cLabel} item ${itemIdx + 1}`;
+
+          // Cleanup stray key/spot on direct components
+          if (!isGlobalComponentType(item.type)) {
+            if (item.key !== undefined) {
+              delete item.key;
+              changes.push(`${iLabel} (${item.type}): Removed stray key`);
+            }
+            if (item.spot !== undefined) {
+              delete item.spot;
+              changes.push(`${iLabel} (${item.type}): Removed stray spot`);
+            }
+          }
+
+          // Auto-fill missing title on title-required types
+          if (TITLE_REQUIRED_TYPES.has(item.type) && !text(item.title)) {
+            let fallbackTitle = text(item.label) || text(item.prompt);
+            if (!fallbackTitle && Array.isArray(item.words) && item.words.length) {
+              fallbackTitle = item.words.join(' ');
+            }
+            if (!fallbackTitle && text(clip.speech)) {
+              const words = plainSpeech(clip.speech).split(/\s+/).filter(Boolean).slice(0, 4);
+              if (words.length) fallbackTitle = words.join(' ');
+            }
+            if (!fallbackTitle) fallbackTitle = item.type.replace(/^[a-z]+-/, '').replace(/-/g, ' ');
+            item.title = fallbackTitle;
+            changes.push(`${iLabel} (${item.type}): Auto-filled missing title -> "${fallbackTitle}"`);
+          }
+
+          // Item-specific fixes
+          if (item.type === 'ui-prompt-input' && !text(item.prompt)) {
+            item.prompt = text(item.title) || 'Enter prompt...';
+            changes.push(`${iLabel} (ui-prompt-input): Auto-filled missing prompt`);
+          }
+          if (item.type === 'ui-icon-text' && !text(item.icon)) {
+            item.icon = 'Sparkles';
+            changes.push(`${iLabel} (ui-icon-text): Auto-filled missing icon with "Sparkles"`);
+          }
+          if (item.type === 'text-impact' && !Array.isArray(item.words) && text(item.title)) {
+            item.words = item.title.split(/\s+/).filter(Boolean);
+            changes.push(`${iLabel} (text-impact): Populated words array from title`);
+          }
+
+          // Demo UI HTML items capping
+          if (DEMO_UI_HTML_ITEM_TYPES.has(String(item.type))) {
+            demoUiCount += 1;
+            if (maxDemoUiHtmlItems >= 0 && demoUiCount > maxDemoUiHtmlItems) {
+              const oldType = item.type;
+              item.type = 'ui-icon-text';
+              if (!item.title) item.title = oldType;
+              if (!item.icon) item.icon = 'Sparkles';
+              delete item.prompt;
+              changes.push(`${iLabel}: Demoted extra Demo UI HTML placeholder ${oldType} -> ui-icon-text`);
+            }
+          }
+        });
+      }
+
+      // Auto-fix Speech Anchors
+      if (options?.timingMode !== 'duration' && Array.isArray(clip.items) && clip.items.length > 0) {
+        const targetAnchors = Math.max(0, clip.items.length - 1);
+        const speech = String(clip.speech ?? '');
+        const currentAnchors = speechAnchors(speech);
+
+        if (currentAnchors.length !== targetAnchors) {
+          if (targetAnchors === 0) {
+            // Strip all anchors if 1 item
+            clip.speech = plainSpeech(speech);
+            changes.push(`${cLabel}: Stripped all anchors because clip has only 1 item`);
+          } else if (currentAnchors.length > targetAnchors) {
+            // Keep first targetAnchors, convert remaining **text** to text
+            let count = 0;
+            clip.speech = speech.replace(ANCHOR_PATTERN, (match, p1) => {
+              count += 1;
+              return count <= targetAnchors ? match : p1;
+            });
+            changes.push(`${cLabel}: Reduced anchor count from ${currentAnchors.length} to ${targetAnchors}`);
+          } else if (currentAnchors.length < targetAnchors) {
+            // Add missing anchors
+            const plain = plainSpeech(speech);
+            const words = plain.split(/\s+/).filter(Boolean);
+            if (words.length >= targetAnchors * 2) {
+              const segmentLen = Math.floor(words.length / (targetAnchors + 1));
+              const newWords = [...words];
+              for (let a = currentAnchors.length; a < targetAnchors; a += 1) {
+                const idx = (a + 1) * segmentLen;
+                if (idx < newWords.length) {
+                  newWords[idx] = `**${newWords[idx]}**`;
+                }
+              }
+              clip.speech = newWords.join(' ');
+              changes.push(`${cLabel}: Automatically inserted ${targetAnchors - currentAnchors.length} anchor(s) into speech`);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 3. Auto-fix Chapters contiguity and total clip counts
+  const totalClips = Array.isArray(doc.clips) ? doc.clips.length : 0;
+  if (totalClips > 0) {
+    if (!Array.isArray(doc.chapters) || doc.chapters.length === 0) {
+      doc.chapters = [{
+        title: text(doc.title) || 'Overview',
+        summary: text(doc.summary) || 'Video overview',
+        startClip: 0,
+        clipCount: totalClips,
+      }];
+      changes.push(`Chapters: Created default chapter covering all ${totalClips} clips`);
+    } else {
+      let cursor = 0;
+      const chLen = doc.chapters.length;
+
+      // Base share per chapter
+      const baseShare = Math.max(1, Math.floor(totalClips / chLen));
+      let remainder = totalClips - baseShare * chLen;
+
+      doc.chapters.forEach((ch: any, idx: number) => {
+        if (!ch || typeof ch !== 'object') return;
+        if (!text(ch.title)) ch.title = `Chapter ${idx + 1}`;
+        if (!text(ch.summary)) ch.summary = ch.title;
+
+        let share = baseShare;
+        if (remainder > 0) {
+          share += 1;
+          remainder -= 1;
+        } else if (remainder < 0) {
+          share = Math.max(1, share - 1);
+        }
+
+        // If this is the last chapter, assign remaining clips
+        if (idx === chLen - 1) {
+          share = Math.max(1, totalClips - cursor);
+        }
+
+        if (ch.startClip !== cursor || ch.clipCount !== share) {
+          ch.startClip = cursor;
+          ch.clipCount = share;
+          changes.push(`Chapter ${idx + 1}: Rebalanced startClip=${cursor}, clipCount=${share}`);
+        }
+        cursor += share;
+      });
+    }
+  }
+
+  return { document: doc, changes };
+}
+
+/**
  * Runtime a clip's narration will occupy. Without authored durations the speech
  * itself is the only signal, so estimate from its length; the real number
  * arrives once Edge TTS has spoken it.

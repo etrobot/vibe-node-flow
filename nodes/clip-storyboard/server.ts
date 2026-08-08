@@ -23,6 +23,7 @@ import {
   MAX_ITEMS_PER_CLIP,
   MIN_ITEM_DURATION,
   parseStoryboardJson,
+  sanitizeStoryboard,
   validateStoryboard,
   type StoryboardDocument,
   type TimingMode,
@@ -191,6 +192,58 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
     'Every factual claim must trace back to the brief. Do not invent numbers, customers, or endorsements.',
     ...globalRules,
     '',
+    '## Few-shot example output structure',
+    '',
+    '```json',
+    '{',
+    '  "slug": "forge-app-launch",',
+    '  "title": "Forge App Launch",',
+    '  "hook": "Build production apps in minutes",',
+    '  "summary": "Introduction to Forge features and architecture",',
+    '  "closing": "Try Forge today.",',
+    '  "hue": 210,',
+    '  "palette": {',
+    '    "background": "#0b0f19",',
+    '    "foreground": "#f8fafc",',
+    '    "muted": "#64748b",',
+    '    "accent": "#38bdf8",',
+    '    "secondary": "#818cf8"',
+    '  },',
+    '  "chapters": [',
+    '    { "title": "Introduction", "summary": "Core workflow overview", "startClip": 0, "clipCount": 1 },',
+    '    { "title": "Conclusion", "summary": "Call to action", "startClip": 1, "clipCount": 1 }',
+    '  ],',
+    '  "global-components": [',
+    '    {',
+    '      "key": "process-overview",',
+    '      "component": "process-card-highlight",',
+    '      "cards": [',
+    '        { "key": "step-1", "icon": "Code", "title": "Design Component" },',
+    '        { "key": "step-2", "icon": "Rocket", "title": "Deploy Instant" }',
+    '      ]',
+    '    }',
+    '  ],',
+    '  "clips": [',
+    '    {',
+    '      "speech": "Forge turns your ideas into **scalable apps** automatically.",',
+    '      "background": "aurora",',
+    '      "items": [',
+    '        { "type": "text-typing", "title": "Forge App Builder" },',
+    '        { "type": "process-card-highlight", "key": "process-overview", "spot": "step-1" }',
+    '      ]',
+    '    },',
+    '    {',
+    '      "speech": "Get started with Forge today.",',
+    '      "background": "semrush-glow",',
+    '      "items": [',
+    '        { "type": "text-title", "title": "Forge" },',
+    '        { "type": "text-logo", "title": "Build Faster" }',
+    '      ]',
+    '    }',
+    '  ]',
+    '}',
+    '```',
+    '',
     '## Component menu',
     '',
     DIRECT_COMPONENT_GUIDE,
@@ -256,7 +309,7 @@ async function execute({
     let metrics: Record<string, string | number | boolean> = {};
     try {
       const parsed = parseStoryboardJson(content);
-      const report = validateStoryboard(parsed, {
+      const validationOpts = {
         minClips: config.minClips,
         maxClips: config.maxClips,
         minComponentTypes: config.minComponentTypes,
@@ -265,11 +318,21 @@ async function execute({
         timingMode: config.timingMode,
         maxGlobalComponents: config.maxGlobalComponents,
         maxDemoUiHtmlItems: config.maxDemoUiHtmlItems,
-      });
+      };
+
+      const { document: sanitized, changes } = sanitizeStoryboard(parsed, validationOpts);
+      if (changes.length > 0) {
+        log.push(
+          `[Sanitize] Applied ${changes.length} auto-fix(es):`,
+          ...changes.map((c) => `  - ${c}`),
+        );
+      }
+
+      const report = validateStoryboard(sanitized, validationOpts);
       errors = report.errors;
       warnings = report.warnings;
       metrics = report.metrics;
-      if (!errors.length) document = parsed as StoryboardDocument;
+      if (!errors.length) document = sanitized as StoryboardDocument;
     } catch (error) {
       errors = [error instanceof Error ? error.message : String(error)];
     }

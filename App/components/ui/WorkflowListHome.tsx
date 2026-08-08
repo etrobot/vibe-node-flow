@@ -285,7 +285,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                       e.stopPropagation();
                       onOpenWorkflow(workflow.id);
                     }}
-                    className="btn-pill bg-black hover:bg-black/80 text-white text-xs border border-black shrink-0 px-3 py-1"
+                    className="btn-pill text-xs bordershrink-0 px-3 py-1"
                   >
                     Open
                   </button>
@@ -351,7 +351,6 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
             <thead>
               <tr className="bg-surface-canvas border-b border-hairline text-muted font-semibold uppercase text-[10px] tracking-wider">
                 <th className="py-3 px-4">Name</th>
-                <th className="py-3 px-4 w-24">Nodes</th>
                 <th className="py-3 px-4 w-24">Updated</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -391,22 +390,11 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 bg-surface-canvas rounded-pill text-[11px] font-semibold text-muted">
-                        {workflow.nodes.length} nodes
-                      </span>
-                    </td>
                     <td className="py-3 px-4 text-muted text-[11px]">
                       {formatTimestamp(workflow.updatedAt)}
                     </td>
                     <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => onOpenWorkflow(workflow.id)}
-                          className="btn-pill bg-black hover:bg-black/80 text-white text-[11px] border border-black whitespace-nowrap"
-                        >
-                          Open
-                        </button>
                         <button
                           onClick={() => void handleOpenSchedule(workflow)}
                           title="Schedule"
@@ -442,6 +430,12 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
+                        <button
+                          onClick={() => onOpenWorkflow(workflow.id)}
+                          className="btn-pill text-[11px] border whitespace-nowrap"
+                        >
+                          Open
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -467,7 +461,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
     <div className="w-screen h-screen flex flex-col bg-surface-canvas text-body font-sans overflow-hidden select-none">
       {/* Toast Banner */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-black text-white text-xs font-medium px-4 py-2.5 rounded-pill flex items-center gap-2 border border-hairline-strong">
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-primary text-xs font-medium px-4 py-2.5 rounded-pill flex items-center gap-2 border border-hairline-strong">
           <CheckCircle2 className="w-4 h-4 text-timeline-grep" />
           <span>{toastMessage}</span>
         </div>
@@ -476,7 +470,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
       {/* Top Header */}
       <header className="h-14 px-6 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-black text-white flex items-center justify-center">
+          <div className="p-2 rounded-lg bg-black text-primary border flex items-center justify-center">
             <Workflow className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -601,7 +595,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="btn-pill bg-black hover:bg-black/80 text-white text-xs cursor-pointer border border-black"
+                  className="btn-pill text-xs cursor-pointer border border-black"
                 >
                   Save Changes
                 </button>
@@ -715,7 +709,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                   <button
                     type="submit"
                     disabled={isScheduleSaving}
-                    className="btn-pill bg-black hover:bg-black/80 text-white text-xs cursor-pointer border border-black flex items-center gap-1.5 disabled:opacity-50"
+                    className="btn-pill text-xs cursor-pointer borderflex items-center gap-1.5 disabled:opacity-50"
                   >
                     {isScheduleSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Save Schedule

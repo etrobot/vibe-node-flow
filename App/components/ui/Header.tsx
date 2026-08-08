@@ -17,6 +17,8 @@ import {
   CircleStop,
 } from 'lucide-react';
 
+import { ThemeSelector } from './ThemeSelector';
+
 interface HeaderProps {
   onRunWorkflow: () => void;
   onStopWorkflow?: () => void;
@@ -141,6 +143,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Tools: Save/Reset + Run Workflow */}
         <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+          <ThemeSelector />
           {/* Run History */}
           {onOpenHistory && (
             <button

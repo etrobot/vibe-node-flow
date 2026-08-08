@@ -120,7 +120,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
 
         <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-hairline-soft bg-surface-card">
           <button onClick={onClose} className="btn-pill bg-surface-canvas-soft hover:bg-surface-card text-ink text-xs cursor-pointer border border-hairline">Cancel</button>
-          <button onClick={handleConfirm} className="btn-pill bg-black hover:bg-black/80 text-white text-xs cursor-pointer border border-black flex items-center gap-1.5">
+          <button onClick={handleConfirm} className="btn-pill text-xs cursor-pointer borderflex items-center gap-1.5">
             <Check className="w-4 h-4 text-white" /> Save
           </button>
         </div>

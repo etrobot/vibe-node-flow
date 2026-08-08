@@ -3,7 +3,7 @@
   "name": "App Launch Video With Voice",
   "description": "Generate script copy and storyboard JSON, create voiceover and Demo UI HTML in parallel, then merge both into the video preview.",
   "createdAt": "2026-08-02T00:00:00.000Z",
-  "updatedAt": "2026-08-07T14:18:39.400Z",
+  "updatedAt": "2026-08-08T04:31:40.109Z",
   "icon": "AudioLines",
   "color": "#15803d",
   "tagCatalog": [
@@ -55,7 +55,7 @@
       "icon": "Clapperboard",
       "lane": "Storyboard JSON",
       "x": 305,
-      "y": 180,
+      "y": 280,
       "color": "#c2410c",
       "tags": [
         "ENV",
@@ -84,7 +84,7 @@
       "icon": "AudioLines",
       "lane": "Parallel Assets",
       "x": 550,
-      "y": 100,
+      "y": 80,
       "color": "#15803d",
       "tags": [
         "FS"

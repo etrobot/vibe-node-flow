@@ -499,7 +499,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                     className={`min-w-0 flex-1 rounded px-1 py-0.5 text-xs font-semibold text-ink outline-none ${
                       readOnly
                         ? 'cursor-default bg-transparent'
-                        : 'bg-transparent hover:bg-white focus:bg-white focus:ring-1 focus:ring-hairline-strong'
+                        : 'bg-transparent  focus:ring-1 focus:ring-hairline-strong'
                     }`}
                   />
                   {!readOnly && <PencilLine className="h-3 w-3 shrink-0 text-muted opacity-0 transition-opacity group-hover/title:opacity-100" />}
@@ -556,9 +556,9 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 <button
                   type="button"
                   onClick={() => onRunSingleNode(node.id)}
-                  className="btn-pill bg-black hover:bg-black/80 text-white text-xs flex items-center gap-1.5 active:scale-97 cursor-pointer"
+                  className="btn-pill border text-xs flex items-center gap-1.5 active:scale-97 cursor-pointer"
                 >
-                  <Play className="w-3.5 h-3.5 fill-current text-on-primary" />
+                  <Play className="w-3.5 h-3.5 fill-current" />
                   Run
                 </button>
               )}
@@ -583,7 +583,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           {/* Custom Panel Link Line */}
           {hasCustomPanel && (
               <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b border-hairline-soft">
-                <label className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-ink cursor-pointer select-none">
+                <label className="flex items-center gap-1.5 text-xs hover:text-ink cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={openPanelOnClickNode}
@@ -596,7 +596,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowFullPanelModal(true)}
-                  className="text-xs text-gray-700 bg-white border border-gray-300 rounded-md px-2 py-1 hover:bg-gray-50 hover:border-gray-400 flex items-center gap-1 font-medium cursor-pointer"
+                  className="text-xs border border-gray-300 rounded-md px-2 py-1 flex items-center gap-1 font-medium cursor-pointer"
                 >
                   <span>open custom node panel</span>
                   <ExternalLink className="w-3 h-3" />
@@ -630,7 +630,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                     onClick={() => setFilterCategory(cat.id)}
                     className={`px-2.5 py-1 rounded-pill text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
                       filterCategory === cat.id
-                        ? 'bg-black text-white'
+                        ? 'bg-primary text-on-primary'
                         : 'bg-surface-card text-muted hover:text-ink border border-hairline'
                     }`}
                   >

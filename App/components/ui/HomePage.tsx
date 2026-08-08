@@ -4,6 +4,8 @@ import { RunHistoryPage } from './RunHistoryPage';
 import { WorkflowListHome } from './WorkflowListHome';
 import { History, Workflow } from 'lucide-react';
 
+import { ThemeSelector } from './ThemeSelector';
+
 interface HomePageProps {
   workflows: WorkflowItem[];
   initialFilterWorkflowId?: string | null;
@@ -57,7 +59,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Shared Header with Tabs */}
       <header className="h-14 px-3 sm:px-5 lg:px-7 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="p-2 rounded-lg bg-black text-white flex items-center justify-center shrink-0">
+          <div className="p-2 rounded-lg bg-black text-primary border flex items-center justify-center shrink-0">
             <Workflow className="w-5 h-5" />
           </div>
           <div className="flex items-center gap-1 bg-surface-card rounded-lg p-1 border border-hairline">
@@ -65,7 +67,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               onClick={() => changeTab('history')}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'history'
-                  ? 'bg-white text-ink shadow-sm'
+                  ? 'bg-primary text-on-primary shadow-sm'
                   : 'text-muted hover:text-ink'
               }`}
             >
@@ -76,7 +78,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               onClick={() => changeTab('workflows')}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                 activeTab === 'workflows'
-                  ? 'bg-white text-ink shadow-sm'
+                  ? 'bg-primary text-on-primary shadow-sm'
                   : 'text-muted hover:text-ink'
               }`}
             >
@@ -86,7 +88,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3" />
+        <div className="flex items-center gap-3"><ThemeSelector /></div>
       </header>
 
       {/* Tab Content */}

@@ -538,7 +538,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{backLabel || 'Back'}</span>
           </button>
-          <div className="p-2 rounded-lg bg-black text-white shrink-0"><History className="w-4 h-4" /></div>
+          <div className="p-2 rounded-lg bg-primary shrink-0"><History className="w-4 h-4" /></div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="font-medium text-sm text-ink tracking-tight">Run History</h1>

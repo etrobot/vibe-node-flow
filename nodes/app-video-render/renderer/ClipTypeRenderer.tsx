@@ -84,7 +84,7 @@ function DemoUiEmbed({item, localTime}: ClipTypeRendererProps) {
 
   return (
     <div ref={hostRef} className="absolute inset-0 overflow-hidden bg-black" data-demo-ui-frame>
-      {!loaded && <div className="absolute inset-0 z-10 flex items-center justify-center bg-black text-white/60">Loading product UI…</div>}
+      {!loaded && <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/60">Loading product UI…</div>}
       <iframe
         title="Generated product UI"
         src={url}
