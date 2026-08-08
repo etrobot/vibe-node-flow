@@ -771,7 +771,7 @@ function SitePreview({compact = false}: {compact?: boolean}) {
           <div className="h-5 w-5 rounded-full bg-[#f0c989]" />
           YOUR SPACE
         </div>
-        <div className="flex gap-4 text-slate-500">
+        <div className="flex gap-4 text-black/50">
           <span>Listings</span>
           <span>Services</span>
           <span>Contact</span>
@@ -780,13 +780,13 @@ function SitePreview({compact = false}: {compact?: boolean}) {
       <div className="px-7 py-6">
         <div className="mx-auto mb-4 h-8 w-36 rounded-full bg-white/80 text-center text-xs leading-8 shadow-sm">Book your stay</div>
         <h3 className="text-center text-4xl font-black text-[#9fb7d3]">{compact ? 'YOUR SPACE' : 'YOUR SPACE'}</h3>
-        <p className="mx-auto mt-2 max-w-md text-center text-sm text-slate-500">Vacation rental management, automated booking, and owner reporting in one site.</p>
+        <p className="mx-auto mt-2 max-w-md text-center text-sm text-black/50">Vacation rental management, automated booking, and owner reporting in one site.</p>
         <div className="mt-5 grid grid-cols-3 gap-3">
           {['Listings', 'Owners', 'Revenue'].map((label, index) => (
             <div key={label} className="rounded-lg bg-white p-3 shadow-sm">
-              <div className="mb-2 h-16 rounded-md bg-gradient-to-br from-slate-200 to-slate-100" />
+              <div className="mb-2 h-16 rounded-md bg-gradient-to-br from-black/10 to-black/5" />
               <p className="text-xs font-bold">{label}</p>
-              <p className="text-[10px] text-slate-500">{index === 0 ? 'Hudson Row' : index === 1 ? 'Portal' : '+28%'}</p>
+              <p className="text-[10px] text-black/50">{index === 0 ? 'Hudson Row' : index === 1 ? 'Portal' : '+28%'}</p>
             </div>
           ))}
         </div>
@@ -1245,7 +1245,7 @@ function UiDropFiles({item, localTime}: ClipTypeRendererProps) {
                   <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full mr-1" />
                   <div className="w-1.5 h-1.5 bg-green-400 rounded-full" />
                 </div>
-                <div className="flex-1 w-full bg-slate-50 flex items-center justify-center p-2">
+                <div className="flex-1 w-full bg-black/5 flex items-center justify-center p-2">
                   <span className={`${file.color} text-white font-black text-lg px-2 py-1 rounded shadow-sm`}>
                     .{file.ext}
                   </span>
@@ -1349,17 +1349,17 @@ function AppPreviewMock({localTime, revealFrom = 0}: {localTime: number; revealF
       className="w-full h-full overflow-hidden rounded-2xl bg-white text-[#0f172a]"
       style={{transform: `translateY(${lerp(24, 0, rise)}px)`, opacity: clamp01(rise)}}
     >
-      <div className="flex h-9 items-center gap-2 border-b border-slate-200 px-4">
+      <div className="flex h-9 items-center gap-2 border-b border-black/10 px-4">
         <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
         <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-        <div className="ml-4 h-4 flex-1 max-w-md rounded-full bg-slate-100" />
+        <div className="ml-4 h-4 flex-1 max-w-md rounded-full bg-black/[0.06]" />
       </div>
-      <div className="flex items-center justify-between px-6 py-3 border-b border-slate-100">
+      <div className="flex items-center justify-between px-6 py-3 border-b border-black/5">
         <div className="flex items-center gap-2 font-black tracking-tight">
           <ForgeHeart className="h-5 w-5" /> Marketplace
         </div>
-        <div className="flex gap-4 text-xs font-semibold text-slate-500">
+        <div className="flex gap-4 text-xs font-semibold text-black/50">
           <span>Listings</span><span>Chat</span><span>Payments</span>
           <span className="rounded-full bg-[var(--theme-primary)] px-3 py-1 text-white">Sign in</span>
         </div>
@@ -1368,19 +1368,19 @@ function AppPreviewMock({localTime, revealFrom = 0}: {localTime: number; revealF
         <div className="flex flex-col justify-center gap-3">
           <div className="w-fit rounded-full bg-[var(--theme-primary)]/10 px-3 py-1 text-[11px] font-bold text-[var(--theme-primary)]">New listings daily</div>
           <h3 className="text-3xl font-black leading-tight tracking-tight">Buy & sell, <br />with built-in chat.</h3>
-          <p className="text-sm text-slate-500 max-w-xs">A real marketplace with listings, messaging and secure checkout — generated for you.</p>
+          <p className="text-sm text-black/50 max-w-xs">A real marketplace with listings, messaging and secure checkout — generated for you.</p>
           <div className="flex gap-3">
             <div className="rounded-lg bg-[var(--theme-primary)] px-4 py-2 text-sm font-bold text-white">Browse</div>
-            <div className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold">Sell item</div>
+            <div className="rounded-lg border border-black/20 px-4 py-2 text-sm font-bold">Sell item</div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+            <div key={i} className="overflow-hidden rounded-xl border border-black/10 shadow-sm">
               <div className={`h-16 ${['bg-gradient-to-br from-rose-200 to-orange-200', 'bg-gradient-to-br from-indigo-200 to-sky-200', 'bg-gradient-to-br from-violet-200 to-fuchsia-200', 'bg-gradient-to-br from-emerald-200 to-lime-200'][i]}`} />
               <div className="p-2">
-                <div className="h-2 w-3/4 rounded bg-slate-200" />
-                <div className="mt-1.5 h-2 w-1/2 rounded bg-slate-100" />
+                <div className="h-2 w-3/4 rounded bg-black/10" />
+                <div className="mt-1.5 h-2 w-1/2 rounded bg-black/[0.06]" />
                 <div className="mt-2 text-xs font-black text-[var(--theme-primary)]">${[42, 128, 79, 215][i]}</div>
               </div>
             </div>

@@ -472,7 +472,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 onClick={() => !readOnly && setShowIconModal(true)}
                 disabled={readOnly}
                 title={readOnly ? undefined : 'Click to change node icon and color'}
-                className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 bg-white transition-transform ${
+                className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 bg-surface-card transition-transform ${
                   !readOnly ? 'hover:scale-105 cursor-pointer' : ''
                 }`}
                 style={{
@@ -603,7 +603,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                     checked={openPanelOnClickNode}
                     onChange={toggleOpenPanelOnClickNode}
                     disabled={readOnly}
-                    className="accent-black rounded cursor-pointer disabled:cursor-not-allowed"
+                    className="accent-primary rounded cursor-pointer disabled:cursor-not-allowed"
                   />
                   <span>Open panel on click node</span>
                 </label>
@@ -626,7 +626,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 checked={reuseOverwriteGeneratedAssets}
                 onChange={toggleReuseOverwriteGeneratedAssets}
                 disabled={readOnly || !onUpdateReuseOverwriteGeneratedAssets}
-                className="accent-black rounded cursor-pointer disabled:cursor-not-allowed"
+                className="accent-primary rounded cursor-pointer disabled:cursor-not-allowed"
               />
               <span>Reuse/Overwrite Generated Assets</span>
             </label>

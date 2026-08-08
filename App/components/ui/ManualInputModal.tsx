@@ -62,7 +62,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
             }
           }}
           placeholder="Paste or write the input for this run..."
-          className="mt-4 min-h-[26rem] w-full resize-y rounded-lg border border-hairline bg-white p-4 font-mono text-xs leading-relaxed text-ink shadow-inner outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
+          className="mt-4 min-h-[26rem] w-full resize-y rounded-lg border border-hairline bg-surface-card p-4 font-mono text-xs leading-relaxed text-ink shadow-inner outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
         />
         <div className="mt-3 flex justify-end gap-2">
           <button
