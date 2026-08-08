@@ -34,7 +34,7 @@ export const renderLucideIcon = (iconName: string, className = "w-5 h-5") => {
 
 export const IconPicker: React.FC<IconPickerProps> = ({ selectedIcon, onSelectIcon }) => {
   return (
-    <div className="grid grid-cols-6 gap-2 p-2 bg-black border border-hairline-strong rounded-lg">
+    <div className="grid grid-cols-6 gap-2 p-2 border border-hairline-strong rounded-lg">
       {ICON_LIST.map((iconName) => {
         const isSelected = selectedIcon === iconName;
         return (

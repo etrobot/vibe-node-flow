@@ -218,7 +218,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
-            className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1.5 text-xs shrink-0"
+            className="rounded-md p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1.5 text-xs shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>

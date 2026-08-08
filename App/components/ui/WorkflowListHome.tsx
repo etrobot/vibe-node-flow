@@ -470,7 +470,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
       {/* Top Header */}
       <header className="h-14 px-6 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-black text-primary border flex items-center justify-center">
+          <div className="p-2 rounded-lg text-primary  ring-2 ring-primary/40 flex items-center justify-center">
             <Workflow className="w-5 h-5 text-white" />
           </div>
           <div>

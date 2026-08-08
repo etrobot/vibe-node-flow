@@ -79,7 +79,7 @@ function DemoUiEmbed({item, localTime}: ClipTypeRendererProps) {
   }, [item.demoUi?.clipIndex, item.demoUi?.itemIndex, localTime]);
 
   if (!url) {
-    return <div className="absolute inset-0 flex items-center justify-center bg-black text-red-300">Demo UI URL is missing.</div>;
+    return <div className="absolute inset-0 flex items-center justify-center text-red-300">Demo UI URL is missing.</div>;
   }
 
   return (
@@ -1626,7 +1626,7 @@ function XProfile({item, localTime}: ClipTypeRendererProps) {
             <div className="relative px-5 pb-3 border-b border-white/10">
               <div
                 style={enterStyle(localTime - 0.15, {opacity: 0, scale: 0.78, y: 12}, 0.4)}
-                className="absolute -top-10 left-5 w-20 h-20 rounded-2xl bg-black p-1 shadow-2xl"
+                className="absolute -top-10 left-5 w-20 h-20 rounded-2xl p-1 shadow-2xl"
               >
                 <div className="w-full h-full rounded-[18px] bg-gradient-to-br from-[var(--theme-primary)] via-[var(--theme-secondary)] to-[var(--theme-accent)] flex items-center justify-center text-3xl font-black italic">
                   FL
@@ -1897,8 +1897,8 @@ function ElementGrowth({clip, item, localTime}: ClipTypeRendererProps) {
           onClick={() => setManualTriggerAt((current) => current ?? localTime)}
           className={`px-8 py-5 md:px-10 md:py-6 rounded-3xl border flex flex-col items-center justify-center gap-3 backdrop-blur-xl transition-colors duration-300 cursor-pointer ${
             isTriggered
-              ? 'bg-black border-[var(--theme-primary)]'
-              : 'bg-black border-white/20 hover:border-white/45 hover:bg-zinc-900'
+              ? 'border-[var(--theme-primary)]'
+              : 'border-white/20 hover:border-white/45 hover:bg-zinc-900'
           }`}
           style={{
             transform: `scale(${buttonPulse})`,

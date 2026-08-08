@@ -265,7 +265,7 @@ function DirectPlayerRenderer() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black overflow-hidden" data-render-root="player">
+    <div className="fixed inset-0 overflow-hidden" data-render-root="player">
       <div className="absolute inset-0 overflow-hidden">
         <SceneLayers
           clips={clips}

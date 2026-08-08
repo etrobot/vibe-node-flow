@@ -373,7 +373,7 @@ export const InteractivePlayer = ({
 
   if (document.clips.length === 0 || totalDuration <= 0) {
     return (
-      <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-hairline bg-black text-sm text-muted">
+      <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-hairline text-sm text-muted">
         No clips available for preview.
       </div>
     );
@@ -390,7 +390,7 @@ export const InteractivePlayer = ({
       {audioSrc ? <audio ref={audioRef} preload="auto" src={audioSrc} aria-label="Video narration" className="hidden" /> : null}
       <div
         ref={previewViewportRef}
-        className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-xl bg-black shadow-2xl ring-1 ring-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-accent)]"
+        className="group relative aspect-video w-full cursor-pointer overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-accent)]"
         role="button"
         tabIndex={0}
         aria-label={isPlaying ? 'Pause video preview' : 'Play video preview'}

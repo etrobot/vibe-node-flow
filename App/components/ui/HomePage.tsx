@@ -59,7 +59,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Shared Header with Tabs */}
       <header className="h-14 px-3 sm:px-5 lg:px-7 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
         <div className="flex items-center gap-2 sm:gap-4">
-          <div className="p-2 rounded-lg bg-black text-primary border flex items-center justify-center shrink-0">
+          <div className="p-2 rounded-lg text-primary ring-2 ring-primary/40 flex items-center justify-center shrink-0">
             <Workflow className="w-5 h-5" />
           </div>
           <div className="flex items-center gap-1 bg-surface-card rounded-lg p-1 border border-hairline">

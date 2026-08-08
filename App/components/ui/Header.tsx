@@ -75,11 +75,10 @@ export const Header: React.FC<HeaderProps> = ({
           {onBackToHome && (
             <button
               onClick={onBackToHome}
-              className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1 text-xs shrink-0 px-2 sm:px-4"
+              className="rounded-md p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1 text-xs shrink-0"
               title="Back to workflow list"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back</span>
             </button>
           )}
 

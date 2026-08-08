@@ -555,7 +555,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
           d={pathD}
           fill="none"
           stroke={strokeColor}
-          strokeWidth={2.5}
+          strokeWidth={1.5}
           strokeDasharray="6 6"
           strokeLinecap="round"
           className={`transition-all duration-300 ${
@@ -842,9 +842,9 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
                   {/* Clean Square Icon Tile */}
                   <div
-                    className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-200 bg-surface-card shadow-2xs ${
+                    className={`w-14 h-14 border rounded-2xl flex items-center justify-center transition-all duration-200 bg-surface-card shadow-2xs ${
                       isSelected
-                        ? 'border-primary ring-2 ring-primary/40 z-30'
+                        ? 'border-primary ring-1 ring-primary z-30'
                         : node.status === 'running'
                         ? 'border-timeline-done ring-2 ring-timeline-done/20 animate-pulse z-30'
                         : node.status === 'success'
@@ -853,7 +853,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                         ? 'border-semantic-warning hover:border-semantic-warning/80'
                         : node.status === 'error'
                         ? 'border-semantic-error hover:border-semantic-error/80'
-                        : 'hover:ring-1 border'
+                        : 'hover:ring-1'
                     }`}
                     style={{
                       backgroundColor: `${node.color || nodeModule.color}12`,
@@ -870,7 +870,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                     </div>
                   )}
                   {node.status === 'success' && (
-                    <div className="absolute -top-1.5 -right-1.5 bg-timeline-grep text-ink rounded-full p-0.5 z-40">
+                    <div className="absolute -top-1.5 -right-1.5 bg-timeline-grep text-white rounded-full p-0.5 z-40">
                       <CheckCircle2 className="w-3.5 h-3.5" />
                     </div>
                   )}

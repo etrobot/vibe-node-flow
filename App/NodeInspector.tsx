@@ -596,7 +596,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowFullPanelModal(true)}
-                  className="text-xs border border-gray-300 rounded-md px-2 py-1 flex items-center gap-1 font-medium cursor-pointer"
+                  className="text-xs border border rounded-md px-2 py-1 flex items-center gap-1 font-medium cursor-pointer"
                 >
                   <span>open custom node panel</span>
                   <ExternalLink className="w-3 h-3" />
