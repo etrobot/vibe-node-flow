@@ -312,22 +312,22 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   // JSON-looking strings are still pretty-printed as JSON.
   const renderValue = (value: any): React.ReactNode => {
     if (value === null || value === undefined) {
-      return <span className="text-slate-500">{String(value)}</span>;
+      return <span className="text-muted">{String(value)}</span>;
     }
     if (typeof value === 'string') {
       const result = tryParseJson(value);
       if (result.isJson) {
         return (
-          <pre className="whitespace-pre-wrap break-words text-slate-900 m-0">
+          <pre className="whitespace-pre-wrap break-words text-ink m-0">
             {JSON.stringify(deepParseJson(result.data), null, 2)}
           </pre>
         );
       }
       // Plain text: preserve newlines and quotes as-is, no escaping
-      return <div className="whitespace-pre-wrap break-words text-slate-800">{value}</div>;
+      return <div className="whitespace-pre-wrap break-words text-ink">{value}</div>;
     }
     if (Array.isArray(value)) {
-      if (value.length === 0) return <span className="text-slate-500">[]</span>;
+      if (value.length === 0) return <span className="text-muted">[]</span>;
       return (
         <div>
           {value.map((item, i) => (
@@ -340,12 +340,12 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
     }
     if (typeof value === 'object') {
       const entries = Object.entries(value);
-      if (entries.length === 0) return <span className="text-slate-500">{'{}'}</span>;
+      if (entries.length === 0) return <span className="text-muted">{'{}'}</span>;
       return (
         <div>
           {entries.map(([key, val]) => (
             <div key={key} className="mb-2 last:mb-0">
-              <div className="text-slate-500 font-semibold text-[10px] uppercase tracking-wide mb-0.5">
+              <div className="text-muted font-semibold text-[10px] uppercase tracking-wide mb-0.5">
                 {key}
               </div>
               <div className="ml-2 border-l border-hairline-soft pl-2">
@@ -357,7 +357,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       );
     }
     // number / boolean / bigint
-    return <span className="text-slate-800">{String(value)}</span>;
+    return <span className="text-ink">{String(value)}</span>;
   };
 
   // Render content with automatic JSON detection. Arrays render each element on its
@@ -366,7 +366,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   const renderContent = (content: any) => {
     if (Array.isArray(content)) {
       if (content.length === 0) {
-        return <div className="whitespace-pre-wrap break-words text-slate-800">(empty array)</div>;
+        return <div className="whitespace-pre-wrap break-words text-ink">(empty array)</div>;
       }
       return (
         <div>
