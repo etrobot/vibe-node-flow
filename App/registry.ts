@@ -13,7 +13,7 @@ const missingNodeModule: NodeModule = {
   description: 'This node extension is not installed or failed to load.',
   icon: 'Puzzle',
   color: '#64748b',
-  badge: 'Missing plugin',
+  badge: 'Missing node',
   availableInMenu: false,
   createConfig: () => ({}),
 };
