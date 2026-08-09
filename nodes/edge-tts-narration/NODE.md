@@ -1,3 +1,11 @@
+```mermaid
+flowchart LR
+  Story["Storyboard / manifest\nspeech + anchors"] --> TTS["edge-tts-narration\nEdge TTS synthesis"]
+  TTS --> MP3["clip-NN.mp3"]
+  TTS --> Timeline["timeline + word boundaries"]
+  TTS -->|"applyTiming"| Chapters["chapter-N.json durations"]
+```
+
 # Edge TTS Narration
 
 ## Design

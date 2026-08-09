@@ -1,3 +1,10 @@
+```mermaid
+flowchart LR
+  Brief["Upstream brief(s)"] --> CS["clip-storyboard\ngenerate · validate · repair"]
+  Config["slug · language · timingMode"] --> CS
+  CS --> JSON["Storyboard JSON\nclips · anchors · global-components"]
+```
+
 # Clip Storyboard
 
 ## Design

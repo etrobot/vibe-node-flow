@@ -1,12 +1,88 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, X } from 'lucide-react';
+import mermaid from 'mermaid';
 
 interface NodeDocModalProps {
   nodeTitle: string;
   nodeType: string;
   markdown: string;
   onClose: () => void;
+}
+
+let mermaidReady = false;
+
+function ensureMermaid() {
+  if (mermaidReady) return;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'neutral',
+    securityLevel: 'strict',
+  });
+  mermaidReady = true;
+}
+
+function MermaidBlock({ source }: { source: string }) {
+  const reactId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const chart = source.trim();
+    if (!chart) return undefined;
+
+    const renderChart = async () => {
+      try {
+        ensureMermaid();
+        const renderId = `node-doc-mermaid-${reactId.replace(/:/g, '')}`;
+        const { svg } = await mermaid.render(renderId, chart);
+        if (cancelled || !containerRef.current) return;
+        containerRef.current.innerHTML = svg;
+        setError(null);
+      } catch (err) {
+        console.error('[NodeDocModal] mermaid render failed:', err);
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      }
+    };
+
+    void renderChart();
+    return () => {
+      cancelled = true;
+    };
+  }, [reactId, source]);
+
+  if (error) {
+    return (
+      <pre className="overflow-x-auto rounded-lg border border-hairline-soft bg-surface-canvas-soft p-3 font-mono text-[11px] leading-relaxed text-ink">
+        {source}
+      </pre>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="overflow-x-auto rounded-lg border border-hairline-soft bg-surface-canvas-soft p-3 [&_svg]:mx-auto"
+    />
+  );
+}
+
+function CodeBlock({ language, source }: { language: string; source: string }) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-hairline-soft bg-surface-canvas-soft">
+      {language ? (
+        <div className="border-b border-hairline-soft px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-muted">
+          {language}
+        </div>
+      ) : null}
+      <pre className="overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-ink">
+        <code>{source}</code>
+      </pre>
+    </div>
+  );
 }
 
 function renderInlineMarkdown(text: string): React.ReactNode[] {
@@ -57,8 +133,30 @@ function SimpleMarkdown({ source }: { source: string }) {
     listItems = [];
   };
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
     const trimmed = line.trim();
+
+    const fenceMatch = trimmed.match(/^```(\w+)?$/);
+    if (fenceMatch) {
+      flushList();
+      flushParagraph();
+      const language = fenceMatch[1] ?? '';
+      const codeLines: string[] = [];
+      lineIndex += 1;
+      while (lineIndex < lines.length && !lines[lineIndex].trim().startsWith('```')) {
+        codeLines.push(lines[lineIndex]);
+        lineIndex += 1;
+      }
+      const code = codeLines.join('\n');
+      if (language === 'mermaid') {
+        blocks.push(<MermaidBlock key={`mermaid-${blocks.length}`} source={code} />);
+      } else {
+        blocks.push(<CodeBlock key={`code-${blocks.length}`} language={language} source={code} />);
+      }
+      continue;
+    }
+
     if (!trimmed) {
       flushList();
       flushParagraph();

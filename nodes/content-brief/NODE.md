@@ -1,3 +1,10 @@
+```mermaid
+flowchart LR
+  Research["Upstream research"] --> CB["content-brief\nvalidate & normalize"]
+  Editor["Editor fields"] --> CB
+  CB --> Brief["Markdown brief"]
+```
+
 # Content Brief
 
 ## Design

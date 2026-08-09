@@ -1,3 +1,10 @@
+```mermaid
+flowchart LR
+  Doc["Video JSON document"] --> UI["ui-html-generation\nper-target LLM"]
+  Brief["Content brief"] --> UI
+  UI --> Manifest["Demo UI HTML manifest"]
+```
+
 # UI HTML Generation
 
 This node is the LLM boundary for Demo UI surfaces. It selects at most `maxTargets` Demo UI items (default 2, preferring one input and one preview) and makes an independent model request for each selected target. Unselected `ui-*` items keep the built-in React clip renderers. A repair request contains only that target's previous response and validation errors; another target never shares model conversation state.

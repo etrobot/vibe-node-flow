@@ -19,6 +19,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
+    "mermaid": "^11.16.1",
     "motion": "^12.23.24",
     "node-cron": "^4.6.0",
     "playwright-core": "^1.62.1",

@@ -1,3 +1,11 @@
+```mermaid
+flowchart LR
+  Narration["Narration manifest\nMP3s + timeline"] --> Render["app-video-render\nvalidate · render.json"]
+  Story["Storyboard / Demo UI"] --> Render
+  Render --> Script["render-video.sh"]
+  Script --> MP4["video.mp4"]
+```
+
 # App Video Render
 
 ## Design
