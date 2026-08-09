@@ -781,30 +781,16 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       {/* Fullscreen Custom Node Panel Modal */}
       {showFullPanelModal && node && activeModule && createPortal(
         <div className="fixed inset-0 z-[70] flex flex-col bg-black/50">
-          <header className="flex items-center justify-between gap-3 px-4 py-1.5 md:px-6">
-            <div className="flex items-center gap-2 min-w-0">
-              <span
-                className="shrink-0"
-                style={{ color: node.color || activeModule.color }}
-              >
-                {renderLucideIcon(node.icon, 'w-4 h-4')}
-              </span>
-              <h2 className="truncate text-sm font-semibold text-white">{node.title}</h2>
-            </div>
+          <button
+            type="button"
+            onClick={() => setShowFullPanelModal(false)}
+            title="Close panel (Esc)"
+            className="absolute top-3 right-3 md:top-4 md:right-4 z-10 grid place-items-center w-7 h-7 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowFullPanelModal(false)}
-                title="Close panel (Esc)"
-                className="grid place-items-center w-7 h-7 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </header>
-
-          <div className="flex-1 min-h-0 overflow-auto flex items-center justify-center p-4 md:p-8">
+          <div className="flex-1 min-h-0 overflow-auto flex items-start justify-center p-4 md:p-8 pt-12 md:pt-14">
             <ErrorBoundary label="NodeRenderPageModal">
               {activeModule.CustomView ? (
                 <div className="w-full max-w-4xl bg-surface-canvas p-6 rounded-2xl border border-hairline shadow-2xl text-ink">
