@@ -8,7 +8,7 @@ A workflow is the composition layer, not the home of business logic. A node is a
 
 ### 1. Node design comes first
 
-Workflows should start with three nodes: data acquisition, data processing, and formatted output; if this basic three-node flow can solve the problem, there is no need to add complexity. For every requirement, ask "What node capability should exist?" before "How should the nodes be connected?" 
+Workflows should start with a three-node sequence: data acquisition, data processing, and formatted output; if this basic three-node flow can solve the problem, there is no need to add complexity. For every requirement, ask "What node capability should exist?" before "How should the nodes be connected?" 
 
 Before a node enters a workflow it must have one clear responsibility, readable input/output/side-effect contracts, validation of configuration, input, and output, actionable success/warning/error diagnostics, and core logic that does not depend on one specific graph. This keeps the capability independently testable and reusable, and keeps domain rules out of edges, canvas state, and host code.
 
@@ -23,7 +23,13 @@ Node count is not capability count. Split only at a real boundary:
 
 Not sufficient reasons: shortening a source file, isolating one prompt, separating validation from repair within the same stage, or wrapping a trivial format conversion. Keep one generation stage's prompt, validator, repair instructions, and quality thresholds together.
 
-### 3. Every node owns its input validation
+### 3. Prefer linear, sequential graphs
+
+The engine can run independent branches in parallel, but **design for a linear chain by default**: `A -> B -> C`, one upstream feeding one downstream. Linear graphs are easier to reason about, debug from run history, and recover when a step fails.
+
+Add parallelism only when there is a real independent boundary — different owners, runtimes, or audit surfaces — not for convenience. When a workflow must fan out, keep joins explicit and re-validate every receiving node after the merge.
+
+### 4. Every node owns its input validation
 
 Data moves `upstream output -> edge -> receiving node`, and the receiving node is the sole authority on whether that input is acceptable — not the host, not a central schema registry. Validate before expensive work, covering:
 
@@ -41,7 +47,7 @@ Data moves `upstream output -> edge -> receiving node`, and the receiving node i
 
 **Raw LLM nodes are forbidden.** A generative node never passes unvalidated model output downstream: it owns parsing, deterministic validation, and a bounded repair loop, and reports the full issue list and attempt log when repair is exhausted.
 
-### 4. Every node has two application-grade capabilities
+### 5. Every node has two application-grade capabilities
 
 | Capability | Requirement |
 | --- | --- |
@@ -57,8 +63,8 @@ Both modes share the same domain core and validators; only the boundary adapter 
 3. **Implement the node core.** Parsing, domain logic, input/output validation, and diagnostics — all inside the node directory.
 4. **Prove standalone execution first.** Valid, invalid, empty, and boundary input, without a complete workflow.
 5. **Add the host adapters.** The `server.ts` plugin and the `client.tsx` editing/observation UI. The host only orchestrates and persists.
-6. **Compose the workflow.** Dependencies, parallel branches, and joins — only after node contracts are stable.
-7. **Validate the graph.** Cycles, installed types, node count, input reachability, failed branches, resource lifecycles.
+6. **Compose the workflow.** Start with a linear chain; add parallel branches and joins only when a real boundary requires them — and only after node contracts are stable.
+7. **Validate the graph.** After every node add, delete, or config/type change, re-check the full edge set before saving or running: remove dangling edges, confirm each `fromNodeId`/`toNodeId` still exists, verify upstream output still matches downstream input contracts, and check cycles, installed types, node count, input reachability, failed branches, and resource lifecycles.
 
 ## Node Design
 
@@ -224,7 +230,9 @@ A minimal valid graph definition:
 
 ### Execution semantics
 
-A node becomes ready after all direct parents finish, whatever their status. All ready nodes in the same dependency wave run concurrently.
+A node becomes ready after all direct parents finish, whatever their status. The scheduler may run all ready nodes in the same dependency wave concurrently, but **workflow authors should still prefer linear topologies** so each step has a single upstream output to inspect and failures stay localized.
+
+When building or changing a workflow, run and verify **one node at a time** along the chain before relying on end-to-end execution. Prove `A`, then `A -> B`, then `A -> B -> C`. Do not add or rewire several nodes and run the full graph until each new link has passed on its own.
 
 | Status | Meaning |
 | --- | --- |
@@ -233,6 +241,19 @@ A node becomes ready after all direct parents finish, whatever their status. All
 | `error` | Execution or infrastructure failed. |
 
 A failed branch never cancels sibling branches — this supports one-to-many fan-out without putting conditions on edges. The workflow stops as failed only when a wave contains no `success` node. Cyclic graphs are rejected before execution. The editor's **Stop** action terminates the server-side Worker; disconnecting the browser does not stop a run.
+
+### Graph maintenance on node changes
+
+**Every add, delete, or material change to a node must trigger a full edge review.** Node edits and edge edits are one operation, not two.
+
+| Change | Re-check |
+| --- | --- |
+| Add node | Which upstream should feed it? Which downstream should consume it? Are contracts compatible? |
+| Delete node | Remove every edge touching that `id`; confirm no downstream node lost its only input. |
+| Change node `type`, `config`, or output contract | Re-read every incoming and outgoing edge; an old link may now be invalid even if IDs are unchanged. |
+| Move or rename for clarity only | Edges are unchanged, but still confirm IDs in `edges[]` match live `nodes[]`. |
+
+Before save or run, walk the graph in dependency order and confirm each edge still makes sense. Orphan edges, duplicate links, and connections left over from a replaced node are common failure sources — treat them as blocking defects, not cosmetic cleanup.
 
 ### Edge data protocol
 
@@ -254,6 +275,8 @@ The host does not parse this content. The receiving node merges, parses, validat
 - **Lane is required.** The host normalizes it to a canvas column and snaps `x/y` on load and save.
 - **Schedules have a fixed shape.** `{ enabled, cron, timezone }`; cron is validated with node-cron, timezone must be a valid IANA identifier, and overlapping scheduled runs of the same workflow are skipped.
 - **Edges depend on real contracts.** Connect nodes only after their contracts are stable, and never use the graph to hide missing node input validation.
+- **Re-validate edges after every node change.** Adding, removing, or materially editing a node is incomplete until dangling edges are removed, required edges are restored, and each link is checked against current contracts.
+- **Prefer linear execution during development.** Extend the chain one node at a time and run after each addition; avoid batching several new nodes or parallel branches before the previous link is proven.
 
 ### A lean example
 
@@ -265,13 +288,13 @@ content-brief -> clip-storyboard
                    \-> ui-html-generation --+-> app-video-render
 ```
 
-| Type | Independent responsibility |
-| --- | --- |
-| [`content-brief`](../nodes/content-brief/NODE.md) | Validate the editorial contract and evidence boundary without a model call. |
-| [`clip-storyboard`](../nodes/clip-storyboard/NODE.md) | Convert a brief into validated clip JSON, reusable structures, and narration anchors. |
-| [`ui-html-generation`](../nodes/ui-html-generation/NODE.md) | Generate and independently validate offline HTML for each Demo UI target. |
-| [`edge-tts-narration`](../nodes/edge-tts-narration/NODE.md) | Convert clip narration to MP3 and measure the shot timeline. |
-| [`app-video-render`](../nodes/app-video-render/NODE.md) | Join timeline, narration, and Demo UI into preview and MP4 preparation; ships `render-video.sh`. |
+| Node | Lane | Independent responsibility |
+| --- | --- | --- |
+| [`content-brief`](../nodes/content-brief/NODE.md) | Script Copy | Validate the editorial contract and evidence boundary without a model call. |
+| [`clip-storyboard`](../nodes/clip-storyboard/NODE.md) | Storyboard JSON | Convert a brief into validated clip JSON, reusable structures, and narration anchors. |
+| [`edge-tts-narration`](../nodes/edge-tts-narration/NODE.md) | Parallel Assets | Convert clip narration to MP3 and measure the shot timeline. |
+| [`ui-html-generation`](../nodes/ui-html-generation/NODE.md) | Parallel Assets | Generate and independently validate offline HTML for each Demo UI target. |
+| [`app-video-render`](../nodes/app-video-render/NODE.md) | Video Preview | Join timeline, narration, and Demo UI into preview and MP4 preparation; ships `render-video.sh`. |
 
 `clip-storyboard` invents no duration values and generates no HTML — it marks visual cuts with `**anchors**` in narration. `edge-tts-narration` resolves those anchors against real word boundaries, and `ui-html-generation` validates each offline HTML document independently. Reusable structures such as process strips and comparison tables are declared once and referenced by clips instead of being regenerated per node.
 
@@ -285,5 +308,7 @@ The MP4 path requires local `ffmpeg` and a Chromium-family browser. `EDGE_TTS_PR
 4. The workflow expresses only dependencies and parallelism — no business rules in edges or host code.
 5. The same result cannot be expressed with fewer nodes without losing a real audit or execution boundary.
 6. Run history contains enough detail to diagnose warnings, errors, retries, and generated assets.
+7. After every node add, delete, or material edit, all edges were re-checked: no dangling links, every downstream node still has valid upstream input, and contracts still match.
+8. The graph was extended and verified linearly — each new node was run in sequence along the chain before the full workflow was trusted.
 
 If a node cannot pass standalone execution and input validation, workflow design has not started yet.
