@@ -310,7 +310,7 @@ test('unsupported extra upstream is accepted and records every skipped node id',
 });
 
 test('execute keeps validation advisories in output without warning the workflow', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vibe-render-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'genno-render-'));
   try {
     const untimedDocument = {
       slug: 'forge-app-launch',
@@ -340,7 +340,7 @@ test('execute keeps validation advisories in output without warning the workflow
 });
 
 test('execute accepts the timed anchor document emitted by narration', async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'vibe-render-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'genno-render-'));
   try {
     const result = await executeAppVideoRender(
       renderContext(root, {

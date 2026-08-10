@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-declare module 'virtual:vibenodeflow-node-modules' {
+declare module 'virtual:genno-node-modules' {
   import type { NodeModule } from './types.node-module';
   interface ExternalNodeModule {
     dirName: string;

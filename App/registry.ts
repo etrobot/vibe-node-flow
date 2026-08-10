@@ -1,6 +1,6 @@
 import type { NodeType } from './types';
 import type { NodeModule } from './types.node-module';
-import externalNodeModules from 'virtual:vibenodeflow-node-modules';
+import externalNodeModules from 'virtual:genno-node-modules';
 import React from 'react';
 
 // The single source of truth for node types. Add a module here and it appears in

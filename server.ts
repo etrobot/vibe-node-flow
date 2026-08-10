@@ -38,7 +38,7 @@ async function startServer() {
   }
 
   const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`VibeNodeFlow server running on http://localhost:${PORT}`);
+    console.log(`Genno server running on http://localhost:${PORT}`);
   });
 
   let shuttingDown = false;
@@ -55,6 +55,6 @@ async function startServer() {
 }
 
 startServer().catch((error) => {
-  console.error("Failed to start VibeNodeFlow server:", error);
+  console.error("Failed to start Genno server:", error);
   process.exitCode = 1;
 });

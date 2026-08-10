@@ -26,7 +26,7 @@ test('macaron colors are stable and built-in tags use distinct presets', () => {
 });
 
 test('storage upgrades legacy workflows with the default tag catalog and persists node tags', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vibenodeflow-tags-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'genno-tags-'));
   const workflowsDir = path.join(root, 'workflows');
   const workflowDir = path.join(workflowsDir, 'legacy-tags');
   const dataDir = path.join(root, 'data');
@@ -73,8 +73,8 @@ test('storage upgrades legacy workflows with the default tag catalog and persist
         encoding: 'utf8',
         env: {
           ...process.env,
-          VIBE_NODE_FLOW_DIR: workflowsDir,
-          VIBE_NODE_FLOW_DATA_DIR: dataDir,
+          GENNO_DIR: workflowsDir,
+          GENNO_DATA_DIR: dataDir,
         },
       },
     );

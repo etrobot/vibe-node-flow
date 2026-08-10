@@ -1,6 +1,6 @@
 # Node-First Node and Workflow Design
 
-The design reference for VibeNodeFlow. The order is fixed: **build complete, validated, independently useful nodes first; compose them into workflows second.**
+The design reference for Genno. The order is fixed: **build complete, validated, independently useful nodes first; compose them into workflows second.**
 
 A workflow is the composition layer, not the home of business logic. A node is a capability unit, not a placeholder on a canvas.
 

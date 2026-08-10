@@ -1,4 +1,4 @@
-# VibeNodeFlow
+# Genno
 
 A small visual workflow framework for AI applications. A workflow is a DAG of source-code nodes. The server owns execution, persistence, scheduling, and diagnostics.
 
@@ -6,7 +6,7 @@ A small visual workflow framework for AI applications. A workflow is a DAG of so
 
 ## Design
 
-VibeNodeFlow follows a node-first design: first build a small set of complete, independently useful and self-validating nodes; only then compose them into a workflow. A node must be usable both as an independent application capability and as a composable DAG node. The host orchestrates discovery, graph execution, persistence and diagnostics; edges carry data only.
+Genno follows a node-first design: first build a small set of complete, independently useful and self-validating nodes; only then compose them into a workflow. A node must be usable both as an independent application capability and as a composable DAG node. The host orchestrates discovery, graph execution, persistence and diagnostics; edges carry data only.
 
 The full contract and design rules are kept in one dedicated document:
 
@@ -35,11 +35,11 @@ The model client reads `BASE_URL`, `API_KEY`, and `LLM_MODEL` from `.env`. Crede
 pnpm run pack
 ```
 
-Produces `dist/vibe-node-flow`, a single binary bundling server and frontend, built with Node.js SEA. It defaults to port **39741** (uncommon, to avoid conflicts):
+Produces `dist/genno`, a single binary bundling server and frontend, built with Node.js SEA. It defaults to port **39741** (uncommon, to avoid conflicts):
 
 ```sh
-./dist/vibe-node-flow                # listens on 39741
-PORT=8080 ./dist/vibe-node-flow      # listens on 8080
+./dist/genno                # listens on 39741
+PORT=8080 ./dist/genno      # listens on 8080
 ```
 
 Prerequisites: Node.js ≥ 20 for `--experimental-sea-config`. On macOS, `codesign` re-signs the binary after blob injection.

@@ -5,12 +5,12 @@ import react from '@vitejs/plugin-react';
 import {defineConfig} from 'vite';
 import { discoverNodePlugins } from './server/plugin-discovery';
 
-const VIRTUAL_ID = 'virtual:vibenodeflow-node-modules';
+const VIRTUAL_ID = 'virtual:genno-node-modules';
 const RESOLVED_ID = '\0' + VIRTUAL_ID;
 
 function nodePluginVite() {
   return {
-    name: 'vibenodeflow-node-plugins',
+    name: 'genno-node-plugins',
     resolveId(id: string) {
       return id === VIRTUAL_ID ? RESOLVED_ID : undefined;
     },

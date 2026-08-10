@@ -1,5 +1,5 @@
 {
-  "name": "VibeNodeFlow",
+  "name": "Genno",
   "description": "A lightweight node-based workflow editor with LLM and JS script nodes, featuring drag-and-drop workflow visualizer, marching ants flow animation, and node details inspector.",
   "requestFramePermissions": [],
   "majorCapabilities": []

@@ -121,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="group/title flex items-center gap-1 sm:gap-1.5 cursor-pointer min-w-0"
                 >
                   <h1 className="font-medium text-xs sm:text-sm text-ink tracking-tight group-hover/title:text-primary transition-colors truncate max-w-[110px] sm:max-w-[240px]">
-                    {activeWorkflowName || 'VibeNodeFlow'}
+                    {activeWorkflowName || 'Genno'}
                   </h1>
                   <Edit3 className="w-3 h-3 text-muted opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
                 </div>

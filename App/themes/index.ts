@@ -54,10 +54,10 @@ export function applyTheme(id: string) {
     '--color-timeline-done': get('warning', '#c08532'),
   };
   for (const [key, value] of Object.entries(vars)) root.style.setProperty(key, value);
-  localStorage.setItem('vibenodeflow-theme', selected.id);
+  localStorage.setItem('genno-theme', selected.id);
 }
 
 export function getThemeId() {
-  const stored = localStorage.getItem('vibenodeflow-theme');
+  const stored = localStorage.getItem('genno-theme');
   return stored && themes[stored] ? stored : DEFAULT_THEME_ID;
 }

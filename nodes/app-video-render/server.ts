@@ -300,7 +300,7 @@ async function preflight(
   for (const dependency of ['playwright-core']) {
     if (!resolvePackageDir(process.cwd(), dependency)) {
       problems.push(
-        `${dependency} is not installed in vibe-node-flow; run npm install ${dependency}`,
+        `${dependency} is not installed in Genno; run npm install ${dependency}`,
       );
     }
   }
@@ -402,7 +402,7 @@ export async function executeAppVideoRender(
   const finalPath = path.join(outputDir, 'video.mp4');
 
   const logs: string[] = [
-    `Rendering project ${slug} natively in vibe-node-flow.`,
+    `Rendering project ${slug} natively in Genno.`,
     ...notes.map((note) => `[Preflight] ${note}`),
     ...validationWarnings.map((warning) => `[Warning] ${warning}`),
   ];

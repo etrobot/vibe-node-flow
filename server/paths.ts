@@ -2,14 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 // Root data directory (git-ignored). Runtime assets, DB, prompts live here.
-export const DATA_DIR = process.env.VIBE_NODE_FLOW_DATA_DIR?.trim()
-  ? path.resolve(process.env.VIBE_NODE_FLOW_DATA_DIR.trim())
+export const DATA_DIR = process.env.GENNO_DATA_DIR?.trim()
+  ? path.resolve(process.env.GENNO_DATA_DIR.trim())
   : path.join(process.cwd(), "data");
 
 // Workflow definitions directory (git-syncable). Lives at project root so
 // data/ can be entirely git-ignored.
-export const WORKFLOWS_DIR = process.env.VIBE_NODE_FLOW_DIR?.trim()
-  ? path.resolve(process.env.VIBE_NODE_FLOW_DIR.trim())
+export const WORKFLOWS_DIR = process.env.GENNO_DIR?.trim()
+  ? path.resolve(process.env.GENNO_DIR.trim())
   : path.join(process.cwd(), "workflows");
 export const ASSETS_DIR = path.join(DATA_DIR, "assets");
 export const DB_PATH = path.join(DATA_DIR, "studio.db");
