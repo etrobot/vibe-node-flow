@@ -574,7 +574,15 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             }}
           >
             <circle r={9} fill="#ffffff" stroke="#cfcdc4" strokeWidth={1} />
-            <X className="w-3 h-3 -translate-x-1.5 -translate-y-1.5 text-muted hover:text-semantic-error transition-colors" />
+            {/* Lucide renders a nested <svg>; CSS -translate is unreliable under canvas zoom.
+                Use SVG x/y so the 12×12 icon stays centered on the circle (same origin as label). */}
+            <X
+              width={12}
+              height={12}
+              x={-6}
+              y={-6}
+              className="text-muted hover:text-semantic-error transition-colors"
+            />
           </g>
         )}
       </g>
