@@ -13,7 +13,7 @@ import type {
 import type { NodeTextInput } from "../lib/node-io";
 import * as storage from "./storage";
 import * as store from "./db";
-import { topoOrder, type ExecutionResult } from "./engine";
+import { assertNoOverlappingEdges, topoOrder, type ExecutionResult } from "./engine";
 import { getNodePlugin } from "./plugins";
 import { assertFlowNodeLimit } from "./workflow-policy";
 import { makeRunId } from "./run-id";
@@ -274,6 +274,7 @@ export function startWorkflowRun(
   if (!workflow) throw new Error("Workflow not found");
   storage.ensureWorkflowAssets(workflowId);
   assertFlowNodeLimit(workflow.nodes);
+  assertNoOverlappingEdges(workflow.nodes, workflow.edges);
   assertWorkflowPluginsAvailable(workflow);
   const job = new WorkflowRunJobImpl(workflow, trigger);
   jobs.set(job.id, job);

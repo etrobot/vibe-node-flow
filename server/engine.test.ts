@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { computeUpstreamInput, topoOrder, executeWorkflow } from "./engine";
+import { computeUpstreamInput, topoOrder, executeWorkflow, assertNoOverlappingEdges } from "./engine";
 import { combineNodeInputs } from "../lib/node-io";
 import type { FlowNode, FlowEdge, WorkflowItem } from "../App/types";
 
@@ -59,6 +59,89 @@ test("topoOrder throws error on cyclic dependency", () => {
   ];
 
   assert.throws(() => topoOrder(nodes, edges), /cyclic dependency/i);
+});
+
+test("assertNoOverlappingEdges allows linear chains and fan-out joins", () => {
+  const nodes: FlowNode[] = [
+    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
+    { ...flowNode("node-c", "content-brief", "C", 100), x: 600 },
+    { ...flowNode("node-d", "content-brief", "D", 200), x: 350 },
+  ];
+
+  assert.doesNotThrow(() => assertNoOverlappingEdges(nodes, [
+    { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
+    { id: "e2", fromNodeId: "node-b", toNodeId: "node-c" },
+  ]));
+
+  assert.doesNotThrow(() => assertNoOverlappingEdges(nodes, [
+    { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
+    { id: "e2", fromNodeId: "node-a", toNodeId: "node-d" },
+    { id: "e3", fromNodeId: "node-b", toNodeId: "node-c" },
+    { id: "e4", fromNodeId: "node-d", toNodeId: "node-c" },
+  ]));
+});
+
+test("assertNoOverlappingEdges rejects direct edge when a longer path exists", () => {
+  const nodes: FlowNode[] = [
+    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
+    { ...flowNode("node-c", "content-brief", "C", 100), x: 600 },
+  ];
+  const edges: FlowEdge[] = [
+    { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
+    { id: "e2", fromNodeId: "node-b", toNodeId: "node-c" },
+    { id: "e3", fromNodeId: "node-a", toNodeId: "node-c" },
+  ];
+
+  assert.throws(
+    () => assertNoOverlappingEdges(nodes, edges),
+    /overlapping connections.*A -> C.*A -> B -> C/i,
+  );
+});
+
+test("assertNoOverlappingEdges rejects duplicate edges between the same nodes", () => {
+  const nodes: FlowNode[] = [
+    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
+  ];
+  const edges: FlowEdge[] = [
+    { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
+    { id: "e2", fromNodeId: "node-a", toNodeId: "node-b" },
+  ];
+
+  assert.throws(
+    () => assertNoOverlappingEdges(nodes, edges),
+    /duplicate edges.*A.*B/i,
+  );
+});
+
+test("executeWorkflow rejects overlapping connections before running nodes", async () => {
+  const { loadNodePlugins } = await import("./plugins");
+  await loadNodePlugins(process.cwd(), { log: false });
+
+  const wf: WorkflowItem = {
+    id: "overlap-wf",
+    name: "Overlap workflow",
+    description: "",
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+    nodes: [
+      flowNode("a", "content-brief", "A", 0, testBrief("A")),
+      flowNode("b", "content-brief", "B", 100, testBrief("B")),
+      flowNode("c", "content-brief", "C", 200, testBrief("C")),
+    ],
+    edges: [
+      { id: "ab", fromNodeId: "a", toNodeId: "b" },
+      { id: "bc", fromNodeId: "b", toNodeId: "c" },
+      { id: "ac", fromNodeId: "a", toNodeId: "c" },
+    ],
+  };
+
+  await assert.rejects(
+    () => executeWorkflow(wf, () => undefined),
+    /overlapping connections/i,
+  );
 });
 
 test("upstream input is always keyed by upstream node id", () => {

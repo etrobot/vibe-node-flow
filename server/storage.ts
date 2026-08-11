@@ -15,6 +15,7 @@ import {
   workflowAssetRoot,
   workflowScheduleFile,
 } from "./paths";
+import { assertNoOverlappingEdges } from "./engine";
 import { assertFlowNodeLimit } from "./workflow-policy";
 import {
   DEFAULT_NODE_TAG_CATALOG,
@@ -248,6 +249,7 @@ function copyWorkflowStaticAssets(sourceId: string, targetId: string): void {
 // Persist a full workflow as graph data plus opaque extension configs.
 export function saveWorkflow(item: WorkflowItem): WorkflowItem {
   assertFlowNodeLimit(item.nodes);
+  assertNoOverlappingEdges(item.nodes, item.edges);
   ensureDataDirs();
   const dir = workflowDir(item.id);
   fs.mkdirSync(dir, { recursive: true });

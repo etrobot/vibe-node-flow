@@ -80,6 +80,85 @@ export function topoOrder(nodes: FlowNode[], edges: FlowEdge[]): string[] {
   return order;
 }
 
+function nodeLabel(nodes: FlowNode[], id: string): string {
+  return nodes.find((node) => node.id === id)?.title || id;
+}
+
+/**
+ * Find a path from `from` to `to` that does not use the direct edge
+ * `from -> to`. Returns node ids including both endpoints, or null.
+ */
+function findAlternatePath(
+  from: string,
+  to: string,
+  edges: FlowEdge[],
+): string[] | null {
+  const adj = new Map<string, string[]>();
+  for (const edge of edges) {
+    if (edge.fromNodeId === from && edge.toNodeId === to) continue;
+    if (!adj.has(edge.fromNodeId)) adj.set(edge.fromNodeId, []);
+    adj.get(edge.fromNodeId)!.push(edge.toNodeId);
+  }
+
+  const parent = new Map<string, string>();
+  const queue = [from];
+  const visited = new Set<string>([from]);
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    if (curr === to) {
+      const path: string[] = [];
+      let node: string | undefined = to;
+      while (node !== undefined) {
+        path.unshift(node);
+        node = parent.get(node);
+      }
+      return path;
+    }
+
+    for (const next of adj.get(curr) || []) {
+      if (visited.has(next)) continue;
+      visited.add(next);
+      parent.set(next, curr);
+      queue.push(next);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Reject graphs where a direct edge duplicates an existing multi-hop path,
+ * e.g. A -> C cannot coexist with A -> X -> C.
+ */
+export function assertNoOverlappingEdges(nodes: FlowNode[], edges: FlowEdge[]): void {
+  const nodeIds = new Set(nodes.map((node) => node.id));
+
+  const seenPairs = new Set<string>();
+  for (const edge of edges) {
+    if (!nodeIds.has(edge.fromNodeId) || !nodeIds.has(edge.toNodeId)) continue;
+
+    const pairKey = `${edge.fromNodeId}->${edge.toNodeId}`;
+    if (seenPairs.has(pairKey)) {
+      throw new Error(
+        `Workflow contains duplicate edges from ${nodeLabel(nodes, edge.fromNodeId)}`
+        + ` to ${nodeLabel(nodes, edge.toNodeId)}`,
+      );
+    }
+    seenPairs.add(pairKey);
+
+    const alternatePath = findAlternatePath(edge.fromNodeId, edge.toNodeId, edges);
+    if (alternatePath && alternatePath.length > 2) {
+      const pathLabel = alternatePath.map((id) => nodeLabel(nodes, id)).join(" -> ");
+      throw new Error(
+        `Workflow contains overlapping connections: direct edge`
+        + ` ${nodeLabel(nodes, edge.fromNodeId)} -> ${nodeLabel(nodes, edge.toNodeId)}`
+        + ` conflicts with path ${pathLabel}`,
+      );
+    }
+  }
+}
+
 export function computeUpstreamInput(
   nodeId: string,
   edges: FlowEdge[],
@@ -168,6 +247,7 @@ export async function executeWorkflow(
     + ` assetsDir=${assetsDir}`,
   );
   fs.mkdirSync(assetsDir, { recursive: true });
+  assertNoOverlappingEdges(wf.nodes, wf.edges);
   const order = topoOrder(wf.nodes, wf.edges);
   const outputsById: Record<string, string> = {};
   const outputsCombined: Record<string, string> = {}; // keyed by id AND title
