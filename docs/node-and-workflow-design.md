@@ -56,6 +56,24 @@ Data moves `upstream output -> edge -> receiving node`, and the receiving node i
 
 Both modes share the same domain core and validators; only the boundary adapter differs. Never maintain two business implementations. A capability with no useful meaning outside its parent node stays an internal module. Single-node run is the minimum standalone implementation; a fuller end-user application belongs in the node directory, never in host business logic.
 
+### 6. Persist shared content; keep edge output LLM-lean
+
+Edges are for **small, deliberate handoffs** — not for ferrying the same bulk payload through every hop. Anything several downstream nodes will read, or that an LLM would only dilute if re-serialized into prompts, belongs on disk under the run/asset paths the host already provides. Downstream nodes open the file (or a stable relative path) instead of re-receiving the full body on every edge.
+
+| Put on the edge (text) | Persist as a file / asset |
+| --- | --- |
+| Status, IDs, paths, counts, short summaries | Briefs, storyboards, HTML, media, long JSON, reusable structures |
+| Pointers a receiver can resolve in one look-up | Content reused by two or more nodes |
+| The minimum a next LLM call needs as *context* | Anything that would bloat prompts if copied hop-to-hop |
+
+Design rules:
+
+1. **One write, many reads.** If node B and node C both need the same artifact, A writes it once and returns path(s) + a short digest — never paste the full artifact into every downstream input.
+2. **Edge text stays sparse.** Prefer identifiers, file paths, acceptance flags, and one-line summaries. Receiving nodes load files and validate locally; they do not treat upstream edge text as a dump of the whole prior stage.
+3. **LLM-friendly by default.** Every generative node's output contract asks: "What is the smallest structured text a later model (or human) must see?" Drop narrative padding, duplicated schemas, and regenerated blobs that already live as assets. Compact, validated structure beats prose that restates file contents.
+4. **Pointers are part of the contract.** Document asset locations and naming in `NODE.md`. An edge that only says "see `chapter-1.json`" is valid when the path is stable and the receiver validates the file.
+5. **Do not use edges as a cache.** Re-transmitting large shared content "for convenience" creates prompt bloat, harder diffs in run history, and divergent copies. Files are the source of truth; edges announce what changed and where to find it.
+
 ## Design Order
 
 1. **Define the result.** What the user receives, and what makes it acceptable.
@@ -128,7 +146,7 @@ export default {
 };
 ```
 
-Structured values are serialized before crossing an edge. Prefer string outputs, and keep parsing and contract validation inside the receiving node.
+Structured values are serialized before crossing an edge. Prefer string outputs that stay small: paths, IDs, and short digests for shared artifacts; keep parsing and contract validation inside the receiving node. Large or multi-consumer bodies go to assets, not onto every edge (see principle 6).
 
 ### Validation order
 
@@ -267,6 +285,14 @@ Edges carry text in an object keyed by upstream node ID:
 
 The host does not parse this content. The receiving node merges, parses, validates, and interprets it.
 
+**Prefer paths over payloads.** Shared or multi-consumer content is written under run/asset directories; edge text should be lean pointers and summaries, not a second copy of the artifact. Example shape (illustrative):
+
+```text
+{ "storyboard-id": "ok\nassets: chapter-1.json, chapter-2.json\nclips: 8" }
+```
+
+Downstream nodes resolve those files from the run asset root, validate them, and only pull into an LLM context the slices that stage actually needs. Re-sending full chapter JSON on every edge violates principle 6.
+
 ### Constraints
 
 - **Node count is bounded.** Default maximum 10, configurable with `MAX_FLOW_NODES` in `.env`. Raising it requires a real capability boundary.
@@ -277,6 +303,7 @@ The host does not parse this content. The receiving node merges, parses, validat
 - **Edges depend on real contracts.** Connect nodes only after their contracts are stable, and never use the graph to hide missing node input validation.
 - **Re-validate edges after every node change.** Adding, removing, or materially editing a node is incomplete until dangling edges are removed, required edges are restored, and each link is checked against current contracts.
 - **Prefer linear execution during development.** Extend the chain one node at a time and run after each addition; avoid batching several new nodes or parallel branches before the previous link is proven.
+- **Shared content is file-backed.** Anything needed by more than one node is written once under run/asset paths; edges carry lean pointers, not repeated bulk payloads.
 
 ### A lean example
 
@@ -296,7 +323,7 @@ content-brief -> clip-storyboard
 | [`ui-html-generation`](../nodes/ui-html-generation/NODE.md) | Parallel Assets | Generate and independently validate offline HTML for each Demo UI target. |
 | [`app-video-render`](../nodes/app-video-render/NODE.md) | Video Preview | Join timeline, narration, and Demo UI into preview and MP4 preparation; ships `render-video.sh`. |
 
-`clip-storyboard` invents no duration values and generates no HTML — it marks visual cuts with `**anchors**` in narration. `edge-tts-narration` resolves those anchors against real word boundaries, and `ui-html-generation` validates each offline HTML document independently. Reusable structures such as process strips and comparison tables are declared once and referenced by clips instead of being regenerated per node.
+`clip-storyboard` invents no duration values and generates no HTML — it marks visual cuts with `**anchors**` in narration. `edge-tts-narration` resolves those anchors against real word boundaries, and `ui-html-generation` validates each offline HTML document independently. Reusable structures such as process strips and comparison tables are declared once and referenced by clips instead of being regenerated per node. Shared run artifacts (chapter JSON, MP3s, offline HTML) live as files under the run asset tree; later nodes consume paths and validated slices, not repeated full-body edge transfers — keeping each hop's text small enough for LLM context and human run history.
 
 The MP4 path requires local `ffmpeg` and a Chromium-family browser. `EDGE_TTS_PROXY` and `EDGE_TTS_DISABLE_PROXY` control narration network routing.
 
@@ -304,11 +331,12 @@ The MP4 path requires local `ffmpeg` and a Chromium-family browser. `EDGE_TTS_PR
 
 1. The node runs independently against valid, empty, boundary, and invalid input.
 2. It validates input before expensive work and validates output before returning it.
-3. `NODE.md` documents configuration, input, output, resources, side effects, and failure behavior.
+3. `NODE.md` documents configuration, input, output, resources, side effects, and failure behavior — including asset paths for anything shared across nodes.
 4. The workflow expresses only dependencies and parallelism — no business rules in edges or host code.
 5. The same result cannot be expressed with fewer nodes without losing a real audit or execution boundary.
 6. Run history contains enough detail to diagnose warnings, errors, retries, and generated assets.
 7. After every node add, delete, or material edit, all edges were re-checked: no dangling links, every downstream node still has valid upstream input, and contracts still match.
 8. The graph was extended and verified linearly — each new node was run in sequence along the chain before the full workflow was trusted.
+9. Multi-consumer or bulky content is persisted once as files; edge outputs are sparse (paths, IDs, short digests) and safe to feed into later LLM calls without prompt bloat.
 
 If a node cannot pass standalone execution and input validation, workflow design has not started yet.
