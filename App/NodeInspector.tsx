@@ -24,9 +24,6 @@ import {
   AlertCircle,
   FileText,
   Filter,
-  Database,
-  FolderOpen,
-  KeyRound,
   PencilLine,
   CircleHelp,
   X,
@@ -49,11 +46,11 @@ interface NodeInspectorProps {
   onUpdateReuseOverwriteGeneratedAssets?: (value: boolean) => void;
 }
 
-type LogCategory = 'all' | 'input' | 'output' | 'logs' | 'resources' | 'error';
+type LogCategory = 'all' | 'input' | 'output' | 'logs' | NodeResourceKind | 'error';
 
 interface UnifiedLogItem {
   id: string;
-  category: 'input' | 'output' | 'logs' | 'resources' | 'error';
+  category: 'input' | 'output' | 'logs' | NodeResourceKind | 'error';
   title: string;
   content: any;
   timestamp?: string;
@@ -214,15 +211,18 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
     }
 
     // 3. Resource access audit — emitted by the node runtime, never inferred
-    // from the workflow's graph tags.
-    if (node.resourceAccesses && node.resourceAccesses.length > 0) {
+    // from the workflow's graph tags. Keep one compact filterable item per kind.
+    (['database', 'filesystem', 'environment'] as const).forEach((kind) => {
+      const accesses = (node.resourceAccesses || []).filter((access) => access.kind === kind);
+      if (accesses.length === 0) return;
+      const label = kind === 'database' ? 'DB' : kind === 'filesystem' ? 'FS' : 'ENV';
       items.push({
-        id: 'resource-accesses',
-        category: 'resources',
-        title: `Resource Access (${node.resourceAccesses.length} records)`,
-        content: node.resourceAccesses,
+        id: `resource-${kind}`,
+        category: kind,
+        title: `${label} Access (${accesses.length} records)`,
+        content: accesses,
       });
-    }
+    });
 
     // 4. Console Logs
     if (node.logs && node.logs.length > 0) {
@@ -247,7 +247,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
     return items;
   }, [node, edges, upstreamInput, lastManualInput, allNodes]);
 
-  const resourceSummary = useMemo(() => {
+  const resourceCounts = useMemo(() => {
     const byKind = new Map<NodeResourceKind, { read: number; write: number }>();
     for (const access of node?.resourceAccesses || []) {
       const current = byKind.get(access.kind) || { read: 0, write: 0 };
@@ -666,64 +666,41 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 <span className="text-[10px] text-muted font-mono">{logItems.length} records</span>
               </div>
 
-              <div className="grid grid-cols-3 gap-1.5 pt-1">
-                {([
-                  { kind: 'database', label: 'Database', Icon: Database },
-                  { kind: 'filesystem', label: 'FileSystem', Icon: FolderOpen },
-                  { kind: 'environment', label: 'Environment', Icon: KeyRound },
-                ] as const).map(({ kind, label, Icon }) => {
-                  const summary = resourceSummary.get(kind);
-                  const count = (summary?.read || 0) + (summary?.write || 0);
-                  return (
-                    <div
-                      key={kind}
-                      className={`rounded-lg border px-2 py-1.5 min-w-0 ${
-                        count > 0
-                          ? 'border-primary/35 bg-primary/5 text-ink'
-                          : 'border-hairline bg-surface-card text-muted'
-                      }`}
-                      title={count > 0
-                        ? `${summary?.read || 0} read, ${summary?.write || 0} write`
-                        : 'No recorded access'}
-                    >
-                      <div className="flex items-center gap-1 text-[10px] font-medium truncate">
-                        <Icon className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{label}</span>
-                      </div>
-                      <div className="text-[9px] font-mono mt-0.5 truncate">
-                        {count > 0
-                          ? `${summary?.read ? `${summary.read}R` : ''}${summary?.write ? `${summary.write}W` : ''}`
-                          : '—'}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
               {/* Filter category pills */}
               <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
-                {(
-                  [
-                    { id: 'all', label: 'All' },
-                    { id: 'input', label: 'Input' },
-                    { id: 'output', label: 'Output' },
-                    { id: 'logs', label: 'Console' },
-                    { id: 'resources', label: 'Resources' },
-                    { id: 'error', label: 'Error' },
-                  ] as const
-                ).map((cat) => (
+                {([
+                  { id: 'all', label: 'All' },
+                  { id: 'input', label: 'Input' },
+                  { id: 'output', label: 'Output' },
+                  { id: 'logs', label: 'Console' },
+                  { id: 'database', label: 'DB' },
+                  { id: 'filesystem', label: 'FS' },
+                  { id: 'environment', label: 'ENV' },
+                  { id: 'error', label: 'Error' },
+                ] as const).map((cat) => {
+                  const resourceCount = cat.id === 'database' || cat.id === 'filesystem' || cat.id === 'environment'
+                    ? (resourceCounts.get(cat.id)?.read || 0) + (resourceCounts.get(cat.id)?.write || 0)
+                    : 0;
+                  const isResource = cat.id === 'database' || cat.id === 'filesystem' || cat.id === 'environment';
+                  return (
                   <button
                     key={cat.id}
                     onClick={() => setFilterCategory(cat.id)}
+                    title={isResource
+                      ? `${cat.label}: ${resourceCount > 0 ? `${resourceCount} recorded access(es)` : 'no recorded access'}`
+                      : cat.label}
                     className={`px-2.5 py-1 rounded-pill text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
                       filterCategory === cat.id
                         ? 'bg-primary text-on-primary'
+                        : isResource && resourceCount > 0
+                        ? 'bg-primary/5 text-ink border border-primary/35'
                         : 'bg-surface-card text-muted hover:text-ink border border-hairline'
                     }`}
                   >
                     {cat.label}
                   </button>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Search filter input */}

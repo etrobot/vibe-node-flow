@@ -151,7 +151,7 @@ export default {
 Node logs have two separate purposes and must not be mixed:
 
 - `logs` is a human-readable `string[]` for progress, milestones, retries, warnings, and diagnostics. It is shown in the node panel and stored in run history.
-- `resourceAccesses` is structured audit data for external resources. It records whether the node read or wrote a `database`, `filesystem`, or `environment`; it is shown separately in the node panel's **Resources** view.
+- `resourceAccesses` is structured audit data for external resources. It records whether the node read or wrote a `database`, `filesystem`, or `environment`; it is shown as compact `DB` / `FS` / `ENV` filters in the node panel.
 
 Use `createNodeLogger(onLog)` so the same line is retained in the final result and streamed to the live run UI:
 
