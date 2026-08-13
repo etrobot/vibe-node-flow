@@ -27,6 +27,8 @@ import {
   PencilLine,
   CircleHelp,
   X,
+  Minus,
+  Plus,
 } from 'lucide-react';
 
 interface NodeInspectorProps {
@@ -77,6 +79,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   const [showIconModal, setShowIconModal] = useState(false);
   const [showFullPanelModal, setShowFullPanelModal] = useState(false);
   const [showNodeDocModal, setShowNodeDocModal] = useState(false);
+  const [collapsedJsonPaths, setCollapsedJsonPaths] = useState<Set<string>>(new Set());
   const [nodeTitleDraft, setNodeTitleDraft] = useState(node?.title || '');
   const titleBeforeEditRef = useRef(node?.title || '');
   const [expandedItemId, setExpandedItemId] = useState<string | null>('console-logs');
@@ -112,6 +115,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   // Reset accordion expansion when the selected node changes (default to expanding console-logs)
   useEffect(() => {
     setExpandedItemId('console-logs');
+    setCollapsedJsonPaths(new Set());
   }, [node?.id]);
 
   useEffect(() => {
@@ -333,50 +337,85 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   // Recursively render a value. Objects are shown property-by-property so that
   // plain-text string values (e.g. upstream node outputs like Markdown) keep their
   // newlines and quotes intact instead of being escaped inside a JSON string.
-  // JSON-looking strings are still pretty-printed as JSON.
-  const renderValue = (value: any): React.ReactNode => {
+  // JSON-looking strings are rendered as collapsible trees.
+  const toggleJsonPath = (path: string) => {
+    setCollapsedJsonPaths((previous) => {
+      const next = new Set(previous);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const renderValue = (value: any, path = 'json-root'): React.ReactNode => {
     if (value === null || value === undefined) {
       return <span className="text-muted">{String(value)}</span>;
     }
     if (typeof value === 'string') {
       const result = tryParseJson(value);
       if (result.isJson) {
-        return (
-          <pre className="whitespace-pre-wrap break-words text-ink m-0">
-            {JSON.stringify(deepParseJson(result.data), null, 2)}
-          </pre>
-        );
+        return renderValue(result.data, path);
       }
       // Plain text: preserve newlines and quotes as-is, no escaping
       return <div className="whitespace-pre-wrap break-words text-ink">{value}</div>;
     }
     if (Array.isArray(value)) {
-      if (value.length === 0) return <span className="text-muted">[]</span>;
+      const collapsed = collapsedJsonPaths.has(path);
       return (
-        <div>
-          {value.map((item, i) => (
-            <div key={i} className="mb-1.5 last:mb-0">
-              {renderValue(item)}
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => toggleJsonPath(path)}
+            className="inline-flex items-center gap-1 text-muted hover:text-ink cursor-pointer font-mono text-[10px]"
+            title={collapsed ? 'Expand array' : 'Collapse array'}
+          >
+            {collapsed ? <Plus className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+            <span>Array ({value.length})</span>
+          </button>
+          {!collapsed && (
+            <div className="ml-3 mt-1 border-l border-hairline-soft pl-2">
+              {value.length === 0 ? (
+                <span className="text-muted">[]</span>
+              ) : value.map((item, i) => (
+                <div key={i} className="mb-1.5 last:mb-0">
+                  {renderValue(item, `${path}[${i}]`)}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       );
     }
     if (typeof value === 'object') {
       const entries = Object.entries(value);
-      if (entries.length === 0) return <span className="text-muted">{'{}'}</span>;
+      const collapsed = collapsedJsonPaths.has(path);
       return (
-        <div>
-          {entries.map(([key, val]) => (
-            <div key={key} className="mb-2 last:mb-0">
-              <div className="text-muted font-semibold text-[10px] uppercase tracking-wide mb-0.5">
-                {key}
-              </div>
-              <div className="ml-2 border-l border-hairline-soft pl-2">
-                {renderValue(val)}
-              </div>
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => toggleJsonPath(path)}
+            className="inline-flex items-center gap-1 text-muted hover:text-ink cursor-pointer font-mono text-[10px]"
+            title={collapsed ? 'Expand object' : 'Collapse object'}
+          >
+            {collapsed ? <Plus className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+            <span>Object ({entries.length})</span>
+          </button>
+          {!collapsed && (
+            <div className="ml-3 mt-1 border-l border-hairline-soft pl-2">
+              {entries.length === 0 ? (
+                <span className="text-muted">{'{}'}</span>
+              ) : entries.map(([key, val]) => (
+                <div key={key} className="mb-2 last:mb-0">
+                  <div className="text-muted font-semibold text-[10px] uppercase tracking-wide mb-0.5">
+                    {key}
+                  </div>
+                  <div className="ml-2 border-l border-hairline-soft pl-2">
+                    {renderValue(val, `${path}.${key}`)}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       );
     }
@@ -386,9 +425,9 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 
   // Render content with automatic JSON detection. Arrays render each element on its
   // own line. Objects and strings are delegated to renderValue so plain-text values
-  // keep their formatting while JSON values are pretty-printed.
-  const renderContent = (content: any) => {
-    if (Array.isArray(content)) {
+  // keep their formatting while JSON values remain collapsible.
+  const renderContent = (content: any, path: string, asLogLines = false) => {
+    if (asLogLines && Array.isArray(content)) {
       if (content.length === 0) {
         return <div className="whitespace-pre-wrap break-words text-ink">(empty array)</div>;
       }
@@ -396,13 +435,13 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
         <div>
           {content.map((line, idx) => (
             <div key={idx} className="mb-1.5 last:mb-0">
-              {renderValue(line)}
+              {renderValue(line, `${path}[${idx}]`)}
             </div>
           ))}
         </div>
       );
     }
-    return renderValue(content);
+    return renderValue(content, path);
   };
 
   // Plain-text representation used by the copy button. Mirrors renderValue: objects
@@ -791,7 +830,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                       {/* Content — only rendered when expanded; fills remaining height with internal scroll */}
                       {isExpanded && (
                         <div className="flex-1 min-h-0 overflow-auto custom-scrollbar border-t border-hairline-soft bg-surface-canvas-soft p-2.5 text-ink font-mono text-[11px] leading-relaxed">
-                          {renderContent(item.content)}
+                          {renderContent(item.content, item.id, item.category === 'logs')}
                         </div>
                       )}
                     </div>
