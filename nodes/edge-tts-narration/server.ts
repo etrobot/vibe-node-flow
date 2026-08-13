@@ -258,6 +258,7 @@ async function execute({
   workflowId,
   runId,
   onLog,
+  onResourceAccess,
 }: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const values = Object.values(input).map((value) => String(value ?? '').trim()).filter(Boolean);
@@ -268,6 +269,12 @@ async function execute({
   }
   const source = readNarrationSource(values[0]);
   const proxyUrl = resolveProxyUrl();
+  onResourceAccess?.({ kind: 'environment', operation: 'read', detail: 'Edge TTS proxy configuration' });
+  if (source.assetDir && source.chapterFiles.length) {
+    onResourceAccess?.({ kind: 'filesystem', operation: 'read', detail: 'run chapter assets' });
+    onResourceAccess?.({ kind: 'filesystem', operation: 'write', detail: 'updated chapter timing' });
+  }
+  onResourceAccess?.({ kind: 'filesystem', operation: 'write', detail: 'run audio and narration assets' });
 
   const assetId = runId;
   const outputDir = assetsDir;

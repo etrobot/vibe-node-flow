@@ -146,6 +146,49 @@ export default {
 };
 ```
 
+### Logs and resource audit
+
+Node logs have two separate purposes and must not be mixed:
+
+- `logs` is a human-readable `string[]` for progress, milestones, retries, warnings, and diagnostics. It is shown in the node panel and stored in run history.
+- `resourceAccesses` is structured audit data for external resources. It records whether the node read or wrote a `database`, `filesystem`, or `environment`; it is shown separately in the node panel's **Resources** view.
+
+Use `createNodeLogger(onLog)` so the same line is retained in the final result and streamed to the live run UI:
+
+```ts
+import { createNodeLogger, type NodePluginContext, type NodePluginResult } from '../../server/plugins.ts';
+
+async function execute({ onLog, onResourceAccess }: NodePluginContext): Promise<NodePluginResult> {
+  const log = createNodeLogger(onLog);
+
+  onResourceAccess?.({
+    kind: 'environment',
+    operation: 'read',
+    detail: 'LLM provider configuration',
+  });
+  log.push('Loaded provider configuration.');
+
+  onResourceAccess?.({
+    kind: 'filesystem',
+    operation: 'write',
+    detail: 'run output manifest',
+  });
+  log.push('Wrote the output manifest.');
+
+  return { output: result, logs: log.logs };
+}
+```
+
+Logging rules:
+
+1. Emit short, concrete milestone lines: what happened, which item or attempt, and the relevant count or duration.
+2. Do not put secrets, tokens, environment-variable values, full prompts, or large payloads in logs. Record a safe name or redacted path instead.
+3. The host emits the generic `Node started (...)` line. A node should log its own meaningful work, not duplicate that line.
+4. Use `NodeInputError`/`NodeValidationError` and the returned `status`/`error` fields for machine-readable outcomes; do not encode control flow only in log text.
+5. If execution throws after collecting logs, attach the collected lines to the error (`error.logs`) so failed runs retain the diagnostic trail.
+6. Record resource access when the node performs or intentionally begins the operation. Use `read` or `write`; environment access is normally `read`. Keep `detail` descriptive and redacted.
+7. Do not use workflow canvas tags as evidence of runtime access. A tag describes declared capability; `resourceAccesses` describes what this execution recorded.
+
 Structured values are serialized before crossing an edge. Prefer string outputs that stay small: paths, IDs, and short digests for shared artifacts; keep parsing and contract validation inside the receiving node. Large or multi-consumer bodies go to assets, not onto every edge (see principle 6).
 
 ### Validation order
@@ -338,5 +381,6 @@ The MP4 path requires local `ffmpeg` and a Chromium-family browser. `EDGE_TTS_PR
 7. After every node add, delete, or material edit, all edges were re-checked: no dangling links, every downstream node still has valid upstream input, and contracts still match.
 8. The graph was extended and verified linearly — each new node was run in sequence along the chain before the full workflow was trusted.
 9. Multi-consumer or bulky content is persisted once as files; edge outputs are sparse (paths, IDs, short digests) and safe to feed into later LLM calls without prompt bloat.
+10. The node's logs are concise and secret-free, and every database/filesystem/environment access visible to the node is recorded through `onResourceAccess`.
 
 If a node cannot pass standalone execution and input validation, workflow design has not started yet.

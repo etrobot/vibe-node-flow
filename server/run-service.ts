@@ -5,6 +5,7 @@ import { Worker } from "node:worker_threads";
 import type {
   FlowNode,
   RunEvent,
+  ActiveRunSnapshot,
   RunNodeRecord,
   RunRecord,
   RunTrigger,
@@ -35,6 +36,7 @@ export interface WorkflowRunJob {
   finishedAt?: string;
   done: Promise<RunRecord>;
   subscribe(listener: RunEventListener): () => void;
+  snapshot(): ActiveRunSnapshot;
   stop(): boolean;
 }
 
@@ -114,6 +116,17 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
     return () => this.listeners.delete(listener);
   }
 
+  snapshot(): ActiveRunSnapshot {
+    return {
+      id: this.id,
+      workflowId: this.workflowId,
+      trigger: this.trigger,
+      status: "running",
+      startedAt: this.startedAt,
+      events: [...this.events],
+    };
+  }
+
   stop(): boolean {
     if (this.settled) return false;
     if (this.singleNodeRequest) {
@@ -148,6 +161,7 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
           status: event.status,
           output: event.output ?? null,
           logs: event.logs || [],
+          resourceAccesses: event.resourceAccesses || [],
           error: event.error ?? null,
           executionTime: event.executionTime,
         });
@@ -305,4 +319,12 @@ export function startSingleNodeRun(
 
 export function getWorkflowRunJob(runId: string): WorkflowRunJob | undefined {
   return jobs.get(runId);
+}
+
+/** Return the newest still-running job for a workflow, if one exists. */
+export function getActiveWorkflowRun(workflowId: string): ActiveRunSnapshot | undefined {
+  return [...jobs.values()]
+    .filter((job) => job.workflowId === workflowId && job.status === "running")
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]
+    ?.snapshot();
 }

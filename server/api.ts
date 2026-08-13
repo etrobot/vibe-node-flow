@@ -18,7 +18,12 @@ import {
   workflowReusableGeneratedAssetsDir,
   workflowRunAssetsDir,
 } from "./paths";
-import { getWorkflowRunJob, startSingleNodeRun, startWorkflowRun } from "./run-service";
+import {
+  getActiveWorkflowRun,
+  getWorkflowRunJob,
+  startSingleNodeRun,
+  startWorkflowRun,
+} from "./run-service";
 import { openVideoRenderTerminal, VIDEO_RENDER_SCRIPT } from "./video-render-terminal";
 import { saveWorkflowSchedule } from "./schedule-config";
 import {
@@ -285,6 +290,16 @@ export function registerApiRoutes(app: Express): void {
   );
 
   // ---- Run history ----------------------------------------------------------
+
+  // Runtime state is kept in the server-side Worker job until the run finishes.
+  // This lets a newly opened canvas reconstruct the latest in-progress run.
+  app.get(
+    "/api/workflows/:id/runs/active",
+    wrap(async (req, res) => {
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ run: getActiveWorkflowRun(req.params.id) ?? null });
+    }),
+  );
 
   app.get(
     "/api/runs/:id/status",

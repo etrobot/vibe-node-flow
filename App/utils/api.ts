@@ -3,6 +3,7 @@ import {
   RunSummary,
   RunRecord,
   RunEvent,
+  ActiveRunSnapshot,
   SingleNodeRunRecord,
   WorkflowSchedule,
   WorkflowScheduleStatus,
@@ -126,6 +127,11 @@ export const api = {
       stopped: boolean;
       status: 'running' | 'success' | 'error';
     }>(r)),
+
+  getActiveWorkflowRun: (workflowId: string) =>
+    fetch(`/api/workflows/${encodeURIComponent(workflowId)}/runs/active`, {
+      cache: 'no-store',
+    }).then((r) => parse<{ run: ActiveRunSnapshot | null }>(r).then((res) => res.run)),
 
   // Streaming full run. Invokes onEvent for every NDJSON event as it arrives.
   runWorkflow: async (

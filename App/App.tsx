@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { FlowNode, FlowEdge, WorkflowItem } from './types';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { FlowNode, FlowEdge, WorkflowItem, RunEvent, RunNodeRecord } from './types';
 import { api } from './utils/api';
 import { hasUpstreamData, nodeOutputToText, resolveUpstreamInput } from './utils/upstream';
 import { ManualInputModal } from './components/ui/ManualInputModal';
@@ -47,6 +47,100 @@ function persistableEdge(edge: FlowEdge) {
     fromNodeId: edge.fromNodeId,
     toNodeId: edge.toNodeId,
   };
+}
+
+function resetRuntimeNode(node: FlowNode): FlowNode {
+  return {
+    ...node,
+    status: 'idle',
+    output: undefined,
+    logs: undefined,
+    resourceAccesses: undefined,
+    executionTime: undefined,
+    error: null,
+  };
+}
+
+/** Rebuild the canvas runtime state from the server's event snapshot. */
+function replayRunEvents(
+  sourceNodes: FlowNode[],
+  sourceEdges: FlowEdge[],
+  events: RunEvent[],
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  let nextNodes = sourceNodes.map(resetRuntimeNode);
+  let nextEdges: FlowEdge[] = sourceEdges.map((edge) => ({ ...edge, status: 'idle' }));
+
+  events.forEach((event) => {
+    if (event.type === 'node-start') {
+      nextNodes = nextNodes.map((node) => (
+        node.id === event.nodeId
+          ? { ...node, status: 'running', logs: [], resourceAccesses: [], error: null }
+          : node
+      ));
+      nextEdges = nextEdges.map((edge) => (
+        edge.toNodeId === event.nodeId ? { ...edge, status: 'running' } : edge
+      ));
+    } else if (event.type === 'node-log') {
+      nextNodes = nextNodes.map((node) => (
+        node.id === event.nodeId
+          ? { ...node, logs: [...(node.logs || []), event.line] }
+          : node
+      ));
+    } else if (event.type === 'node-resource-access') {
+      nextNodes = nextNodes.map((node) => (
+        node.id === event.nodeId
+          ? { ...node, resourceAccesses: [...(node.resourceAccesses || []), event.access] }
+          : node
+      ));
+    } else if (event.type === 'node-finish' && event.nodeId !== '__engine__') {
+      nextNodes = nextNodes.map((node) => (
+        node.id === event.nodeId
+          ? {
+              ...node,
+              status: event.status,
+              output: event.output,
+              logs: event.logs && event.logs.length > 0 ? event.logs : node.logs,
+              resourceAccesses: event.resourceAccesses || node.resourceAccesses || [],
+              error: event.error ?? null,
+              executionTime: event.executionTime,
+            }
+          : node
+      ));
+      nextEdges = nextEdges.map((edge) => (
+        edge.toNodeId === event.nodeId ? { ...edge, status: event.status } : edge
+      ));
+    }
+  });
+
+  return { nodes: nextNodes, edges: nextEdges };
+}
+
+function applyRunRecords(
+  sourceNodes: FlowNode[],
+  sourceEdges: FlowEdge[],
+  records: RunNodeRecord[],
+): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  let nextNodes = sourceNodes.map(resetRuntimeNode);
+  let nextEdges: FlowEdge[] = sourceEdges.map((edge) => ({ ...edge, status: 'idle' }));
+  records.forEach((record) => {
+    nextNodes = nextNodes.map((node) => (
+      node.id === record.nodeId
+        ? {
+            ...node,
+            status: record.status,
+            output: record.output,
+            logs: record.logs,
+            resourceAccesses: record.resourceAccesses,
+            error: record.error,
+            executionTime: record.executionTime,
+          }
+        : node
+    ));
+    nextEdges = nextEdges.map((edge) => (
+      edge.toNodeId === record.nodeId ? { ...edge, status: record.status } : edge
+    ));
+  });
+  return { nodes: nextNodes, edges: nextEdges };
 }
 
 export default function App() {
@@ -97,6 +191,11 @@ export default function App() {
   const [lastSavedLaneLabels, setLastSavedLaneLabels] = useState<string[]>([]);
   const [lastSavedReuseOverwriteGeneratedAssets, setLastSavedReuseOverwriteGeneratedAssets] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const nodesRef = useRef<FlowNode[]>([]);
+  const edgesRef = useRef<FlowEdge[]>([]);
+  const hydratedRunIdRef = useRef<string | null>(null);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
 
   const applyRoute = useCallback((route: AppRoute) => {
     if (route.view === 'canvas') {
@@ -217,6 +316,56 @@ export default function App() {
     }
   };
 
+  const applyRunEvent = useCallback((event: RunEvent) => {
+    if (event.type === 'node-start') {
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === event.nodeId
+            ? { ...node, status: 'running', logs: [], resourceAccesses: [], error: null }
+            : node
+        )
+      );
+      setEdges((prev) =>
+        prev.map((edge) => (edge.toNodeId === event.nodeId ? { ...edge, status: 'running' } : edge))
+      );
+    } else if (event.type === 'node-log') {
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === event.nodeId
+            ? { ...node, logs: [...(node.logs || []), event.line] }
+            : node
+        )
+      );
+    } else if (event.type === 'node-resource-access') {
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === event.nodeId
+            ? { ...node, resourceAccesses: [...(node.resourceAccesses || []), event.access] }
+            : node
+        )
+      );
+    } else if (event.type === 'node-finish' && event.nodeId !== '__engine__') {
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === event.nodeId
+            ? {
+                ...node,
+                status: event.status,
+                output: event.output,
+                logs: event.logs && event.logs.length > 0 ? event.logs : node.logs,
+                resourceAccesses: event.resourceAccesses || node.resourceAccesses || [],
+                error: event.error ?? null,
+                executionTime: event.executionTime,
+              }
+            : node
+        )
+      );
+      setEdges((prev) =>
+        prev.map((edge) => (edge.toNodeId === event.nodeId ? { ...edge, status: event.status } : edge))
+      );
+    }
+  }, []);
+
   // Load workflow list on first mount
   useEffect(() => {
     api.listWorkflows().then(setWorkflows).catch((e) => console.error('Failed to load workflow list:', e));
@@ -282,6 +431,8 @@ export default function App() {
       setLastSavedReuseOverwriteGeneratedAssets(Boolean(full.reuseOverwriteGeneratedAssets));
       setFullRunId(null);
       setSingleRunIds({});
+      setIsRunning(false);
+      hydratedRunIdRef.current = null;
       setSelectedNodeId(full.nodes.length > 0 ? full.nodes[0].id : null);
       setWorkflows((prev) =>
         prev.map((w) =>
@@ -306,6 +457,62 @@ export default function App() {
       alert('Failed to open workflow: ' + (e as Error).message);
     }
   };
+
+  // A canvas can be reopened after its original streaming request disappeared.
+  // Poll the server-side job snapshot so the canvas catches up with new node
+  // starts, logs, and finishes without starting a second workflow.
+  useEffect(() => {
+    if (currentView !== 'canvas' || !activeWorkflowId) return;
+    let cancelled = false;
+
+    const refreshActiveRun = async () => {
+      try {
+        const active = await api.getActiveWorkflowRun(activeWorkflowId);
+        if (cancelled) return;
+
+        if (active) {
+          hydratedRunIdRef.current = active.id;
+          const runtime = replayRunEvents(nodesRef.current, edgesRef.current, active.events);
+          setNodes(runtime.nodes);
+          setEdges(runtime.edges);
+          if (active.trigger === 'single') {
+            const nodeStart = active.events.find((event) => event.type === 'node-start');
+            if (nodeStart?.type === 'node-start') {
+              setSingleRunIds({ [nodeStart.nodeId]: active.id });
+            }
+          } else {
+            setFullRunId(active.id);
+            setIsRunning(true);
+          }
+          return;
+        }
+
+        // If the job finished between polls, replace the last running view
+        // with the persisted final node records.
+        const previousRunId = hydratedRunIdRef.current;
+        if (previousRunId) {
+          const completed = await api.getRun(previousRunId);
+          if (cancelled) return;
+          const runtime = applyRunRecords(nodesRef.current, edgesRef.current, completed.nodes);
+          setNodes(runtime.nodes);
+          setEdges(runtime.edges);
+          setIsRunning(false);
+          setFullRunId(null);
+          setSingleRunIds({});
+          hydratedRunIdRef.current = null;
+        }
+      } catch (error) {
+        if (!cancelled) console.error('Failed to restore active workflow run:', error);
+      }
+    };
+
+    void refreshActiveRun();
+    const timer = window.setInterval(() => void refreshActiveRun(), 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeWorkflowId, currentView]);
 
   // Back to Workflows List
   const handleBackToHome = async () => {
@@ -568,6 +775,7 @@ export default function App() {
         error: null,
         output: undefined,
         logs: undefined,
+        resourceAccesses: undefined,
         executionTime: undefined,
       }))
     );
@@ -580,46 +788,8 @@ export default function App() {
       await api.runWorkflow(activeWorkflowId, (event) => {
         if (event.type === 'run-start') {
           setFullRunId(event.runId);
-        } else if (event.type === 'node-start') {
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === event.nodeId
-                ? { ...n, status: 'running', logs: [], error: null }
-                : n
-            )
-          );
-          setEdges((prev) =>
-            prev.map((e) => (e.toNodeId === event.nodeId ? { ...e, status: 'running' } : e))
-          );
-        } else if (event.type === 'node-log') {
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === event.nodeId
-                ? { ...n, logs: [...(n.logs || []), event.line] }
-                : n
-            )
-          );
-        } else if (event.type === 'node-finish') {
-          setNodes((prev) =>
-            prev.map((n) =>
-              n.id === event.nodeId
-                ? {
-                    ...n,
-                    status: event.status,
-                    output: event.output,
-                    // Prefer the final log array from the node; keep streamed lines
-                    // if the finish payload omitted them.
-                    logs: event.logs && event.logs.length > 0 ? event.logs : n.logs,
-                    error: event.error ?? null,
-                    executionTime: event.executionTime,
-                  }
-                : n
-            )
-          );
-          setEdges((prev) =>
-            prev.map((e) => (e.toNodeId === event.nodeId ? { ...e, status: event.status } : e))
-          );
         }
+        applyRunEvent(event);
       });
     } catch (e) {
       console.error('Run failed:', e);
@@ -689,6 +859,7 @@ export default function App() {
                 status: rec.status,
                 output: rec.output,
                 logs: rec.logs,
+                resourceAccesses: rec.resourceAccesses,
                 error: rec.error,
                 executionTime: rec.executionTime,
               }

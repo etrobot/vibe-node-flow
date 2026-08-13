@@ -39,6 +39,7 @@ export function getDb(): Database.Database {
       status         TEXT NOT NULL,
       output         TEXT,
       logs           TEXT,
+      resource_accesses TEXT,
       error          TEXT,
       execution_time INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
@@ -54,6 +55,10 @@ export function getDb(): Database.Database {
   }>;
   if (!runColumns.some((column) => column.name === "workflow_snapshot")) {
     database.exec(`ALTER TABLE runs ADD COLUMN workflow_snapshot TEXT`);
+  }
+  const runNodeColumns = database.prepare(`PRAGMA table_info(run_nodes)`).all() as Array<{ name: string }>;
+  if (!runNodeColumns.some((column) => column.name === "resource_accesses")) {
+    database.exec(`ALTER TABLE run_nodes ADD COLUMN resource_accesses TEXT`);
   }
   db = database;
   return database;
@@ -81,8 +86,8 @@ export function insertRun(record: RunRecord): void {
     VALUES (@id, @workflowId, @workflowName, @trigger, @status, @startedAt, @finishedAt, @durationMs, @workflowSnapshot)
   `);
   const insertNodeStmt = database.prepare(`
-    INSERT INTO run_nodes (run_id, seq, node_id, node_title, node_type, status, output, logs, error, execution_time)
-    VALUES (@runId, @seq, @nodeId, @nodeTitle, @nodeType, @status, @output, @logs, @error, @executionTime)
+    INSERT INTO run_nodes (run_id, seq, node_id, node_title, node_type, status, output, logs, resource_accesses, error, execution_time)
+    VALUES (@runId, @seq, @nodeId, @nodeTitle, @nodeType, @status, @output, @logs, @resourceAccesses, @error, @executionTime)
   `);
 
   const tx = database.transaction((rec: RunRecord) => {
@@ -109,6 +114,7 @@ export function insertRun(record: RunRecord): void {
         status: n.status,
         output: serialize(n.output),
         logs: n.logs && n.logs.length ? JSON.stringify(n.logs) : "",
+        resourceAccesses: n.resourceAccesses?.length ? JSON.stringify(n.resourceAccesses) : "",
         error: n.error ?? "",
         executionTime: n.executionTime ?? 0,
       });
@@ -176,6 +182,9 @@ export function getRun(id: string): RunRecord | null {
     status: n.status as NodeStatus,
     output: parseOutput(n.output),
     logs: n.logs ? (JSON.parse(n.logs) as string[]) : [],
+    resourceAccesses: n.resource_accesses
+      ? (JSON.parse(n.resource_accesses) as RunNodeRecord["resourceAccesses"])
+      : [],
     error: n.error || null,
     executionTime: n.execution_time,
   }));

@@ -270,10 +270,19 @@ async function execute({
   workflowDefinitionDir,
   workflowDir,
   onLog,
+  onResourceAccess,
 }: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const brief = briefText(input);
   const definitionRoot = workflowDefinitionDir || workflowDir;
+
+  onResourceAccess?.({ kind: 'environment', operation: 'read', detail: 'LLM provider configuration' });
+  if (config.systemPromptFile) {
+    onResourceAccess?.({ kind: 'filesystem', operation: 'read', detail: `workflow prompt: ${config.systemPromptFile}` });
+  }
+  if (config.promptFile) {
+    onResourceAccess?.({ kind: 'filesystem', operation: 'read', detail: `workflow prompt: ${config.promptFile}` });
+  }
 
   const systemPrompt = config.systemPromptFile
     ? await readWorkflowFile(definitionRoot, config.systemPromptFile, 'System prompt')

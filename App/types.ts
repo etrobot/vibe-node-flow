@@ -4,6 +4,16 @@ export type NodeType = string;
 
 export type NodeStatus = 'idle' | 'running' | 'success' | 'warning' | 'error';
 
+export type NodeResourceKind = 'database' | 'filesystem' | 'environment';
+export type NodeResourceOperation = 'read' | 'write';
+
+/** A redacted audit entry for a resource touched during node execution. */
+export interface NodeResourceAccess {
+  kind: NodeResourceKind;
+  operation: NodeResourceOperation;
+  detail?: string;
+}
+
 // Extension configuration is intentionally opaque to the core. Each node owns
 // its config type, validation, editor and server-side interpretation.
 export type NodeConfig = Record<string, any>;
@@ -24,6 +34,7 @@ export interface FlowNode {
   status: NodeStatus;
   output?: any;
   logs?: string[]; // console output captured during script execution
+  resourceAccesses?: NodeResourceAccess[];
   executionTime?: number; // in ms
   error?: string | null;
 }
@@ -88,6 +99,7 @@ export interface RunNodeRecord {
   status: NodeStatus;
   output: any;
   logs: string[];
+  resourceAccesses: NodeResourceAccess[];
   error: string | null;
   executionTime: number;
 }
@@ -118,6 +130,16 @@ export interface RunRecord {
   workflowSnapshot?: RunWorkflowSnapshot;
 }
 
+/** In-memory snapshot of a run that has not been persisted as history yet. */
+export interface ActiveRunSnapshot {
+  id: string;
+  workflowId: string;
+  trigger: RunTrigger;
+  status: 'running';
+  startedAt: string;
+  events: RunEvent[];
+}
+
 // Lightweight row for the history list (no per-node payloads)
 export interface RunSummary {
   id: string;
@@ -136,13 +158,15 @@ export type RunEvent =
   | { type: 'run-start'; runId: string; order: string[] }
   | { type: 'node-start'; nodeId: string }
   | { type: 'node-log'; nodeId: string; line: string }
+  | { type: 'node-resource-access'; nodeId: string; access: NodeResourceAccess }
   | {
       type: 'node-finish';
       nodeId: string;
       status: NodeStatus;
       output?: any;
       logs?: string[];
-      error?: string | null;
-      executionTime: number;
-    }
+    error?: string | null;
+    executionTime: number;
+    resourceAccesses?: NodeResourceAccess[];
+  }
   | { type: 'run-finish'; runId: string; status: 'success' | 'error' };

@@ -244,8 +244,9 @@ async function generateTarget(
   throw failure;
 }
 
-async function execute({ node, input, onLog }: NodePluginContext): Promise<NodePluginResult> {
+async function execute({ node, input, onLog, onResourceAccess }: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
+  onResourceAccess?.({ kind: 'environment', operation: 'read', detail: 'LLM provider configuration' });
   const source = readGenerationInput(input);
   const candidates = listDemoUiCandidates(source.storyboard);
   const targets = findDemoUiTargets(source.storyboard, config.maxTargets);

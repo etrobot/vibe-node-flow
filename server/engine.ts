@@ -5,6 +5,7 @@ import type {
   WorkflowItem,
   RunNodeRecord,
   RunEvent,
+  NodeResourceAccess,
 } from "../App/types";
 import {
   combineNodeInputs,
@@ -181,7 +182,14 @@ async function execNode(
   runId: string,
   reuseOverwriteGeneratedAssets = false,
   onLog?: (line: string) => void,
-): Promise<{ output: any; logs: string[]; status: "success" | "warning"; error: string | null }> {
+  onResourceAccess?: (access: NodeResourceAccess) => void,
+): Promise<{
+  output: any;
+  logs: string[];
+  resourceAccesses: NodeResourceAccess[];
+  status: "success" | "warning";
+  error: string | null;
+}> {
   const plugin = getNodePlugin(node.type);
   if (!plugin) {
     throw new Error(`Node type "${node.type}" not installed or plugin failed to start`);
@@ -196,18 +204,32 @@ async function execNode(
     + ` reuseOverwriteGeneratedAssets=${reuseOverwriteGeneratedAssets}`
     + ` assetsDir=${assetsDir}`,
   );
-  const result = await plugin.execute({
-    node,
-    input: upstreamInput,
-    nodeOutputs,
-    workflowId,
-    runId,
-    workflowDir: workflowAssetRoot(workflowId),
-    workflowDefinitionDir: workflowDefinitionDir(workflowId),
-    assetsDir,
-    nodeAssetsDir: nodeAssetsDir(node.id),
-    onLog,
-  });
+  const resourceAccesses: NodeResourceAccess[] = [];
+  const reportResourceAccess = (access: NodeResourceAccess) => {
+    resourceAccesses.push(access);
+    onResourceAccess?.(access);
+  };
+  let result;
+  try {
+    result = await plugin.execute({
+      node,
+      input: upstreamInput,
+      nodeOutputs,
+      workflowId,
+      runId,
+      workflowDir: workflowAssetRoot(workflowId),
+      workflowDefinitionDir: workflowDefinitionDir(workflowId),
+      assetsDir,
+      nodeAssetsDir: nodeAssetsDir(node.id),
+      onLog,
+      onResourceAccess: reportResourceAccess,
+    });
+  } catch (error) {
+    if (error && typeof error === "object") {
+      (error as { resourceAccesses?: NodeResourceAccess[] }).resourceAccesses = resourceAccesses;
+    }
+    throw error;
+  }
   if (!result || typeof result !== "object" || !("output" in result)) {
     throw new Error(`Node ${node.type} execute must return { output, logs? }`);
   }
@@ -221,7 +243,14 @@ async function execNode(
   if (status === "warning" && !result.error) {
     throw new Error(`Node ${node.type} returned warning status without an error message`);
   }
-  return { output: result.output, logs: result.logs || [], status, error: result.error || null };
+  for (const access of result.resourceAccesses || []) reportResourceAccess(access);
+  return {
+    output: result.output,
+    logs: result.logs || [],
+    resourceAccesses,
+    status,
+    error: result.error || null,
+  };
 }
 
 export type EmitFn = (event: RunEvent) => void;
@@ -286,11 +315,14 @@ export async function executeWorkflow(
           console.log(`[run ${runId}] [${node.title}] ${line}`);
           emit({ type: "node-log", nodeId: node.id, line });
         };
+        const onResourceAccess = (access: NodeResourceAccess) => {
+          emit({ type: "node-resource-access", nodeId: node.id, access });
+        };
         onLog(`Node started (${node.type}).`);
         const upstreamInput = computeUpstreamInput(node.id, wf.edges, outputsById);
         const start = Date.now();
         try {
-          const { output, logs, status, error } = await execNode(
+          const { output, logs, resourceAccesses, status, error } = await execNode(
             node,
             upstreamInput,
             outputsCombined,
@@ -298,6 +330,7 @@ export async function executeWorkflow(
             runId,
             reuseOverwriteGeneratedAssets,
             onLog,
+            onResourceAccess,
           );
           const executionTime = Date.now() - start;
           const edgeText = nodeOutputToText(output);
@@ -312,6 +345,7 @@ export async function executeWorkflow(
             status,
             output,
             logs,
+            resourceAccesses,
             error,
             executionTime,
           };
@@ -323,6 +357,7 @@ export async function executeWorkflow(
             logs,
             error,
             executionTime,
+            resourceAccesses,
           };
           emit(finish);
           return { node, record };
@@ -330,6 +365,7 @@ export async function executeWorkflow(
           const executionTime = Date.now() - start;
           const message = err?.message || "Execution error";
           const logs: string[] = err?.logs || [];
+          const resourceAccesses: NodeResourceAccess[] = err?.resourceAccesses || [];
           onLog(`Node failed after ${executionTime}ms: ${message}`);
           const warning = isNodeWarning(err);
           const record: RunNodeRecord = {
@@ -339,6 +375,7 @@ export async function executeWorkflow(
             status: warning ? "warning" : "error",
             output: null,
             logs,
+            resourceAccesses,
             error: message,
             executionTime,
           };
@@ -349,6 +386,7 @@ export async function executeWorkflow(
             error: message,
             logs,
             executionTime,
+            resourceAccesses,
           });
           return { node, record };
         }
@@ -399,13 +437,14 @@ export async function executeSingleNode(
   fs.mkdirSync(assetsDir, { recursive: true });
   const start = Date.now();
   try {
-    const { output, logs, status, error } = await execNode(
+    const { output, logs, resourceAccesses, status, error } = await execNode(
       node,
       input,
       nodeOutputs || {},
       workflowId,
       runId,
       reuseOverwriteGeneratedAssets,
+      undefined,
     );
     return {
       nodeId: node.id,
@@ -414,6 +453,7 @@ export async function executeSingleNode(
       status,
       output,
       logs,
+      resourceAccesses,
       error,
       executionTime: Date.now() - start,
     };
@@ -425,6 +465,7 @@ export async function executeSingleNode(
       status: isNodeWarning(err) ? "warning" : "error",
       output: null,
       logs: err?.logs || [],
+      resourceAccesses: err?.resourceAccesses || [],
       error: err?.message || "Single node execution error",
       executionTime: Date.now() - start,
     };

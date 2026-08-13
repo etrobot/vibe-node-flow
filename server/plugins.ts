@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import type { FlowNode, NodeType } from "../App/types";
+import type { FlowNode, NodeResourceAccess, NodeType } from "../App/types";
 import type { NodeTextInput } from "../lib/node-io.ts";
 import {
   discoverNodePlugins,
@@ -29,6 +29,8 @@ export interface NodePluginContext {
   nodeAssetsDir: string;
   /** Stream one console line to the live run UI while the node is still executing. */
   onLog?: NodeLogFn;
+  /** Record a redacted database, filesystem, or environment access. */
+  onResourceAccess?: (access: NodeResourceAccess) => void;
 }
 
 /** Collect logs and optionally stream each line as soon as it is produced. */
@@ -57,6 +59,7 @@ export function createNodeLogger(onLog?: NodeLogFn): {
 export interface NodePluginResult {
   output: any;
   logs?: string[];
+  resourceAccesses?: NodeResourceAccess[];
   /** A node-owned input/validation issue that should be visible but is not an execution crash. */
   status?: "success" | "warning";
   error?: string | null;

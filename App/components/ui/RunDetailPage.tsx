@@ -128,6 +128,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         status: execution?.status ?? 'idle',
         output: execution ? execution.output : undefined,
         logs: execution?.logs,
+        resourceAccesses: execution?.resourceAccesses,
         error: execution?.error ?? null,
         executionTime: execution?.executionTime,
       } as FlowNode;
@@ -151,6 +152,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         status: execution.status,
         output: execution.output,
         logs: execution.logs,
+        resourceAccesses: execution.resourceAccesses,
         error: execution.error,
         executionTime: execution.executionTime,
       });

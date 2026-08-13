@@ -326,9 +326,12 @@ export interface AppVideoRenderServices {
 }
 
 export async function executeAppVideoRender(
-  { node, input, assetsDir, nodeAssetsDir, workflowId, runId }: NodePluginContext,
+  { node, input, assetsDir, nodeAssetsDir, workflowId, runId, onResourceAccess }: NodePluginContext,
   services: AppVideoRenderServices = {},
 ): Promise<NodePluginResult> {
+  onResourceAccess?.({ kind: 'environment', operation: 'read', detail: 'renderer and browser configuration' });
+  onResourceAccess?.({ kind: 'filesystem', operation: 'read', detail: 'run assets and generated HTML' });
+  onResourceAccess?.({ kind: 'filesystem', operation: 'write', detail: 'render manifest and video assets' });
   const config = normalizeConfig(node.config);
   const facts = mergeUpstreamManifests(input);
   const validationWarnings: string[] = [];
