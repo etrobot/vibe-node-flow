@@ -48,7 +48,7 @@ interface NodeInspectorProps {
   onUpdateReuseOverwriteGeneratedAssets?: (value: boolean) => void;
 }
 
-type LogCategory = 'all' | 'input' | 'output' | 'logs' | NodeResourceKind | 'error';
+type LogCategory = 'input' | 'output' | 'logs' | NodeResourceKind | 'error';
 
 interface UnifiedLogItem {
   id: string;
@@ -73,7 +73,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   reuseOverwriteGeneratedAssets = false,
   onUpdateReuseOverwriteGeneratedAssets,
 }) => {
-  const [filterCategory, setFilterCategory] = useState<LogCategory>('all');
+  const [filterCategory, setFilterCategory] = useState<LogCategory>('logs');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showIconModal, setShowIconModal] = useState(false);
@@ -264,7 +264,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   // Filter logs by category and search query
   const filteredLogItems = useMemo(() => {
     return logItems.filter((item) => {
-      if (filterCategory !== 'all' && item.category !== filterCategory) {
+      if (item.category !== filterCategory) {
         return false;
       }
       if (!searchQuery.trim()) return true;
@@ -708,10 +708,9 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
               {/* Filter category pills */}
               <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
                 {([
-                  { id: 'all', label: 'All' },
+                  { id: 'logs', label: 'Console' },
                   { id: 'input', label: 'Input' },
                   { id: 'output', label: 'Output' },
-                  { id: 'logs', label: 'Console' },
                   { id: 'database', label: 'DB' },
                   { id: 'filesystem', label: 'FS' },
                   { id: 'environment', label: 'ENV' },

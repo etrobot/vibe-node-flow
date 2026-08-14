@@ -3,6 +3,7 @@ import type { RunSummary, WorkflowItem } from '../../types';
 import { DEFAULT_WORKFLOW_ICON, DEFAULT_WORKFLOW_COLOR } from '../../types';
 import { api } from '../../utils/api';
 import { renderLucideIcon } from './IconPicker';
+import { ThemeSelector } from './ThemeSelector';
 import {
   AlertCircle,
   ArrowLeft,
@@ -547,13 +548,16 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
             <p className="text-[11px] text-muted truncate">View node status, output, and workflow snapshot for each execution</p>
           </div>
         </div>
-        <button
-          onClick={() => void loadRuns()}
-          title="Refresh"
-          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-ink border border-hairline shrink-0"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <ThemeSelector />
+          <button
+            onClick={() => void loadRuns()}
+            title="Refresh"
+            className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-ink border border-hairline"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 overflow-y-auto custom-scrollbar p-2 lg:p-3">

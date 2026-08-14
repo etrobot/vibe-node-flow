@@ -9,6 +9,8 @@ export interface ClipStoryboardConfig {
   tone: string;
   minClips: number;
   maxClips: number;
+  /** Minimum visual items in every clip. */
+  minItemsPerClip: number;
   /** Distinct component types the storyboard must use, so scenes stay varied. */
   minComponentTypes: number;
   targetDurationSeconds: number;
@@ -16,8 +18,8 @@ export interface ClipStoryboardConfig {
   durationTolerance: number;
   /**
    * `anchor` (default): items carry no seconds and `**anchors**` in the speech
-   * mark the shot switches, which `edge-tts-narration` resolves against real
-   * word boundaries. `duration` keeps the older contract where the model writes
+   * mark the shot switches, which `fish-audio-narration` maps onto the measured
+   * narration duration. `duration` keeps the older contract where the model writes
    * seconds per item and the speech stays plain.
    */
   timingMode: TimingMode;
@@ -33,6 +35,23 @@ export interface ClipStoryboardConfig {
   promptFile?: string;
 }
 
+/** Fixed factual product sentence requested for the Chinese explainer opening. */
+export const OPENING_MODEL_INTRODUCTION_ZH =
+  '本次调用的是 Doubao-Seed-Evolving模型，是字节跳动面向高频代码开发、复杂任务编排与长程 Agent 工作流打造的滚动演进大模型，原生支持文本、高分辨率图片及视频分析，适合本次任务。';
+
+/** Suggested English model sentence for the explainer opening. */
+export const OPENING_MODEL_INTRODUCTION_EN =
+  'This task uses the Doubao-Seed-Evolving model, an evolving model from ByteDance designed for high-frequency code development, complex task orchestration, and long-running Agent workflows; it natively supports text, high-resolution image, and video analysis, making it suitable for this task.';
+
+/** @deprecated Use `openingModelIntroduction(language)` for language-aware copy. */
+export const OPENING_MODEL_INTRODUCTION = OPENING_MODEL_INTRODUCTION_ZH;
+
+export function openingModelIntroduction(language: string): string {
+  return /^chinese|中文/i.test(String(language || '').trim())
+    ? OPENING_MODEL_INTRODUCTION_ZH
+    : OPENING_MODEL_INTRODUCTION_EN;
+}
+
 /** One initial generation followed by up to four contract-repair calls. */
 export const STORYBOARD_RETRY_LIMIT = 4;
 export const STORYBOARD_ATTEMPT_LIMIT = STORYBOARD_RETRY_LIMIT + 1;
@@ -43,6 +62,7 @@ export const DEFAULT_CLIP_STORYBOARD_CONFIG: ClipStoryboardConfig = {
   tone: 'confident product launch',
   minClips: 8,
   maxClips: 14,
+  minItemsPerClip: 1,
   minComponentTypes: 6,
   targetDurationSeconds: 60,
   durationTolerance: 0.25,
@@ -51,8 +71,11 @@ export const DEFAULT_CLIP_STORYBOARD_CONFIG: ClipStoryboardConfig = {
   maxDemoUiHtmlItems: 2,
   temperature: 0.6,
   systemPrompt: [
-    'You are a storyboard director for a local motion-graphics video renderer.',
-    'You return one JSON document and nothing else: no Markdown fences, no commentary.',
+    'You are a storyboard director for a local 16:9 AE / MG motion-graphics renderer.',
+    'Follow the authoring rules from nodes/clip-storyboard/prompt.md'
+      + ' (anchors, motion rhythm, component intent), but emit only this node\'s validated JSON shape.',
+    'You return one JSON document and nothing else: no Markdown fences, no commentary, no # field notes.',
     'Every claim in the narration must be supported by the upstream brief.',
+    'Prefer scale, framing, motion, and on-screen type over static webpage / PPT chrome.',
   ].join(' '),
 };

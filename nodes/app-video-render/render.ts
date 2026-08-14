@@ -8,13 +8,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NodeInputError, NodeValidationError } from '../../server/plugins.ts';
 import {
+  parseWorkflowMermaidMaterials,
+  type WorkflowCanvasGraph,
+  type WorkflowMermaidMaterial,
+} from './demo-html.ts';
+import {
   CLIP_BACKGROUNDS,
   CLIP_ITEM_TYPES,
 } from './renderer/clipTypes.ts';
 
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,48}$/;
 
-/** Clip audio file names written by `edge-tts-narration`. */
+/** Clip audio file names written by `fish-audio-narration`. */
 export const CLIP_AUDIO_PATTERN = /^clip-\d{2,3}\.mp3$/;
 
 /** Background music names auto-detected in project directory. */
@@ -33,7 +38,7 @@ export interface NarrationClipRef {
   index: number;
   file: string;
   durationSeconds: number;
-  /** Clip start on the finished timeline, measured by `edge-tts-narration`. */
+  /** Clip start on the finished timeline, measured by `fish-audio-narration`. */
   startSeconds: number;
 }
 
@@ -41,7 +46,9 @@ export interface NarrationClipRef {
 export interface GeneratedDemoHtml {
   clipIndex: number;
   itemIndex: number;
-  html: string;
+  /** Legacy inline payload; new mermaidCNhtml manifests use htmlFile. */
+  html?: string;
+  htmlFile?: string;
   generation?: Record<string, unknown>;
 }
 
@@ -50,13 +57,19 @@ export interface UpstreamFacts {
   assetDir: string | null;
   /** Original storyboard document when an upstream node carries it. */
   document: Record<string, unknown> | null;
-  /** Directory holding the clip MP3s reported by `edge-tts-narration`. */
+  /** Directory holding the clip MP3s reported by `fish-audio-narration`. */
   audioDir: string | null;
   narrationClips: NarrationClipRef[];
   generatedDemos: GeneratedDemoHtml[];
+  /** Exact graph contract carried by a workflow-canvas UI manifest. */
+  workflowGraph: WorkflowCanvasGraph | null;
+  /** Exact NODE.md Mermaid materials used by deterministic Demo UI targets. */
+  workflowMermaidMaterials: WorkflowMermaidMaterial[];
   /** Upstream node ids whose non-empty output was not a supported manifest. */
   unparsedUpstream: string[];
 }
+
+const MERMAID_MANIFEST_KINDS = new Set(['mermaidCNhtml', 'mermaid-en-html']);
 
 export interface RenderProjectValidationReport {
   errors: string[];
@@ -132,26 +145,6 @@ export function validateRenderProject(value: unknown): RenderProjectValidationRe
       warnings,
       metrics: { clips: 0, items: 0, timedItems: 0 },
     };
-  }
-
-  if (value.hue !== undefined) {
-    const hue = value.hue;
-    if (typeof hue !== 'number' || !Number.isFinite(hue) || hue < 0 || hue > 360) {
-      errors.push('hue must be a number between 0 and 360 when present.');
-    }
-  }
-
-  if (value.palette !== undefined) {
-    if (!isRecord(value.palette)) {
-      errors.push('palette must be an object when present.');
-    } else {
-      for (const role of ['background', 'foreground', 'muted', 'accent', 'secondary']) {
-        const color = value.palette[role];
-        if (typeof color !== 'string' || !/^#[0-9a-f]{6}$/i.test(color.trim())) {
-          errors.push(`palette.${role} must be a #rrggbb hex color.`);
-        }
-      }
-    }
   }
 
   if (value['global-components'] !== undefined && !Array.isArray(value['global-components'])) {
@@ -269,6 +262,8 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     audioDir: null,
     narrationClips: [],
     generatedDemos: [],
+    workflowGraph: null,
+    workflowMermaidMaterials: [],
     unparsedUpstream: [],
   };
 
@@ -278,6 +273,7 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     score: number;
     source: string;
   } | null = null;
+  const demoUiOverrides = new Map<string, unknown>();
 
   for (const [nodeId, value] of entries) {
     let parsed: any;
@@ -299,17 +295,38 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
       : [];
     const isNarrationManifest = Boolean(audioDir && audioClips.length);
 
-    if (parsed.kind === 'ui-html-generation' && Array.isArray(parsed.demos)) {
+    if ((parsed.kind === 'ui-html-generation' || MERMAID_MANIFEST_KINDS.has(parsed.kind)) && Array.isArray(parsed.demos)) {
       recognized = true;
+      if (!facts.workflowGraph) {
+        facts.workflowGraph = readWorkflowCanvasGraph(parsed.workflowGraph);
+      }
+      if (!facts.workflowMermaidMaterials.length && Array.isArray(parsed.workflowMermaidMaterials)) {
+        facts.workflowMermaidMaterials = parsed.workflowMermaidMaterials
+          .filter((material: any) => material && typeof material === 'object' && trimmed(material.id) && trimmed(material.source))
+          .map((material: any) => ({
+            id: trimmed(material.id),
+            nodeType: trimmed(material.nodeType),
+            title: trimmed(material.title) || trimmed(material.id),
+            source: trimmed(material.source),
+            sourceSha256: trimmed(material.sourceSha256),
+            documentationSource: trimmed(material.documentationSource),
+          }));
+      }
+      if (!facts.workflowMermaidMaterials.length) {
+        // Legacy manifests embedded the brief text; prefer structured materials above.
+        const sourceBrief = trimmed(parsed.document?.sourceBrief) || trimmed(parsed.sourceBrief);
+        if (sourceBrief) facts.workflowMermaidMaterials = parseWorkflowMermaidMaterials(sourceBrief);
+      }
       facts.generatedDemos.push(
         ...parsed.demos
           .filter((demo: any) => Number.isInteger(demo?.clipIndex)
             && Number.isInteger(demo?.itemIndex)
-            && typeof demo?.html === 'string')
+            && (typeof demo?.html === 'string' || typeof demo?.htmlFile === 'string'))
           .map((demo: any) => ({
             clipIndex: Number(demo.clipIndex),
             itemIndex: Number(demo.itemIndex),
-            html: demo.html,
+            ...(typeof demo.html === 'string' ? { html: demo.html } : {}),
+            ...(typeof demo.htmlFile === 'string' ? { htmlFile: demo.htmlFile } : {}),
             ...(demo.generation && typeof demo.generation === 'object'
               ? { generation: demo.generation as Record<string, unknown> }
               : {}),
@@ -329,11 +346,18 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
       && candidateDocument.clips.some((clip: any) => Array.isArray(clip?.items))
     ) {
       recognized = true;
+      if (parsed.kind === 'ui-html-generation' || MERMAID_MANIFEST_KINDS.has(parsed.kind)) {
+        for (const [clipIndex, clip] of candidateDocument.clips.entries()) {
+          for (const [itemIndex, item] of (Array.isArray(clip?.items) ? clip.items : []).entries()) {
+            if (item?.demoUi !== undefined) demoUiOverrides.set(`${clipIndex}:${itemIndex}`, item.demoUi);
+          }
+        }
+      }
       let score = 10;
       if (hasCompleteItemTiming(candidateDocument)) score += 30;
       if (isNarrationManifest) score += 100;
       if (Array.isArray(parsed.timeline) && parsed.timeline.length) score += 20;
-      if (parsed.kind === 'ui-html-generation') score -= 5;
+      if (parsed.kind === 'ui-html-generation' || MERMAID_MANIFEST_KINDS.has(parsed.kind)) score -= 5;
 
       if (
         !selectedDocument
@@ -392,6 +416,15 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     }
   }
 
+  if (selectedDocument && demoUiOverrides.size) {
+    const document = structuredClone(selectedDocument.value) as any;
+    for (const [key, demoUi] of demoUiOverrides) {
+      const [clipIndex, itemIndex] = key.split(':').map(Number);
+      const item = document.clips?.[clipIndex]?.items?.[itemIndex];
+      if (item) item.demoUi = demoUi;
+    }
+    selectedDocument.value = document;
+  }
   facts.document = selectedDocument?.value ?? null;
 
   if (!recognizedAny) {
@@ -403,6 +436,26 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     );
   }
   return facts;
+}
+
+function readWorkflowCanvasGraph(value: unknown): WorkflowCanvasGraph | null {
+  if (!isRecord(value) || !isRecord(value.workflow)) return null;
+  if (!Array.isArray(value.workflow.lanes) || !Array.isArray(value.nodes) || !Array.isArray(value.edges)) {
+    return null;
+  }
+  const validNodes = value.nodes.every((node: unknown) => (
+    isRecord(node)
+    && Boolean(trimmed(node.id))
+    && Boolean(trimmed(node.title))
+    && Boolean(trimmed(node.lane))
+  ));
+  const validEdges = value.edges.every((edge: unknown) => (
+    isRecord(edge)
+    && Boolean(trimmed(edge.from))
+    && Boolean(trimmed(edge.to))
+  ));
+  if (!validNodes || !validEdges) return null;
+  return value as WorkflowCanvasGraph;
 }
 
 /** `chapter-10.json` sorts after `chapter-9.json`, which a string sort gets wrong. */

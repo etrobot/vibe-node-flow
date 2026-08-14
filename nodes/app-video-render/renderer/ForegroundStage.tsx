@@ -4,6 +4,7 @@ import {
   getCinematicClipScale,
   getSceneTransitionState,
   getSceneTransitionStyle,
+  RENDER_COMPONENT_SCALE,
   type SceneTransitionRole,
 } from './SceneTransition';
 import type {Clip} from './clipTypes';
@@ -54,7 +55,7 @@ export default function ForegroundStage({
       >
         <div
           className="absolute inset-0 h-full w-full"
-          style={{transform: `scale(${getCinematicClipScale(clipIndex, localTime, duration)})`}}
+          style={{transform: `scale(${getCinematicClipScale(clipIndex, localTime, duration) * RENDER_COMPONENT_SCALE})`}}
         >
           <div className="absolute inset-0 overflow-hidden pointer-events-none" style={themeStyle}>
             <div className="absolute inset-0 pointer-events-auto">

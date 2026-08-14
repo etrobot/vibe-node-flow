@@ -60,7 +60,7 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {
         // Workflow saves are runtime persistence from the editor. Watching them
         // causes a full-page reload that destroys the in-memory canvas route.
-        ignored: ['**/data/**', '**/workflows/**'],
+        ignored: ['**/data/**', '**/workflows/**', '**/*.test.ts'],
       },
     },
   };

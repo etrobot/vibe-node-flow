@@ -1,9 +1,8 @@
 ```mermaid
 flowchart LR
-  Narration["Narration manifest\nMP3s + timeline"] --> Render["app-video-render\nvalidate · render.json"]
-  Story["Storyboard / Demo UI"] --> Render
-  Render --> Script["render-video.sh"]
-  Script --> MP4["video.mp4"]
+  Narration["Narration"] --> Render["Render"]
+  Story["Storyboard"] --> Render
+  Render --> MP4["Video"]
 ```
 
 # App Video Render
@@ -32,7 +31,7 @@ Exit codes: `0` the MP4 exists at `--out`, `2` no renderer installed, `64` bad a
 
 The audio mix is the part the renderer cannot delegate. `scripts/render-video.ts` supports exactly one looped background track (`--music`), which is wrong for narration: a stitched voice track would loop when it is shorter than the video and drift out of sync with the clips. So the node always renders silent (`--no-audio`) and builds the mix itself, placing each clip's MP3 at that clip's real start offset.
 
-Clip offsets come from the `timeline` that `edge-tts-narration` measured, not from a running total of planned durations. That node resolves each clip's `**anchors**` against real word boundaries and writes the resulting shot lengths back into `chapter/chapter-N.json`, so the picture timeline and the audio timeline are derived from the same measurement. Manifests written before `timeline` existed fall back to each clip entry's own `startSeconds`.
+Clip offsets come from the narration `timeline`, not from a running total of planned durations. `fish-audio-narration` measures every MP3's duration, estimates multi-shot anchor positions from the spoken text, and writes the resulting shot lengths back into `chapter/chapter-N.json`. Manifests written before `timeline` existed fall back to each clip entry's own `startSeconds`.
 
 ## Toolchain
 
@@ -47,7 +46,7 @@ brew install ffmpeg
 
 ## Input And Output
 
-- Input: one or more upstream JSON manifests. The `edge-tts-narration` manifest supplies the clip MP3s and the storyboard/Demo UI branches supply the document and slug. Either alone is enough — without narration the node renders a silent or music-only video.
+- Input: one or more upstream JSON manifests. The `fish-audio-narration` manifest supplies the clip MP3s and the storyboard/Demo UI branches supply the document and slug. Either alone is enough — without narration the node renders a silent or music-only video.
 - Output: JSON manifest with the video path and playable URL, byte size, measured and planned duration, encode settings, the audio mix summary, per-clip start offsets with their narration file, and the exact commands that ran.
 - Side effects: writes `video.mp4` and `render.json` into `data/assets/<workflow-id>/generated/<run-id>/`. Reusable video-node assets, such as background music, live under `data/assets/<node-id>/`.
 

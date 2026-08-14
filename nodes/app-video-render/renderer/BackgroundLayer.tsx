@@ -1,5 +1,5 @@
 import {type CSSProperties, useCallback, useEffect, useRef, useState} from 'react';
-import type {ClipBackground, ClipPalette} from './clipTypes';
+import type {ClipBackground} from './clipTypes';
 import {getThemeColors} from './theme';
 
 interface BackgroundLayerProps {
@@ -7,7 +7,6 @@ interface BackgroundLayerProps {
   effectKey?: string;
   effectTime?: number;
   hue?: number;
-  palette?: ClipPalette;
   time: number;
   /** Pre-rendered background video URL. When provided, CSS gradient is replaced by <video>. */
   backgroundVideoUrl?: string;
@@ -42,7 +41,6 @@ export default function BackgroundLayer({
   effectKey,
   effectTime = 0,
   hue,
-  palette,
   time,
   backgroundVideoUrl,
   force2D = false,
@@ -55,7 +53,6 @@ export default function BackgroundLayer({
         backgroundVideoUrl={backgroundVideoUrl}
         time={time}
         hue={hue}
-        palette={palette}
         effectKey={effectKey}
         effectTime={effectTime}
       />
@@ -63,7 +60,7 @@ export default function BackgroundLayer({
   }
 
   // --- Path B: pure CSS gradient background (no Three.js) ---
-  return <GradientBackground background={background} hue={hue} palette={palette} effectKey={effectKey} effectTime={effectTime} time={time} />;
+  return <GradientBackground background={background} hue={hue} effectKey={effectKey} effectTime={effectTime} time={time} />;
 }
 
 // ---- Internal ----
@@ -79,14 +76,12 @@ function hueFromBackground(background: ClipBackground, hue?: number) {
 function GradientBackground({
   background,
   hue,
-  palette,
   effectKey,
   effectTime,
   time,
 }: {
   background: ClipBackground;
   hue?: number;
-  palette?: ClipPalette;
   effectKey?: string;
   effectTime: number;
   time: number;
@@ -146,7 +141,7 @@ function GradientBackground({
   // Aurora / wave / blur — all use the same gradient engine with different hue mappings
   if (background === 'wave') {
     // Wave: teal/cyan mountain-like feel
-    const colors = getThemeColors(baseHue, palette);
+    const colors = getThemeColors(baseHue);
     return (
       <div className="absolute inset-0 z-0 overflow-hidden" style={{backgroundColor: BG_COLORS[background]}}>
         <div
@@ -198,7 +193,7 @@ function GradientBackground({
 
   if (background === 'aurora') {
     // Aurora: purple/indigo blob-like feel
-    const colors = getThemeColors(baseHue, palette);
+    const colors = getThemeColors(baseHue);
     return (
       <div className="absolute inset-0 z-0 overflow-hidden" style={{backgroundColor: BG_COLORS[background]}}>
         <div
@@ -358,7 +353,6 @@ function BackgroundVideo({
   backgroundVideoUrl,
   time,
   hue,
-  palette,
   effectKey,
   effectTime,
 }: {
@@ -366,7 +360,6 @@ function BackgroundVideo({
   backgroundVideoUrl: string;
   time: number;
   hue?: number;
-  palette?: ClipPalette;
   effectKey?: string;
   effectTime: number;
 }) {
@@ -388,7 +381,7 @@ function BackgroundVideo({
   }, [backgroundVideoUrl]);
 
   if (failed) {
-    return <GradientBackground background={background} hue={hue} palette={palette} effectKey={effectKey} effectTime={effectTime} time={time} />;
+    return <GradientBackground background={background} hue={hue} effectKey={effectKey} effectTime={effectTime} time={time} />;
   }
 
   const syncToTime = useCallback(async (nextTime: number) => {
@@ -416,7 +409,7 @@ function BackgroundVideo({
 
   return (
     <>
-      <GradientBackground background={background} hue={hue} palette={palette} effectKey={effectKey} effectTime={effectTime} time={time} />
+      <GradientBackground background={background} hue={hue} effectKey={effectKey} effectTime={effectTime} time={time} />
       <video
         ref={videoRef}
         className="absolute inset-0 z-0 w-full h-full object-cover"

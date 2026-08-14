@@ -5,7 +5,6 @@ export const defaultClipsData: ClipsDocument = {
   hook: 'Turn ideas into deployable apps instantly.',
   summary: 'App launch demo video.',
   closing: 'Build and ship today.',
-  hue: 220,
   chapters: [
     {
       title: 'Overview',

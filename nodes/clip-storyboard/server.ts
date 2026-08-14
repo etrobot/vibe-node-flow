@@ -10,6 +10,7 @@ import {
 import { callLLM } from '../../server/llm.ts';
 import {
   DEFAULT_CLIP_STORYBOARD_CONFIG,
+  openingModelIntroduction,
   STORYBOARD_ATTEMPT_LIMIT,
   STORYBOARD_RETRY_LIMIT,
   type ClipStoryboardConfig,
@@ -28,6 +29,11 @@ import {
   type StoryboardDocument,
   type TimingMode,
 } from './contract.ts';
+import {
+  adaptTimelineSpecForRenderer,
+  extractPromptSection,
+} from './prompt-source.ts';
+import { writeSourceBriefAsset } from '../../lib/source-brief-asset.ts';
 
 function clean(value: unknown): string {
   return String(value ?? '').trim();
@@ -53,6 +59,7 @@ function normalizeConfig(value: unknown): ClipStoryboardConfig {
     tone: clean(raw.tone) || DEFAULT_CLIP_STORYBOARD_CONFIG.tone,
     minClips,
     maxClips,
+    minItemsPerClip: integer(raw.minItemsPerClip, DEFAULT_CLIP_STORYBOARD_CONFIG.minItemsPerClip, 1, 3),
     minComponentTypes: integer(raw.minComponentTypes, DEFAULT_CLIP_STORYBOARD_CONFIG.minComponentTypes, 1, 20),
     targetDurationSeconds: integer(
       raw.targetDurationSeconds,
@@ -115,7 +122,24 @@ function briefText(input: Record<string, string>): string {
   return sections.join('\n\n');
 }
 
+/** Prefer the compact facts section for the storyboard model. The full verified
+ * brief is written to run assets (`sourceBriefPath`) for downstream validation. */
+export function compactBriefForStoryboard(brief: string): string {
+  const marker = '## Compact Storyboard Context';
+  const start = String(brief || '').lastIndexOf(marker);
+  if (start < 0) return brief;
+  const compactEnd = String(brief || '').indexOf('\n## ', start + marker.length);
+  const end = compactEnd > start ? compactEnd : String(brief || '').length;
+  const compact = String(brief || '').slice(start, end).trim();
+  return compact;
+}
+
 export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: string): string {
+  // Authoring rules come from nodes/clip-storyboard/prompt.md (SPEC + examples).
+  const timelineSpec = adaptTimelineSpecForRenderer(extractPromptSection('SPEC'), config.language);
+  const componentExamples = extractPromptSection('COMPONENTS');
+  const fullVideoExample = extractPromptSection('FULL_VIDEO');
+
   const slugRule = config.slug
     ? `Set "slug" to exactly "${config.slug}".`
     : 'Set "slug" to a lowercase kebab-case name derived from the title.';
@@ -125,10 +149,11 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
       'Items carry no "duration". Timing comes from the narration itself.',
       'A clip with N items must have exactly N-1 **anchor** phrases in its "speech".'
       + ' Anchor 1 starts item 2, anchor 2 starts item 3, and so on; item 1 starts with the clip.',
-      'Write the shots first, then choose anchors in order. An anchor is a short complete phrase'
+      'Write the items first, then choose anchors in order. An anchor is a short complete phrase'
       + ' (a keyword, number, conclusion, or turn) that is the moment the picture should change.',
-      'When the item after an anchor references a global component with a "spot", anchor the words'
-      + ' that name that node: match the focused card\'s title as closely as the sentence allows.',
+      'When the item after an anchor references a global component with a "spot", first resolve the'
+      + ' global component by key, then the node by spot, and bold the on-screen label/title that'
+      + ' matches that node — never skip the spot word to bold a more specific later phrase.',
       'Never split a word or anchor bare punctuation, and never anchor a whole sentence.',
       `Total narration should read in about ${config.targetDurationSeconds} seconds`
       + ` (±${Math.round(config.durationTolerance * 100)}%) at a natural pace.`,
@@ -162,23 +187,26 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
 
   return [
     'Convert the brief below into one storyboard JSON document for a motion-graphics renderer.',
+    'Authoring rules follow nodes/clip-storyboard/prompt.md; the renderer contract below wins on field names.',
+    '',
+    '## Authoring rules (from prompt.md)',
+    '',
+    timelineSpec,
     '',
     '## Output contract',
     '',
     'Return exactly one JSON object with these keys and nothing else:',
-    '{"slug","title","hook","summary","closing","hue","palette":{"background","foreground","muted",'
-    + '"accent","secondary"},"chapters":[{"title","summary","startClip","clipCount"}],'
+    '{"slug","title","hook","summary","closing","chapters":[{"title","summary","startClip","clipCount"}],'
     + '"global-components":[{"key","component",...}],'
-    + '"clips":[{"speech","background","items":[{"type",...}]}]}',
+    + '"clips":[{"speech","items":[{"type",...}]}]}',
     '',
     '## Hard rules',
     '',
     slugRule,
     `Write every "speech" and on-screen string in ${config.language}.`,
     `Produce ${config.minClips}-${config.maxClips} clips.`,
-    `"hue" is an integer 0-360 that matches a ${config.tone} mood.`,
-    '"palette" is optional; when present every role is a #rrggbb hex color reading well on dark video.',
-    `"background" must be one of: ${CLIP_BACKGROUNDS.join(', ')}.`,
+    `Every clip must contain ${config.minItemsPerClip}-${MAX_ITEMS_PER_CLIP} visual items; never emit a single-item clip.`,
+    'Colors are renderer-owned. Do not generate hue, palette, background, or chart datum color fields; the storyboard and renderer assign them deterministically.',
     `Each clip holds 1-${MAX_ITEMS_PER_CLIP} items.`,
     ...timingRules,
     'On-screen text lives in item fields such as "title"; keep it to 2-6 words.',
@@ -190,9 +218,31 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
       + ' Prefer one input moment and one result moment; do not stack loading/preview copies.',
     'Chapters must start at clip 0 and their clipCount values must sum to the number of clips.',
     'Every factual claim must trace back to the brief. Do not invent numbers, customers, or endorsements.',
+    'Generate the opening as part of this same complete storyboard JSON, never as a separate narration or post-processing step. The first two clips should introduce the workflow problem and one design advantage supported by the brief.',
+    'When the language is English, you may use this suggested model-introduction sentence in the opening: ' + openingModelIntroduction(config.language),
+    'When the language is Chinese, include this exact model-introduction sentence in clip 1 speech: ' + openingModelIntroduction(config.language),
+    'Opening clips must not reference any global-components item, especially process-card-highlight; do not use a complete workflow card group as opening material.',
+    'Build opening clips from varied direct visual types such as text-typing, text-impact, ui-icon-text, flowing-stats, element-growth, scene-clock, ui-video-preview, or ui-prompt-input. Reserve process-card-highlight and other reusable global structures for the middle node walkthrough, and mix them there with icons, previews, charts, timelines, or other direct motion types.',
+    'This is 16:9 AE / MG motion graphics — not a webpage, PPT, or info panel.'
+      + ' Prefer scale, framing, motion, and on-screen type over static UI chrome'
+      + ' (cards, capsules, nav bars, progress bars, dashboards).',
+    'Every item needs a clear entrance / hold / change / exit beat;'
+      + ' a long static shot with no information change is a failure.',
     ...globalRules,
     '',
-    '## Few-shot example output structure',
+    '## Component menu',
+    '',
+    DIRECT_COMPONENT_GUIDE,
+    '',
+    '## prompt.md component shape reference (map to Component menu types)',
+    '',
+    componentExamples,
+    '',
+    '## prompt.md full-video reference (map shots→items, component→type)',
+    '',
+    fullVideoExample,
+    '',
+    '## Few-shot example in this node\'s output shape',
     '',
     '```json',
     '{',
@@ -201,14 +251,6 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
     '  "hook": "Build production apps in minutes",',
     '  "summary": "Introduction to Forge features and architecture",',
     '  "closing": "Try Forge today.",',
-    '  "hue": 210,',
-    '  "palette": {',
-    '    "background": "#0b0f19",',
-    '    "foreground": "#f8fafc",',
-    '    "muted": "#64748b",',
-    '    "accent": "#38bdf8",',
-    '    "secondary": "#818cf8"',
-    '  },',
     '  "chapters": [',
     '    { "title": "Introduction", "summary": "Core workflow overview", "startClip": 0, "clipCount": 1 },',
     '    { "title": "Conclusion", "summary": "Call to action", "startClip": 1, "clipCount": 1 }',
@@ -226,7 +268,6 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
     '  "clips": [',
     '    {',
     '      "speech": "Forge turns your ideas into **scalable apps** automatically.",',
-    '      "background": "aurora",',
     '      "items": [',
     '        { "type": "text-typing", "title": "Forge App Builder" },',
     '        { "type": "process-card-highlight", "key": "process-overview", "spot": "step-1" }',
@@ -234,7 +275,6 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
     '    },',
     '    {',
     '      "speech": "Get started with Forge today.",',
-    '      "background": "semrush-glow",',
     '      "items": [',
     '        { "type": "text-title", "title": "Forge" },',
     '        { "type": "text-logo", "title": "Build Faster" }',
@@ -243,10 +283,6 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
     '  ]',
     '}',
     '```',
-    '',
-    '## Component menu',
-    '',
-    DIRECT_COMPONENT_GUIDE,
     '',
     '## Brief',
     '',
@@ -269,11 +305,13 @@ async function execute({
   input,
   workflowDefinitionDir,
   workflowDir,
+  assetsDir,
   onLog,
   onResourceAccess,
 }: NodePluginContext): Promise<NodePluginResult> {
   const config = normalizeConfig(node.config);
   const brief = briefText(input);
+  const promptBrief = compactBriefForStoryboard(brief);
   const definitionRoot = workflowDefinitionDir || workflowDir;
 
   onResourceAccess?.({ kind: 'environment', operation: 'read', detail: 'LLM provider configuration' });
@@ -283,13 +321,14 @@ async function execute({
   if (config.promptFile) {
     onResourceAccess?.({ kind: 'filesystem', operation: 'read', detail: `workflow prompt: ${config.promptFile}` });
   }
+  onResourceAccess?.({ kind: 'filesystem', operation: 'write', detail: 'verified source brief asset' });
 
   const systemPrompt = config.systemPromptFile
     ? await readWorkflowFile(definitionRoot, config.systemPromptFile, 'System prompt')
     : config.systemPrompt;
   const prompt = config.promptFile
-    ? `${await readWorkflowFile(definitionRoot, config.promptFile, 'Prompt')}\n\n## Brief\n\n${brief}`
-    : buildStoryboardPrompt(config, brief);
+    ? `${await readWorkflowFile(definitionRoot, config.promptFile, 'Prompt')}\n\n## Brief\n\n${promptBrief}`
+    : buildStoryboardPrompt(config, promptBrief);
 
   const messages: Array<{ role: string; content: string }> = [];
   if (systemPrompt.trim()) messages.push({ role: 'system', content: systemPrompt.trim() });
@@ -297,6 +336,9 @@ async function execute({
 
   const log = createNodeLogger(onLog);
   log.push(
+    config.promptFile
+      ? `Storyboard prompt: workflow file ${config.promptFile}`
+      : 'Storyboard prompt: built-in contract + nodes/clip-storyboard/prompt.md sections.',
     `Storyboard contract: ${config.minClips}-${config.maxClips} clips, `
     + `${config.targetDurationSeconds}s ±${Math.round(config.durationTolerance * 100)}%, `
     + `${config.minComponentTypes}+ component types, ${config.timingMode} timing.`,
@@ -327,6 +369,7 @@ async function execute({
         timingMode: config.timingMode,
         maxGlobalComponents: config.maxGlobalComponents,
         maxDemoUiHtmlItems: config.maxDemoUiHtmlItems,
+        minItemsPerClip: config.minItemsPerClip,
       };
 
       const { document: sanitized, changes } = sanitizeStoryboard(parsed, validationOpts);
@@ -338,7 +381,9 @@ async function execute({
       }
 
       const report = validateStoryboard(sanitized, validationOpts);
-      errors = report.errors;
+      errors = [
+        ...report.errors,
+      ];
       warnings = report.warnings;
       metrics = report.metrics;
       if (!errors.length) document = sanitized as StoryboardDocument;
@@ -348,8 +393,14 @@ async function execute({
 
     if (document) {
       if (config.slug) document.slug = config.slug;
+      // Downstream Demo UI nodes receive only this storyboard edge. Persist the
+      // verified brief once under run assets and reference it by path so the
+      // edge JSON stays compact and reusable without a second DAG edge.
+      document.sourceBriefPath = await writeSourceBriefAsset(assetsDir, brief);
+      delete document.sourceBrief;
       log.push(
         `Attempt ${attempt}/${STORYBOARD_ATTEMPT_LIMIT} passed the storyboard contract.`,
+        `Wrote verified source brief to ${document.sourceBriefPath}.`,
         ...Object.entries(metrics).map(([key, value]) => `[Metric] ${key}: ${value}`),
         ...warnings.map((warning) => `[Warning] ${warning}`),
       );

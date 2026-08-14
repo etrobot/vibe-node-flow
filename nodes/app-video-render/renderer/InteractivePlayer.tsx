@@ -12,11 +12,12 @@ import {
 import ClipRenderer from './ClipRenderer';
 import BackgroundLayer from './BackgroundLayer';
 import TransitionOverlay from './TransitionOverlay';
-import {getThemeColors} from './theme';
+import {getDocumentHue, getThemeColors} from './theme';
+import {RENDER_COMPONENT_SCALE} from './SceneTransition';
 
 export interface InteractivePlayerProps {
   document: ClipsDocument;
-  /** Combined Edge TTS narration for the preview timeline, when available. */
+  /** Combined TTS narration for the preview timeline, when available. */
   audioSrc?: string | null;
   /** Optional callback to trigger opening the MP4 render terminal */
   onRenderMp4?: () => void;
@@ -154,7 +155,8 @@ export const InteractivePlayer = ({
   const activeClip = located?.clip ?? null;
   const activeClipIndex = located?.clipIndex ?? -1;
   const activeItem = activeClip ? locateClipItem(activeClip, located?.localTime ?? 0) : null;
-  const theme = useMemo(() => getThemeColors(document.hue, document.palette), [document.hue, document.palette]);
+  const hue = useMemo(() => getDocumentHue(document), [document.slug, document.title, document.summary]);
+  const theme = useMemo(() => getThemeColors(hue), [hue]);
   const themeStyle = useMemo(() => ({
     '--theme-primary': theme.themePrimary,
     '--theme-secondary': theme.themeSecondary,
@@ -409,8 +411,7 @@ export const InteractivePlayer = ({
               background={activeClip ? getClipBackground(activeClip) : 'blur'}
               effectKey={effectKey}
               effectTime={activeItem?.localTime}
-              hue={document.hue}
-              palette={document.palette}
+              hue={hue}
               time={currentTime}
             />
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -419,7 +420,7 @@ export const InteractivePlayer = ({
                 style={{
                   width: PREVIEW_DESIGN_WIDTH,
                   height: PREVIEW_DESIGN_HEIGHT,
-                  transform: `translate(-50%, -50%) scale(${foregroundScale})`,
+                  transform: `translate(-50%, -50%) scale(${foregroundScale * RENDER_COMPONENT_SCALE})`,
                   transformOrigin: 'center center',
                 }}
               >
@@ -437,7 +438,7 @@ export const InteractivePlayer = ({
           </div>
 
           {transitionProgress !== null && (
-            <TransitionOverlay progress={transitionProgress} hue={document.hue} palette={document.palette} />
+            <TransitionOverlay progress={transitionProgress} hue={hue} />
           )}
 
           {!isPlaying && currentTime === 0 && (
@@ -503,13 +504,13 @@ export const InteractivePlayer = ({
                 type="button"
                 disabled={!canRenderMp4 || isRenderingMp4}
                 onClick={onRenderMp4}
-                title={canRenderMp4 ? '调用渲染脚本 render-video.sh 导出 MP4' : '请先运行工作流生成渲染上下文'}
+                title={canRenderMp4 ? 'Open a terminal and run render-video.sh to export MP4' : 'Run the workflow first to create a render context'}
                 className="mt-1 flex w-full items-center justify-center gap-1 rounded-md bg-[var(--theme-accent)] px-2 py-1 text-[10px] font-semibold text-black shadow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
               >
                 {isRenderingMp4 ? (
                   <>
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    <span>启动中...</span>
+                    <span>Starting...</span>
                   </>
                 ) : (
                   <>

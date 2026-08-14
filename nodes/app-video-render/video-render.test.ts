@@ -34,7 +34,6 @@ const NARRATION_MANIFEST = JSON.stringify({
 
 const TIMED_ANCHOR_DOCUMENT = {
   slug: 'forge-app-launch',
-  hue: 220,
   clips: [{
     speech: 'Turn an idea into a product. **Ship the measured result.**',
     background: 'aurora',
@@ -43,6 +42,19 @@ const TIMED_ANCHOR_DOCUMENT = {
       { type: 'video', url: 'assets/demo.mp4', duration: 1.8 },
     ],
   }],
+};
+
+const WORKFLOW_CANVAS_GRAPH = {
+  workflow: {
+    id: 'workflow-demo',
+    name: 'Workflow Demo',
+    lanes: ['Source', 'Output'],
+  },
+  nodes: [
+    { id: 'source', title: 'Read Source', lane: 'Source' },
+    { id: 'output', title: 'Write Output', lane: 'Output' },
+  ],
+  edges: [{ from: 'source', to: 'output' }],
 };
 
 function renderNode(config: Record<string, unknown>): FlowNode {
@@ -141,7 +153,8 @@ test('toRendererDocument expands global-components so preview and MP4 share the 
   const { toRendererDocument } = await import('./document.ts');
   const compact = {
     title: 'Forge',
-    hue: 220,
+    hue: 12,
+    palette: { accent: '#ff0000' },
     'global-components': [{
       key: 'build-flow',
       component: 'process-card-highlight',
@@ -153,7 +166,7 @@ test('toRendererDocument expands global-components so preview and MP4 share the 
     }],
     clips: [{
       speech: 'Watch it **generate**.',
-      background: 'aurora',
+      background: 'semrush-glow',
       items: [
         { type: 'text-typing', title: 'Idea' },
         { type: 'process-card-highlight', key: 'build-flow', spot: 'generate' },
@@ -170,12 +183,14 @@ test('toRendererDocument expands global-components so preview and MP4 share the 
   ]);
   assert.equal(rendered.clips[0].items[1].targetIndex, 1);
   assert.equal(rendered.clips[0].items[1].key, undefined);
+  assert.equal(rendered.hue, undefined, 'renderer theme is not read from project JSON');
+  assert.equal(rendered.palette, undefined, 'renderer palette is not read from project JSON');
+  assert.equal(rendered.clips[0].background, 'aurora', 'background is assigned by clip order');
 });
 
 test('render facts preserve an embedded storyboard document for preview recovery', () => {
   const document = {
     slug: 'forge-app-launch',
-    hue: 220,
     clips: [{
       speech: 'A launch message.',
       background: 'aurora',
@@ -191,6 +206,60 @@ test('render facts preserve an embedded storyboard document for preview recovery
   });
 
   assert.deepEqual(facts.document, document);
+});
+
+test('render facts preserve the exact workflow graph from the Demo UI manifest', () => {
+  const facts = mergeUpstreamManifests({
+    'node-ui': JSON.stringify({
+      kind: 'ui-html-generation',
+      slug: 'workflow-demo',
+      workflowGraph: WORKFLOW_CANVAS_GRAPH,
+      demos: [],
+    }),
+  });
+
+  assert.deepEqual(facts.workflowGraph, WORKFLOW_CANVAS_GRAPH);
+});
+
+test('English Mermaid manifests attach normalized targets to the timed narration document', () => {
+  const storyboard = {
+    slug: 'workflow-demo',
+    clips: [{
+      speech: 'Show the **workflow**.',
+      background: 'aurora',
+      items: [
+        { type: 'ui-video-preview', title: 'Canvas', demoUi: 'workflow-canvas' },
+        { type: 'ui-video-preview', title: 'Diagram', demoUi: 'node-mermaid' },
+      ],
+    }],
+  };
+  const mermaidDocument = structuredClone(storyboard) as any;
+  mermaidDocument.clips[0].items[0].demoUi = { state: 'workflow-canvas' };
+  mermaidDocument.clips[0].items[1].demoUi = {
+    state: 'node-mermaid',
+    materialId: 'node-one-diagram-1-12345678',
+  };
+  const facts = mergeUpstreamManifests({
+    'node-narration': JSON.stringify({
+      ...storyboard,
+      audioDir: '/voice',
+      clips: [{ index: 0, file: 'clip-01.mp3', durationSeconds: 2 }],
+    }),
+    'node-mermaid-en-html': JSON.stringify({
+      kind: 'mermaid-en-html',
+      document: mermaidDocument,
+      demos: [
+        { clipIndex: 0, itemIndex: 0, htmlFile: 'demo/clip-01-item-01.html' },
+        { clipIndex: 0, itemIndex: 1, htmlFile: 'demo/clip-01-item-02.html' },
+      ],
+    }),
+  });
+
+  assert.equal(facts.generatedDemos.length, 2);
+  assert.deepEqual(facts.document?.clips?.[0]?.items?.map((item: any) => item.demoUi), [
+    { state: 'workflow-canvas' },
+    { state: 'node-mermaid', materialId: 'node-one-diagram-1-12345678' },
+  ]);
 });
 
 test('renderer validation accepts measured durations while authored anchors remain in speech', () => {
@@ -359,6 +428,75 @@ test('execute accepts the timed anchor document emitted by narration', async () 
     assert.equal(result.status, undefined);
     assert.deepEqual(manifest.warnings, []);
     assert.match(manifest.document.clips[0].speech, /\*\*Ship the measured result\.\*\*/);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('publishes upstream combined narration under the render run asset id', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'genno-render-'));
+  const upstreamAudioDir = path.join(root, 'upstream-audio');
+  try {
+    await fs.mkdir(upstreamAudioDir, { recursive: true });
+    await fs.writeFile(path.join(upstreamAudioDir, 'narration.mp3'), 'fake-mp3');
+    const result = await executeAppVideoRender(
+      renderContext(root, {
+        'node-narration': JSON.stringify({
+          slug: 'forge-app-launch',
+          document: TIMED_ANCHOR_DOCUMENT,
+          audioDir: upstreamAudioDir,
+          clips: [{ index: 0, file: 'clip-01.mp3', durationSeconds: 2.8 }],
+        }),
+      }),
+      { preflight: async () => ({ problems: [], notes: [] }) },
+    );
+    const manifest = JSON.parse(String(result.output));
+
+    assert.equal(manifest.narrationUrl, '/api/workflows/workflow-test/assets/run-test/narration.mp3');
+    assert.equal(await fs.readFile(path.join(root, 'generated', 'narration.mp3'), 'utf8'), 'fake-mp3');
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('execute revalidates generated workflow HTML against the merged exact graph', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'genno-render-'));
+  try {
+    const document = {
+      slug: 'workflow-demo',
+      clips: [{
+        speech: 'Show the exact workflow graph.',
+        background: 'aurora',
+        items: [{
+          type: 'ui-video-preview',
+          duration: 2,
+          demoUi: { state: 'workflow-canvas' },
+        }],
+      }],
+    };
+    const htmlWithoutEdge = [
+      '<!doctype html><html><head><style>body{margin:0}</style></head>',
+      '<body data-demo-ui><main data-workflow-canvas>',
+      '<section data-lane="Source"><article data-node-id="source">Read Source</article></section>',
+      '<section data-lane="Output"><article data-node-id="output">Write Output</article></section>',
+      '</main></body></html>',
+    ].join('');
+
+    await assert.rejects(
+      executeAppVideoRender(
+        renderContext(root, {
+          'node-ui': JSON.stringify({
+            kind: 'ui-html-generation',
+            slug: 'workflow-demo',
+            document,
+            workflowGraph: WORKFLOW_CANVAS_GRAPH,
+            demos: [{ clipIndex: 0, itemIndex: 0, html: htmlWithoutEdge }],
+          }),
+        }, { dryRun: true }),
+        { preflight: async () => ({ problems: [], notes: [] }) },
+      ),
+      /missing directed edge marker "source -> output"/,
+    );
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

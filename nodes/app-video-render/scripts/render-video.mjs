@@ -30,6 +30,49 @@ function durationOfDocument(document) {
   }, 0), 0);
 }
 
+function narrationTracks(spec) {
+  const audio = spec.audio || {};
+  const audioDir = String(audio.audioDir || '');
+  return (audio.clips || []).filter((clip) => clip?.file && audioDir)
+    .map((clip) => ({
+      path: path.join(audioDir, clip.file),
+      startSeconds: Number(clip.startSeconds) || 0,
+      declaredDurationSeconds: Number(clip.durationSeconds) || 0,
+    }))
+    .filter((track) => fsSync.existsSync(track.path));
+}
+
+async function measuredDuration(file) {
+  try {
+    const output = await run('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=nw=1:nk=1',
+      file,
+    ]);
+    const duration = Number(String(output).trim().split(/\s+/)[0]);
+    return Number.isFinite(duration) && duration > 0 ? duration : null;
+  } catch {
+    return null;
+  }
+}
+
+async function renderDuration(document, spec) {
+  const pictureSeconds = durationOfDocument(document);
+  const tracks = narrationTracks(spec);
+  if (!tracks.length) return pictureSeconds;
+
+  const ends = await Promise.all(tracks.map(async (track) => {
+    const duration = await measuredDuration(track.path) ?? track.declaredDurationSeconds;
+    return track.startSeconds + Math.max(0, duration);
+  }));
+  // Keep the last frame alive for a tiny encoder/MP3 rounding margin. This
+  // prevents -t from cutting the final syllable when ffprobe and the encoded
+  // MP3 differ by a frame.
+  const audioSeconds = Math.max(...ends, 0) + 0.03;
+  return Math.max(pictureSeconds, audioSeconds);
+}
+
 function executable(name) {
   try {
     return execFileSync('which', [name], { encoding: 'utf8' }).trim();
@@ -70,7 +113,7 @@ async function captureFrames(page, document, spec, silentPath) {
   const fps = Number(spec.fps) || 30;
   const crf = Number(spec.crf) || 18;
   const preset = String(spec.x264Preset || 'medium');
-  const totalSeconds = durationOfDocument(document);
+  const totalSeconds = await renderDuration(document, spec);
   const frameCount = Math.max(1, Math.ceil(totalSeconds * fps));
   const ffmpeg = spawn('ffmpeg', [
     '-y', '-f', 'image2pipe', '-vcodec', 'png', '-r', String(fps), '-i', '-',
@@ -103,13 +146,7 @@ async function captureFrames(page, document, spec, silentPath) {
 
 async function muxAudio(spec, silentPath, outputPath, totalSeconds) {
   const audio = spec.audio || {};
-  const audioDir = String(audio.audioDir || '');
-  const tracks = (audio.clips || []).filter((clip) => clip?.file && audioDir)
-    .map((clip) => ({
-      path: path.join(audioDir, clip.file),
-      startSeconds: Number(clip.startSeconds) || 0,
-    }))
-    .filter((track) => fsSync.existsSync(track.path));
+  const tracks = narrationTracks(spec);
   const musicPath = audio.musicPath && fsSync.existsSync(audio.musicPath) ? audio.musicPath : '';
   if (!tracks.length && !musicPath) {
     await fs.rename(silentPath, outputPath);
@@ -144,6 +181,42 @@ async function muxAudio(spec, silentPath, outputPath, totalSeconds) {
   await fs.rm(silentPath, { force: true });
 }
 
+async function updateRenderManifest(outputPath, plannedSeconds) {
+  const manifestPath = path.join(path.dirname(outputPath), 'render.json');
+  if (!fsSync.existsSync(manifestPath)) return;
+
+  let manifest;
+  try {
+    manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+  } catch {
+    return;
+  }
+
+  let durationSeconds = plannedSeconds;
+  let measured = false;
+  try {
+    const probe = await run('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=nw=1:nk=1',
+      outputPath,
+    ]);
+    const parsed = Number(String(probe).trim().split(/\s+/)[0]);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      durationSeconds = parsed;
+      measured = true;
+    }
+  } catch {
+    // ffprobe is optional; retain the frame timeline when it is unavailable.
+  }
+
+  const stat = await fs.stat(outputPath);
+  manifest.bytes = stat.size;
+  manifest.durationSeconds = Number(durationSeconds.toFixed(3));
+  manifest.measured = measured;
+  await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+}
+
 const spec = parseJsonFile(specFile);
 const document = spec?.document && typeof spec.document === 'object' ? spec.document : spec;
 if (!document || !Array.isArray(document.clips) || !document.clips.length) throw new Error('Render spec has no clips.');
@@ -166,6 +239,7 @@ try {
   await browser.close();
   browser = undefined;
   await muxAudio(spec, silentPath, output, result.totalSeconds);
+  await updateRenderManifest(output, result.totalSeconds);
   console.log(`[render-video] wrote ${output}`);
 } finally {
   if (browser) await browser.close().catch(() => undefined);

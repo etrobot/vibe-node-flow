@@ -14,6 +14,7 @@
 
 import {
   componentNodeKeys,
+  CLIP_BACKGROUNDS,
   estimateSpeechSeconds,
   isGlobalComponentType,
   MIN_ITEM_DURATION,
@@ -25,7 +26,7 @@ import {
   type TimingMode,
 } from './contract.ts';
 
-/** Real seconds for one clip's items, measured from narration by `edge-tts-narration`. */
+/** Real seconds for one clip's items, measured from narration by `fish-audio-narration`. */
 export interface ClipTiming {
   clipIndex: number;
   startSeconds: number;
@@ -36,8 +37,7 @@ export interface ClipTiming {
 /** Payload fields copied from a global component onto the item referencing it. */
 const COPIED_FIELDS = [
   'cards',
-  'comparisonColumns',
-  'comparisonRows',
+  'comparisonCsv',
   'chartData',
   'lineMetrics',
   'chartHeading',
@@ -130,7 +130,8 @@ export function hydrateClip(
   return {
     // Anchors are direction for the timing pass, not something a viewer reads.
     speech: plainSpeech(clip.speech).trim(),
-    background: clip.background,
+    // Backgrounds are renderer metadata, assigned solely by clip order.
+    background: CLIP_BACKGROUNDS[clipIndex % CLIP_BACKGROUNDS.length],
     items: (clip.items || []).map((item, itemIndex) => {
       const slot = measured?.items?.find((entry) => entry.index === itemIndex);
       const seconds = slot && slot.durationSeconds > 0
@@ -143,7 +144,8 @@ export function hydrateClip(
 
 /**
  * The renderer-facing document: same fields `ClipsDocument` has always had,
- * plus the optional palette, with every reference already resolved.
+ * with every reference already resolved. Presentation colors are computed by
+ * the renderer and are intentionally absent from this JSON.
  */
 export function hydrateDocument(
   document: StoryboardDocument,
@@ -151,12 +153,11 @@ export function hydrateDocument(
 ): Record<string, unknown> {
   const globals = globalIndex(document);
   return {
+    ...(document.slug ? { slug: document.slug } : {}),
     title: document.title,
     hook: document.hook,
     summary: document.summary,
     closing: document.closing,
-    hue: document.hue,
-    ...(document.palette ? { palette: document.palette } : {}),
     chapters: document.chapters,
     clips: (document.clips || []).map((clip, index) => hydrateClip(clip, index, globals, options)),
   };

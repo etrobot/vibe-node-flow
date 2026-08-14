@@ -1,0 +1,186 @@
+{
+  "id": "app-launch-video-en",
+  "name": "Exlpainer Video",
+  "description": "",
+  "createdAt": "2026-08-13T00:00:00.000Z",
+  "updatedAt": "2026-08-14T15:50:01.417Z",
+  "icon": "Workflow",
+  "color": "#03d100",
+  "tagCatalog": [
+    "DB",
+    "ENV",
+    "FS",
+    "LLM"
+  ],
+  "tags": [
+    "video",
+    "voice",
+    "english"
+  ],
+  "laneLabels": [
+    "Workflow JSON",
+    "Explainer Storyboard",
+    "Parallel Assets",
+    "Video Output"
+  ],
+  "reuseOverwriteGeneratedAssets": false,
+  "nodes": [
+    {
+      "id": "node-workflow-brief",
+      "type": "workflow-json-brief",
+      "title": "Read and Parse Workflow JSON",
+      "icon": "Workflow",
+      "lane": "Workflow JSON",
+      "x": 60,
+      "y": 240,
+      "color": "#2563eb",
+      "tags": [
+        "ENV",
+        "LLM"
+      ],
+      "config": {
+        "sourceWorkflowPath": "workflows/app-launch-video-en/workflow.json",
+        "targetLanguage": "English",
+        "targetAudience": "People familiar with automation and AI tools who have not seen this workflow implementation",
+        "targetDurationSeconds": 90,
+        "explanationFocus": "Why the workflow exists, what every node does, how data moves along the real edges, important configuration, final output, and warning or failure boundaries",
+        "includeNodeDocs": true,
+        "includeNodeConfig": true,
+        "maxWorkflowBytes": 1000000,
+        "maxNodeDocChars": 2500,
+        "maxConfigValueChars": 600
+      }
+    },
+    {
+      "id": "node-storyboard",
+      "type": "clip-storyboard",
+      "title": "Generate English Explainer Storyboard",
+      "icon": "Clapperboard",
+      "lane": "Explainer Storyboard",
+      "x": 305,
+      "y": 240,
+      "color": "#c2410c",
+      "tags": [
+        "ENV",
+        "LLM"
+      ],
+      "config": {
+        "slug": "",
+        "language": "English",
+        "tone": "clear, restrained, technical walkthrough",
+        "minClips": 6,
+        "maxClips": 10,
+        "minItemsPerClip": 1,
+        "minComponentTypes": 5,
+        "targetDurationSeconds": 90,
+        "durationTolerance": 0.35,
+        "timingMode": "anchor",
+        "maxGlobalComponents": 4,
+        "maxDemoUiHtmlItems": 2,
+        "temperature": 0.45,
+        "systemPrompt": "You direct grounded English workflow explainer videos and return one validated storyboard JSON document only.",
+        "systemPromptFile": "prompts/workflow-explainer.system.md",
+        "promptFile": "prompts/workflow-explainer.prompt.md"
+      }
+    },
+    {
+      "id": "node-narration",
+      "type": "fish-audio-narration",
+      "title": "Generate English Fish Audio Narration",
+      "icon": "AudioWaveform",
+      "lane": "Parallel Assets",
+      "x": 550,
+      "y": 80,
+      "color": "#0f766e",
+      "tags": [
+        "ENV",
+        "FS"
+      ],
+      "config": {
+        "writeCombined": true,
+        "concurrency": 1,
+        "applyTiming": true,
+        "minItemSeconds": 0.35,
+        "timeoutMs": 120000,
+        "durationTolerance": 0.35
+      }
+    },
+    {
+      "id": "node-mermaid-en-html",
+      "type": "mermaid-en-html",
+      "title": "Render English Mermaid Workflow HTML",
+      "icon": "GitBranch",
+      "lane": "Parallel Assets",
+      "x": 550,
+      "y": 380,
+      "color": "#0891b2",
+      "tags": [
+        "ENV",
+        "FS"
+      ],
+      "config": {
+        "outputLanguage": "English",
+        "translateLabels": false,
+        "width": 1920,
+        "height": 1080,
+        "maxTargets": 3,
+        "maxHtmlLength": 400000
+      }
+    },
+    {
+      "id": "node-render",
+      "type": "app-video-render",
+      "title": "Preview and Render Explainer Video",
+      "icon": "Film",
+      "lane": "Video Output",
+      "x": 795,
+      "y": 240,
+      "color": "#7c3aed",
+      "tags": [
+        "FS"
+      ],
+      "config": {
+        "slug": "",
+        "resolution": "1080p",
+        "fps": 30,
+        "crf": 18,
+        "x264Preset": "medium",
+        "audioBitrate": "192k",
+        "narration": true,
+        "music": true,
+        "musicVolume": 0.18,
+        "validateProject": true,
+        "cleanIntermediates": true,
+        "timeoutMs": 1800000,
+        "dryRun": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-workflow-brief-storyboard",
+      "fromNodeId": "node-workflow-brief",
+      "toNodeId": "node-storyboard"
+    },
+    {
+      "id": "edge-storyboard-narration",
+      "fromNodeId": "node-storyboard",
+      "toNodeId": "node-narration"
+    },
+    {
+      "id": "edge-storyboard-mermaid",
+      "fromNodeId": "node-storyboard",
+      "toNodeId": "node-mermaid-en-html"
+    },
+    {
+      "id": "edge-narration-render",
+      "fromNodeId": "node-narration",
+      "toNodeId": "node-render"
+    },
+    {
+      "id": "edge-mermaid-render",
+      "fromNodeId": "node-mermaid-en-html",
+      "toNodeId": "node-render"
+    }
+  ]
+}

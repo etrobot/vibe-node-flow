@@ -4,6 +4,7 @@ import {
   estimateDurationSeconds,
   estimateSpeechSeconds,
   parseStoryboardJson,
+  parseComparisonCsv,
   plainSpeech,
   sanitizeStoryboard,
   speechAnchors,
@@ -12,10 +13,12 @@ import {
   type StoryboardValidationOptions,
 } from './contract.ts';
 import { hydrateDocument } from './resolve.ts';
-import { buildStoryboardPrompt } from './server.ts';
-import { DEFAULT_CLIP_STORYBOARD_CONFIG } from './config.ts';
-import { clipFileName, readNarrationSource } from '../edge-tts-narration/server.ts';
-import { boundaryOffsets, resolveClipTiming, stripAnchors } from '../edge-tts-narration/timing.ts';
+import { buildStoryboardPrompt, compactBriefForStoryboard } from './server.ts';
+import { DEFAULT_CLIP_STORYBOARD_CONFIG, OPENING_MODEL_INTRODUCTION_ZH } from './config.ts';
+import {
+  adaptTimelineSpecForRenderer,
+  extractPromptSection,
+} from './prompt-source.ts';
 
 const OPTIONS: StoryboardValidationOptions = {
   minClips: 3,
@@ -38,7 +41,6 @@ function fixture(): StoryboardDocument {
     hook: 'Ideas are everywhere.',
     summary: 'An AI builder turns a described idea into a working product.',
     closing: 'Turn your idea into a real product.',
-    hue: 345,
     chapters: [
       { title: 'The Spark', summary: 'Ideas outnumber shipped products.', startClip: 0, clipCount: 2 },
       { title: 'Until Now', summary: 'Describing the product is enough.', startClip: 2, clipCount: 2 },
@@ -157,6 +159,30 @@ test('sanitizeStoryboard auto-corrects structural defects in malformed LLM respo
   assert.equal((sanitized as any).chapters[0].clipCount, 2);
 });
 
+test('sanitizeStoryboard removes all model-authored presentation metadata', () => {
+  const { document: sanitized, changes } = sanitizeStoryboard({
+    slug: 'color-test',
+    title: 'Color Test',
+    palette: {
+      background: '#000000',
+      foreground: '#ffffff',
+      muted: '#888888',
+      accent: '#ff0000',
+      secondary: '#00ff00',
+    },
+    'global-components': [{
+      key: 'counts',
+      component: 'chart-bar',
+      chartData: [{ key: 'one', label: 'One', value: 1, color: '#ff0000' }],
+    }],
+    clips: [],
+  });
+
+  assert.equal((sanitized as any).palette, undefined);
+  assert.equal((sanitized as any)['global-components'][0].chartData[0].color, undefined);
+  assert.ok(changes.some((change) => /renderer-owned presentation field/.test(change)));
+});
+
 test('a conforming anchor-timed storyboard passes and reports its metrics', () => {
   const report = validateStoryboard(fixture(), OPTIONS);
   assert.deepEqual(report.errors, []);
@@ -170,6 +196,43 @@ test('a conforming anchor-timed storyboard passes and reports its metrics', () =
     report.metrics.estimatedSeconds,
     Number(estimateDurationSeconds(fixture().clips).toFixed(1)),
   );
+});
+
+test('storyboard prompt owns the complete opening composition', () => {
+  const prompt = buildStoryboardPrompt({
+    ...({} as any),
+    slug: 'opening-flow',
+    language: 'Chinese',
+    minClips: 8,
+    maxClips: 12,
+    minComponentTypes: 7,
+    targetDurationSeconds: 90,
+    durationTolerance: 0.3,
+    timingMode: 'anchor',
+    maxGlobalComponents: 5,
+    maxDemoUiHtmlItems: 3,
+    tone: '清晰、克制、技术讲解感',
+  } as any, '## Compact Storyboard Context\nWorkflow: opening-flow');
+  assert.match(prompt, /Generate the opening as part of this same complete storyboard JSON/);
+  assert.match(prompt, new RegExp(OPENING_MODEL_INTRODUCTION_ZH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(prompt, /Opening clips must not reference any global-components item/);
+});
+
+test('storyboard receives compact workflow facts plus the opening while preserving full source elsewhere', () => {
+  const brief = [
+    '### Upstream workflow-json-brief',
+    '## Compact Storyboard Context',
+    'Workflow: Compact Flow [compact-flow]',
+    '~~~json',
+    '{"nodes":[{"id":"node-a"}]}',
+    '~~~',
+    '## Node-by-Node Evidence',
+    'This verbose section should not be sent to storyboard.',
+  ].join('\n');
+  const compact = compactBriefForStoryboard(brief);
+  assert.match(compact, /Compact Flow/);
+  assert.doesNotMatch(compact, /Generated Opening Narration/);
+  assert.doesNotMatch(compact, /This verbose section/);
 });
 
 test('anchors are direction for the picture, never text the voice reads', () => {
@@ -229,6 +292,15 @@ test('clip-level contract violations are reported individually', () => {
   const { errors } = validateStoryboard(document, OPTIONS);
   assert.ok(errors.some((issue) => /Clip 2 background must be one of/.test(issue)));
   assert.ok(errors.some((issue) => /Clip 3 text-typing must be the first item/.test(issue)));
+});
+
+test('sanitizeStoryboard overrides model-authored backgrounds deterministically', () => {
+  const document = fixture();
+  document.clips[0].background = 'semrush-glow';
+  const { document: sanitized, changes } = sanitizeStoryboard(document);
+
+  assert.equal((sanitized as any).clips[0].background, 'aurora');
+  assert.ok(changes.some((change) => /Assigned deterministic background aurora/.test(change)));
 });
 
 test('the closing pair is required in the final clip and refused everywhere else', () => {
@@ -325,23 +397,6 @@ test('global component cards need unique kebab-case keys', () => {
   assert.ok(errors.some((issue) => /key describe is already used in this component/.test(issue)));
 });
 
-test('palette roles must be hex colors when the storyboard sets them', () => {
-  const document = fixture();
-  document.palette = {
-    background: '#0b0510',
-    foreground: '#f8f5ff',
-    muted: 'grey',
-    accent: '#ff5d7a',
-    secondary: '#b06bff',
-  };
-  assert.ok(validateStoryboard(document, OPTIONS).errors.some(
-    (issue) => /palette\.muted must be a #rrggbb hex color/.test(issue),
-  ));
-
-  document.palette.muted = '#a99eb7';
-  assert.deepEqual(validateStoryboard(document, OPTIONS).errors, []);
-});
-
 test('chapters must start at clip 0 and cover every clip', () => {
   const document = fixture();
   document.chapters[1].clipCount = 1;
@@ -355,9 +410,19 @@ test('chapters must start at clip 0 and cover every clip', () => {
   ));
 });
 
-test('narration outside the target window and thin component variety are rejected', () => {
-  const { errors } = validateStoryboard(fixture(), { ...OPTIONS, targetDurationSeconds: 300 });
-  assert.ok(errors.some((issue) => /Estimated narration .* must fall within 195\.0-405\.0s/.test(issue)));
+test('narration duration outside the target window is advisory, not a hard failure', () => {
+  const document = fixture();
+  document.clips[0].speech += ' ' + 'word '.repeat(400);
+  const report = validateStoryboard(document, OPTIONS);
+
+  assert.doesNotMatch(report.errors.join('\n'), /Estimated narration/);
+  assert.match(report.warnings.join('\n'), /Estimated narration .* continuing because duration is advisory/);
+});
+
+test('thin component variety remains an error while duration stays advisory', () => {
+  const durationReport = validateStoryboard(fixture(), { ...OPTIONS, targetDurationSeconds: 300 });
+  assert.doesNotMatch(durationReport.errors.join('\\n'), /Estimated narration/);
+  assert.match(durationReport.warnings.join('\\n'), /Estimated narration .* continuing because duration is advisory/);
 
   const thin = validateStoryboard(fixture(), { ...OPTIONS, minComponentTypes: 20 }).errors;
   assert.ok(thin.some((issue) => /uses 7 component types; at least 20 are required/.test(issue)));
@@ -398,6 +463,47 @@ test('hydration prefers measured narration timing over its own estimate', () => 
   assert.deepEqual(hydrated.clips[0].items.map((item: any) => item.duration), [1.74, 2.31]);
 });
 
+test('prompt.md sections load and adapt for the renderer contract', () => {
+  const spec = extractPromptSection('SPEC');
+  assert.match(spec, /旁白锚点/);
+  assert.match(spec, /global-components/);
+  assert.match(extractPromptSection('COMPONENTS'), /"component": "flow"/);
+  assert.match(extractPromptSection('FULL_VIDEO'), /"clips"/);
+
+  const adaptedChinese = adaptTimelineSpecForRenderer(spec, 'Chinese');
+  assert.match(adaptedChinese, /本节点输出形状/);
+  assert.match(adaptedChinese, /flow \/ loopflow → `process-card-highlight`/);
+
+  const adaptedEnglish = adaptTimelineSpecForRenderer(spec, 'English');
+  assert.match(adaptedEnglish, /Renderer output shape/);
+  assert.match(adaptedEnglish, /flow \/ loopflow → `process-card-highlight`/);
+});
+
+test('comparison-table uses one compact CSV payload', () => {
+  const parsed = parseComparisonCsv('Node,Responsibility\nInput,"Read, validate"\nOutput,Write results');
+
+  assert.deepEqual(parsed, {
+    featureLabel: 'Node',
+    columns: [{ label: 'Responsibility' }],
+    rows: [
+      { feature: 'Input', values: ['Read, validate'] },
+      { feature: 'Output', values: ['Write results'] },
+    ],
+  });
+});
+
+test('comparison-table CSV passes the storyboard component validator', () => {
+  const document = fixture();
+  document['global-components']!.push({
+    key: 'node-responsibilities',
+    component: 'comparison-table',
+    comparisonCsv: 'Node,Responsibility\nInput,Read data\nOutput,Write results',
+  });
+  const errors = validateStoryboard(document, OPTIONS).errors;
+  assert.doesNotMatch(errors.join('\n'), /comparisonCsv .*array/);
+  assert.doesNotMatch(errors.join('\n'), /comparisonCsv must contain/);
+});
+
 test('the generation prompt states the pinned slug and the anchor contract', () => {
   const prompt = buildStoryboardPrompt(
     { ...DEFAULT_CLIP_STORYBOARD_CONFIG, slug: 'forge-app-launch', language: 'English' },
@@ -407,6 +513,9 @@ test('the generation prompt states the pinned slug and the anchor contract', () 
   assert.match(prompt, /Write every "speech" and on-screen string in English/);
   assert.match(prompt, /exactly N-1 \*\*anchor\*\* phrases/);
   assert.match(prompt, /Declare every pyramid-highlight/);
+  assert.match(prompt, /Authoring rules \(from prompt\.md\)/);
+  assert.match(prompt, /Renderer output shape/);
+  assert.match(prompt, /This task uses the Doubao-Seed-Evolving model/);
   assert.doesNotMatch(prompt, /semrush-chat/, 'reserved brand scenes stay off the menu');
   assert.match(prompt, /## Brief\n\n# Brief$/);
 
@@ -415,147 +524,4 @@ test('the generation prompt states the pinned slug and the anchor contract', () 
     '# Brief',
   );
   assert.match(timed, /Each item duration is 0\.6-6 seconds/);
-});
-
-test('narration reads either a run asset manifest or a raw storyboard', () => {
-  const fromStoryboard = readNarrationSource(JSON.stringify(fixture()));
-  assert.equal(fromStoryboard.clips.length, 4);
-  assert.equal(fromStoryboard.slug, 'forge-app-launch');
-  assert.equal(fromStoryboard.assetDir, null);
-  assert.equal(fromStoryboard.clips[0].itemCount, 2);
-  // Anchor-timed storyboards author no seconds, so there is no plan to exceed.
-  assert.equal(fromStoryboard.clips[0].plannedSeconds, undefined);
-
-  const fromManifest = readNarrationSource(JSON.stringify({
-    slug: 'forge-app-launch',
-    assetDir: '/tmp/run-assets',
-    chapterFiles: ['chapter-1.json'],
-    document: { clips: [{ items: [{ type: 'ui-prompt-input', demoUi: { htmlFile: 'demo/clip-01-item-01.html' } }] }] },
-    clips: [{ index: 0, speech: 'Ideas are **everywhere**.', itemCount: 2 }],
-  }));
-  assert.equal(fromManifest.assetDir, '/tmp/run-assets');
-  assert.deepEqual(fromManifest.chapterFiles, ['chapter-1.json']);
-  assert.equal((fromManifest.document as any)?.clips?.[0]?.items?.[0]?.demoUi?.htmlFile, 'demo/clip-01-item-01.html');
-  assert.equal(fromManifest.clips[0].itemCount, 2);
-  assert.equal(fromManifest.clips[0].plannedSeconds, undefined);
-
-  assert.throws(() => readNarrationSource(''), /empty upstream output/);
-  assert.throws(() => readNarrationSource('nope'), /not JSON/);
-  assert.throws(() => readNarrationSource('{"clips":[]}'), /non-empty clips array/);
-  assert.throws(
-    () => readNarrationSource('{"clips":[{"speech":"ok"},{"speech":"  "}]}'),
-    /Clips 2 have no speech/,
-  );
-});
-
-test('stripping anchors yields the spoken string and where each anchor lands in it', () => {
-  const { plain, anchors } = stripAnchors('Ideas are everywhere. **Building** was the bottleneck.');
-  assert.equal(plain, 'Ideas are everywhere. Building was the bottleneck.');
-  assert.deepEqual(anchors, [{ text: 'Building', charIndex: 22 }]);
-  assert.equal(plain.slice(22, 30), 'Building');
-
-  // Whitespace collapses exactly as the synthesizer collapses it.
-  const wrapped = stripAnchors('Ideas   are\n  everywhere. **Building**  was hard.');
-  assert.equal(wrapped.plain, 'Ideas are everywhere. Building was hard.');
-  assert.equal(wrapped.plain.slice(wrapped.anchors[0].charIndex, wrapped.anchors[0].charIndex + 8), 'Building');
-});
-
-test('word boundaries map to character offsets even when a word repeats', () => {
-  const plain = 'Ship it and ship it again.';
-  const offsets = boundaryOffsets(plain, [
-    { text: 'Ship', offsetSeconds: 0, durationSeconds: 0.3 },
-    { text: 'it', offsetSeconds: 0.3, durationSeconds: 0.2 },
-    { text: 'and', offsetSeconds: 0.5, durationSeconds: 0.2 },
-    { text: 'ship', offsetSeconds: 0.7, durationSeconds: 0.3 },
-    { text: 'it', offsetSeconds: 1.0, durationSeconds: 0.2 },
-  ]);
-  // The second "ship"/"it" resolve to their own occurrence, not the first.
-  assert.deepEqual(offsets, [0, 5, 8, 12, 17]);
-});
-
-test('anchor timing places the cut where the voice said the anchor', () => {
-  const result = resolveClipTiming({
-    speech: 'Ideas are everywhere. **Building** was the bottleneck.',
-    itemCount: 2,
-    audioSeconds: 4.05,
-    boundaries: [
-      { text: 'Ideas', offsetSeconds: 0.00, durationSeconds: 0.40 },
-      { text: 'are', offsetSeconds: 0.40, durationSeconds: 0.25 },
-      { text: 'everywhere', offsetSeconds: 0.65, durationSeconds: 1.09 },
-      { text: 'Building', offsetSeconds: 1.74, durationSeconds: 0.70 },
-      { text: 'was', offsetSeconds: 2.44, durationSeconds: 0.25 },
-      { text: 'the', offsetSeconds: 2.69, durationSeconds: 0.20 },
-      { text: 'bottleneck', offsetSeconds: 2.89, durationSeconds: 1.16 },
-    ],
-  });
-
-  assert.equal(result.measured, true);
-  assert.deepEqual(result.warnings, []);
-  assert.deepEqual(result.items, [
-    { index: 0, startSeconds: 0, durationSeconds: 1.74 },
-    { index: 1, startSeconds: 1.74, durationSeconds: 2.31 },
-  ]);
-  // The split always accounts for the whole clip.
-  assert.equal(
-    result.items.reduce((total, item) => total + item.durationSeconds, 0).toFixed(2),
-    '4.05',
-  );
-});
-
-test('timing falls back to an even split rather than guessing', () => {
-  const boundaries = [
-    { text: 'Ideas', offsetSeconds: 0, durationSeconds: 0.4 },
-    { text: 'ship', offsetSeconds: 0.4, durationSeconds: 0.4 },
-  ];
-
-  const mismatched = resolveClipTiming({
-    speech: 'Ideas ship.',
-    itemCount: 3,
-    audioSeconds: 3,
-    boundaries,
-  });
-  assert.equal(mismatched.measured, false);
-  assert.ok(mismatched.warnings.some((issue) => /instead of 2/.test(issue)));
-  assert.deepEqual(mismatched.items.map((item) => item.durationSeconds), [1, 1, 1]);
-
-  // One item never needs an anchor and always spans the whole clip.
-  const single = resolveClipTiming({ speech: 'Ideas ship.', itemCount: 1, audioSeconds: 3, boundaries });
-  assert.equal(single.measured, true);
-  assert.deepEqual(single.items, [{ index: 0, startSeconds: 0, durationSeconds: 3 }]);
-
-  // Audio too short to give each shot its floor.
-  const cramped = resolveClipTiming({
-    speech: 'Ideas **ship**.',
-    itemCount: 2,
-    audioSeconds: 0.4,
-    boundaries,
-    minItemSeconds: 0.35,
-  });
-  assert.equal(cramped.measured, false);
-  assert.deepEqual(cramped.items.map((item) => item.durationSeconds), [0.2, 0.2]);
-});
-
-test('anchors closer together than the floor are spread to keep every shot visible', () => {
-  const result = resolveClipTiming({
-    speech: 'A **b** **c** d.',
-    itemCount: 3,
-    audioSeconds: 4,
-    minItemSeconds: 0.5,
-    boundaries: [
-      { text: 'A', offsetSeconds: 0.0, durationSeconds: 0.1 },
-      { text: 'b', offsetSeconds: 0.1, durationSeconds: 0.05 },
-      { text: 'c', offsetSeconds: 0.15, durationSeconds: 0.05 },
-      { text: 'd', offsetSeconds: 0.2, durationSeconds: 0.1 },
-    ],
-  });
-  assert.ok(result.items.every((item) => item.durationSeconds >= 0.5), 'no shot is below the floor');
-  assert.equal(
-    result.items.reduce((total, item) => total + item.durationSeconds, 0).toFixed(2),
-    '4.00',
-  );
-});
-
-test('clip audio file names are zero padded and one-based', () => {
-  assert.equal(clipFileName(0), 'clip-01.mp3');
-  assert.equal(clipFileName(11), 'clip-12.mp3');
 });

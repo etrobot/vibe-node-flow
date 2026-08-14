@@ -6,6 +6,7 @@ import { getModule } from '@/App/registry';
 import { FlowCanvas } from '@/App/FlowCanvas';
 import { NodeInspector } from '@/App/NodeInspector';
 import { renderLucideIcon } from './IconPicker';
+import { ThemeSelector } from './ThemeSelector';
 import {
   AlertCircle,
   ArrowLeft,
@@ -247,6 +248,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
+          <ThemeSelector />
           <div className="hidden lg:flex items-center gap-3 text-[11px] text-muted mr-1">
             <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatTime(record.startedAt)}</span>
             <span className="font-mono">{formatDuration(record.durationMs)}</span>

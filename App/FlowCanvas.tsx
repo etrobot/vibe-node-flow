@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { FlowNode, FlowEdge } from '@/App/types';
 import { renderLucideIcon } from '@/App/components/ui/IconPicker';
 import { NodeTagManagerModal } from '@/App/components/ui/NodeTagManagerModal';
@@ -23,6 +23,7 @@ import {
   LEFT_BOUNDARY,
   snapY,
   LANE_HEADER_HEIGHT,
+  GRID_SIZE,
 } from '@/lib/canvas-layout';
 import {
   Sparkles,
@@ -82,6 +83,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
   readOnly = false,
 }) => {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const gridPatternId = `canvas-dot-grid-${useId().replace(/:/g, '')}`;
 
   // --- Zoom & Pan state ---
   const [zoom, setZoom] = useState<number>(1);
@@ -114,6 +116,16 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
       laneInputRef.current?.select();
     }
   }, [editingLane]);
+
+  useEffect(() => {
+    console.log('[canvas-grid] lane/grid alignment', {
+      gridSize: GRID_SIZE,
+      colSpacing: COL_SPACING,
+      leftBoundary: LEFT_BOUNDARY,
+      cellsPerLane: COL_SPACING / GRID_SIZE,
+      laneXs: [LEFT_BOUNDARY, columnDividerX(0), columnDividerX(1), columnDividerX(2)],
+    });
+  }, []);
 
   const beginEditLane = (colIndex: number) => {
     if (readOnly || !onUpdateLaneLabel) return;
@@ -719,24 +731,34 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
         className="w-full h-full relative origin-top-left transition-transform duration-75"
         style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
       >
-        {/* Scaled Background Grid Layer */}
-        <div
-          className="absolute bg-grid-pattern pointer-events-none z-0"
-          style={{
-            left: '-2000px',
-            top: '-2000px',
-            width: '8000px',
-            height: '8000px',
-          }}
-        />
-
         <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
           <defs>
             <linearGradient id="gradient-default" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#26251e" />
               <stop offset="100%" stopColor="#5a5852" />
             </linearGradient>
+            {/* Dot grid shares SVG space with lane dividers so they stay locked. Origin is LEFT_BOUNDARY; period is GRID_SIZE (divides COL_SPACING). */}
+            <pattern
+              id={gridPatternId}
+              x={LEFT_BOUNDARY}
+              y={0}
+              width={GRID_SIZE}
+              height={GRID_SIZE}
+              patternUnits="userSpaceOnUse"
+            >
+              <circle cx={0} cy={0} r={1} fill="var(--color-hairline)" />
+              <circle cx={GRID_SIZE} cy={0} r={1} fill="var(--color-hairline)" />
+              <circle cx={0} cy={GRID_SIZE} r={1} fill="var(--color-hairline)" />
+              <circle cx={GRID_SIZE} cy={GRID_SIZE} r={1} fill="var(--color-hairline)" />
+            </pattern>
           </defs>
+          <rect
+            x={-4000}
+            y={-4000}
+            width={8000}
+            height={8000}
+            fill={`url(#${gridPatternId})`}
+          />
           {renderColumnGuides()}
           {edges.map((edge) => {
             const fromNode = nodes.find((n) => n.id === edge.fromNodeId);

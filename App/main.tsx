@@ -4,6 +4,9 @@ import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 import { getRenderPage } from './registry';
+import { applyTheme, getThemeId } from './themes';
+
+applyTheme(getThemeId());
 
 const renderMode = new URLSearchParams(window.location.search).get('videoRender');
 const ExtensionRenderPage = getRenderPage();

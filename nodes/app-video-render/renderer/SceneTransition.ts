@@ -4,6 +4,9 @@ import {clamp, getClipDuration} from './clipModel';
 
 export const SCENE_TRANSITION_SECONDS = 0.9;
 
+/** Shared component scale for the interactive preview and MP4 render. */
+export const RENDER_COMPONENT_SCALE = 1.2;
+
 export type SceneTransitionKind = 'slide-left' | 'slide-vertical' | 'zoom-in';
 export type SceneTransitionRole = 'outgoing' | 'incoming';
 

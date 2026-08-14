@@ -126,7 +126,7 @@ cat >&2 <<EOF
       Note it currently fetches /api/projects/:name, which server/api.ts does
       not implement; /api/video/spec/:runId is the endpoint that does.
     - buildMuxArgs() in render.ts, which lays each clip's narration on the
-      timeline at the offsets edge-tts-narration measured.
+      timeline at the offsets fish-audio-narration measured.
 
 EOF
 exit 2

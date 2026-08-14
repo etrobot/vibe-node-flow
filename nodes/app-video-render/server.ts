@@ -9,11 +9,14 @@ import {
 } from '../../server/plugins.ts';
 import {
   demoFileName,
+  isSafeDemoFile,
   listDemoUiCandidates,
   normalizeDemoHtml,
   validateDemoHtml,
   type DemoUiTarget,
-} from '../ui-html-generation/contract.ts';
+  type WorkflowCanvasGraph,
+  type WorkflowMermaidMaterial,
+} from './demo-html.ts';
 import { toRendererDocument } from './document.ts';
 import {
   DEFAULT_APP_VIDEO_RENDER_CONFIG,
@@ -102,6 +105,8 @@ async function attachGeneratedDemos(
   assetsDir: string,
   workflowId: string,
   runId: string,
+  workflowGraph: WorkflowCanvasGraph | null,
+  workflowMermaidMaterials: WorkflowMermaidMaterial[],
 ): Promise<Record<string, any>> {
   const candidates = listDemoUiCandidates(document);
   const byCandidate = new Map<string, DemoUiTarget>();
@@ -127,8 +132,28 @@ async function attachGeneratedDemos(
   await fs.mkdir(path.join(assetsDir, 'demo'), { recursive: true });
   for (const [key, generated] of byTarget) {
     const target = byCandidate.get(key)!;
-    const html = normalizeDemoHtml(generated.html);
-    const errors = validateDemoHtml(html, target);
+    let rawHtml = generated.html;
+    if (!rawHtml && generated.htmlFile) {
+      if (!isSafeDemoFile(generated.htmlFile)) {
+        throw new NodeValidationError(`Demo UI generation contains an unsafe HTML file ${generated.htmlFile}.`);
+      }
+      try {
+        rawHtml = await fs.readFile(path.resolve(assetsDir, generated.htmlFile), 'utf8');
+      } catch (error) {
+        throw new NodeValidationError(
+          `Demo UI generation file ${generated.htmlFile} cannot be read: `
+            + (error instanceof Error ? error.message : String(error)),
+        );
+      }
+    }
+    const html = normalizeDemoHtml(rawHtml);
+    const errors = validateDemoHtml(
+      html,
+      target,
+      400_000,
+      workflowGraph,
+      workflowMermaidMaterials,
+    );
     if (errors.length) {
       throw new NodeValidationError(
         `Demo UI target ${key} failed validation:\n${errors.map((error) => `- ${error}`).join('\n')}`,
@@ -373,6 +398,8 @@ export async function executeAppVideoRender(
       assetDir,
       workflowId,
       runId,
+      facts.workflowGraph,
+      facts.workflowMermaidMaterials,
     );
   }
   // Persist the same flat document the preview and Playwright paths render, so
@@ -447,6 +474,19 @@ export async function executeAppVideoRender(
     ? path.join(facts.audioDir, 'narration.mp3')
     : null;
 
+  // Upstream narration usually lives in its own run directory. Published
+  // render assets, however, are addressed by this render run's id, so copy
+  // the combined track into the render directory before exposing its URL.
+  const publishedNarrationPath = path.join(outputDir, 'narration.mp3');
+  if (
+    narrationPath
+    && fsSync.existsSync(narrationPath)
+    && path.resolve(narrationPath) !== path.resolve(publishedNarrationPath)
+  ) {
+    await fs.copyFile(narrationPath, publishedNarrationPath);
+    logs.push(`Copied narration.mp3 into the render asset directory.`);
+  }
+
   if (config.narration && facts.audioDir && facts.narrationClips.length) {
     for (const clip of facts.narrationClips) {
       const file = path.join(facts.audioDir, clip.file);
@@ -468,7 +508,7 @@ export async function executeAppVideoRender(
     ...(facts.document ? { document: facts.document } : {}),
     videoFile: 'video.mp4',
     videoUrl: `/api/workflows/${workflowId}/assets/${assetId}/video.mp4`,
-    narrationUrl: narrationPath && fsSync.existsSync(narrationPath)
+    narrationUrl: narrationPath && fsSync.existsSync(publishedNarrationPath)
       ? `/api/workflows/${workflowId}/assets/${assetId}/narration.mp3`
       : null,
     bytes,

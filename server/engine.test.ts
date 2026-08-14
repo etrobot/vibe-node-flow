@@ -4,7 +4,17 @@ import { computeUpstreamInput, topoOrder, executeWorkflow, assertNoOverlappingEd
 import { combineNodeInputs } from "../lib/node-io";
 import type { FlowNode, FlowEdge, WorkflowItem } from "../App/types";
 
-function flowNode(id: string, type = "content-brief", title = id, y = 0, config: Record<string, any> = {}): FlowNode {
+const TEST_WORKFLOW_JSON_BRIEF_CONFIG = {
+  sourceWorkflowPath: "workflows/app-launch-video-en/workflow.json",
+};
+
+function flowNode(
+  id: string,
+  type = "workflow-json-brief",
+  title = id,
+  y = 0,
+  config: Record<string, any> = TEST_WORKFLOW_JSON_BRIEF_CONFIG,
+): FlowNode {
   return {
     id,
     type,
@@ -18,26 +28,11 @@ function flowNode(id: string, type = "content-brief", title = id, y = 0, config:
   };
 }
 
-function testBrief(topic: string) {
-  return {
-    topic,
-    audience: "Workflow test readers",
-    objective: "Verify deterministic DAG execution without external services.",
-    centralThesis: "Graph dependencies determine execution order.",
-    targetLanguage: "English",
-    targetDurationSeconds: 60,
-    sourceNotes: "- [Source A](https://example.com/a)\n- [Source B](https://example.com/b)",
-    factualBoundaries: "Only assert facts present in this test brief.",
-    requiredPoints: "Explain the dependency order.",
-    forbiddenClaims: "Do not invent timing or performance claims.",
-  };
-}
-
 test("topoOrder calculates valid order for DAG graph", () => {
   const nodes: FlowNode[] = [
-    { ...flowNode("node-c", "content-brief", "C", 100), x: 600 },
-    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
-    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
+    { ...flowNode("node-c", "workflow-json-brief", "C", 100), x: 600 },
+    { ...flowNode("node-a", "workflow-json-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "workflow-json-brief", "B", 100), x: 350 },
   ];
   const edges: FlowEdge[] = [
     { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
@@ -50,8 +45,8 @@ test("topoOrder calculates valid order for DAG graph", () => {
 
 test("topoOrder throws error on cyclic dependency", () => {
   const nodes: FlowNode[] = [
-    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
-    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
+    { ...flowNode("node-a", "workflow-json-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "workflow-json-brief", "B", 100), x: 350 },
   ];
   const edges: FlowEdge[] = [
     { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
@@ -63,10 +58,10 @@ test("topoOrder throws error on cyclic dependency", () => {
 
 test("assertNoOverlappingEdges allows linear chains and fan-out joins", () => {
   const nodes: FlowNode[] = [
-    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
-    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
-    { ...flowNode("node-c", "content-brief", "C", 100), x: 600 },
-    { ...flowNode("node-d", "content-brief", "D", 200), x: 350 },
+    { ...flowNode("node-a", "workflow-json-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "workflow-json-brief", "B", 100), x: 350 },
+    { ...flowNode("node-c", "workflow-json-brief", "C", 100), x: 600 },
+    { ...flowNode("node-d", "workflow-json-brief", "D", 200), x: 350 },
   ];
 
   assert.doesNotThrow(() => assertNoOverlappingEdges(nodes, [
@@ -84,9 +79,9 @@ test("assertNoOverlappingEdges allows linear chains and fan-out joins", () => {
 
 test("assertNoOverlappingEdges rejects direct edge when a longer path exists", () => {
   const nodes: FlowNode[] = [
-    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
-    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
-    { ...flowNode("node-c", "content-brief", "C", 100), x: 600 },
+    { ...flowNode("node-a", "workflow-json-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "workflow-json-brief", "B", 100), x: 350 },
+    { ...flowNode("node-c", "workflow-json-brief", "C", 100), x: 600 },
   ];
   const edges: FlowEdge[] = [
     { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
@@ -102,8 +97,8 @@ test("assertNoOverlappingEdges rejects direct edge when a longer path exists", (
 
 test("assertNoOverlappingEdges rejects duplicate edges between the same nodes", () => {
   const nodes: FlowNode[] = [
-    { ...flowNode("node-a", "content-brief", "A", 100), x: 100 },
-    { ...flowNode("node-b", "content-brief", "B", 100), x: 350 },
+    { ...flowNode("node-a", "workflow-json-brief", "A", 100), x: 100 },
+    { ...flowNode("node-b", "workflow-json-brief", "B", 100), x: 350 },
   ];
   const edges: FlowEdge[] = [
     { id: "e1", fromNodeId: "node-a", toNodeId: "node-b" },
@@ -127,9 +122,9 @@ test("executeWorkflow rejects overlapping connections before running nodes", asy
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
     nodes: [
-      flowNode("a", "content-brief", "A", 0, testBrief("A")),
-      flowNode("b", "content-brief", "B", 100, testBrief("B")),
-      flowNode("c", "content-brief", "C", 200, testBrief("C")),
+      flowNode("a"),
+      flowNode("b", "workflow-json-brief", "B", 100),
+      flowNode("c", "workflow-json-brief", "C", 200),
     ],
     edges: [
       { id: "ab", fromNodeId: "a", toNodeId: "b" },
@@ -172,16 +167,15 @@ test("executeWorkflow runs nodes according to edge connections and parallelism",
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
     nodes: [
-      flowNode("start", "content-brief", "Start Node", 0, testBrief("Start")),
-      flowNode("branch1", "content-brief", "Branch 1", 100, testBrief("Branch 1")),
-      flowNode("branch2", "content-brief", "Branch 2", 200, testBrief("Branch 2")),
-      flowNode("end", "content-brief", "End Node", 300, testBrief("End")),
+      flowNode("start", "workflow-json-brief", "Start Node", 0),
+      flowNode("branch1", "workflow-json-brief", "Branch 1", 100),
+      flowNode("branch2", "workflow-json-brief", "Branch 2", 200),
+      flowNode("end", "workflow-json-brief", "End Node", 300),
     ],
     edges: [
       { id: "e1", fromNodeId: "start", toNodeId: "branch1" },
       { id: "e2", fromNodeId: "start", toNodeId: "branch2" },
       { id: "e3", fromNodeId: "branch1", toNodeId: "end" },
-      { id: "e4", fromNodeId: "branch2", toNodeId: "end" },
     ],
   };
 
@@ -227,9 +221,9 @@ test("a warning can continue when another branch succeeds in the same wave", asy
   const { loadNodePlugins } = await import("./plugins");
   await loadNodePlugins(process.cwd(), { log: false });
 
-  const warningNode = flowNode("warning", "content-brief", "Invalid brief", 0, {});
-  const healthyNode = flowNode("healthy", "content-brief", "Healthy", 0, testBrief("Healthy"));
-  const downstream = flowNode("downstream", "content-brief", "Downstream", 100, testBrief("Downstream"));
+  const warningNode = flowNode("warning", "workflow-json-brief", "Invalid brief", 0, {});
+  const healthyNode = flowNode("healthy");
+  const downstream = flowNode("downstream", "workflow-json-brief", "Downstream", 100);
   const result = await executeWorkflow({
     id: "warning-wf",
     name: "Warning workflow",
@@ -250,8 +244,8 @@ test("a warning-only ready wave stops before its downstream nodes", async () => 
   const { loadNodePlugins } = await import("./plugins");
   await loadNodePlugins(process.cwd(), { log: false });
 
-  const warningNode = flowNode("warning-only", "content-brief", "Invalid brief", 0, {});
-  const downstream = flowNode("downstream-warning", "content-brief", "Downstream", 100, testBrief("Downstream"));
+  const warningNode = flowNode("warning-only", "workflow-json-brief", "Invalid brief", 0, {});
+  const downstream = flowNode("downstream-warning", "workflow-json-brief", "Downstream", 100);
   const result = await executeWorkflow({
     id: "warning-stop-wf",
     name: "Warning stop workflow",
@@ -272,7 +266,7 @@ test("a failed first node stops a linear workflow", async () => {
   await loadNodePlugins(process.cwd(), { log: false });
 
   const failed = flowNode("first-failed", "missing-test-node", "First failed", 0);
-  const downstream = flowNode("after-failed", "content-brief", "Must not run", 100, testBrief("Must not run"));
+  const downstream = flowNode("after-failed", "workflow-json-brief", "Must not run", 100);
   const result = await executeWorkflow({
     id: "first-failed-wf",
     name: "First failed workflow",
@@ -293,8 +287,8 @@ test("one failed branch does not stop another branch or its child", async () => 
   await loadNodePlugins(process.cwd(), { log: false });
 
   const failed = flowNode("failed", "missing-test-node", "Failed branch", 0);
-  const healthy = flowNode("healthy", "content-brief", "Healthy branch", 0, testBrief("Healthy"));
-  const child = flowNode("child", "content-brief", "Child", 100, testBrief("Child"));
+  const healthy = flowNode("healthy", "workflow-json-brief", "Healthy branch", 0);
+  const child = flowNode("child", "workflow-json-brief", "Child", 100);
   const result = await executeWorkflow({
     id: "branch-wf",
     name: "Branch workflow",
@@ -317,7 +311,7 @@ test("the workflow stops when every node in the ready wave fails", async () => {
 
   const first = flowNode("first", "missing-test-node", "First", 0);
   const second = flowNode("second", "another-missing-test-node", "Second", 0);
-  const unreachable = flowNode("unreachable", "content-brief", "Unreachable", 100, testBrief("Unreachable"));
+  const unreachable = flowNode("unreachable", "workflow-json-brief", "Unreachable", 100);
   const result = await executeWorkflow({
     id: "stop-wf",
     name: "Stop workflow",

@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { FlowNode, FlowEdge, WorkflowItem, RunEvent, RunNodeRecord } from './types';
+import {
+  FlowNode,
+  FlowEdge,
+  WorkflowItem,
+  RunEvent,
+  RunNodeRecord,
+  DEFAULT_WORKFLOW_COLOR,
+  DEFAULT_WORKFLOW_ICON,
+} from './types';
 import { api } from './utils/api';
 import { hasUpstreamData, nodeOutputToText, resolveUpstreamInput } from './utils/upstream';
 import { ManualInputModal } from './components/ui/ManualInputModal';
@@ -46,6 +54,24 @@ function persistableEdge(edge: FlowEdge) {
     id: edge.id,
     fromNodeId: edge.fromNodeId,
     toNodeId: edge.toNodeId,
+  };
+}
+
+type WorkflowMetaSnapshot = {
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+};
+
+function workflowMetaSnapshot(
+  wf: Pick<WorkflowItem, 'name' | 'description' | 'icon' | 'color'>,
+): WorkflowMetaSnapshot {
+  return {
+    name: wf.name,
+    description: wf.description ?? '',
+    icon: wf.icon ?? DEFAULT_WORKFLOW_ICON,
+    color: wf.color ?? DEFAULT_WORKFLOW_COLOR,
   };
 }
 
@@ -190,6 +216,12 @@ export default function App() {
   const [lastSavedTagCatalog, setLastSavedTagCatalog] = useState<string[]>([...DEFAULT_NODE_TAG_CATALOG]);
   const [lastSavedLaneLabels, setLastSavedLaneLabels] = useState<string[]>([]);
   const [lastSavedReuseOverwriteGeneratedAssets, setLastSavedReuseOverwriteGeneratedAssets] = useState(false);
+  const [lastSavedMeta, setLastSavedMeta] = useState<WorkflowMetaSnapshot>({
+    name: '',
+    description: '',
+    icon: DEFAULT_WORKFLOW_ICON,
+    color: DEFAULT_WORKFLOW_COLOR,
+  });
   const [isSaving, setIsSaving] = useState(false);
   const nodesRef = useRef<FlowNode[]>([]);
   const edgesRef = useRef<FlowEdge[]>([]);
@@ -236,16 +268,28 @@ export default function App() {
     const tagCatalogChanged = JSON.stringify(tagCatalog) !== JSON.stringify(lastSavedTagCatalog);
     const laneLabelsChanged = JSON.stringify(laneLabels) !== JSON.stringify(lastSavedLaneLabels);
     const reuseOverwriteChanged = reuseOverwriteGeneratedAssets !== lastSavedReuseOverwriteGeneratedAssets;
-    return nodesChanged || edgesChanged || tagCatalogChanged || laneLabelsChanged || reuseOverwriteChanged;
-  }, [activeWorkflowId, nodes, edges, tagCatalog, laneLabels, reuseOverwriteGeneratedAssets, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels, lastSavedReuseOverwriteGeneratedAssets]);
+    const activeWorkflowMeta = workflows.find((workflow) => workflow.id === activeWorkflowId);
+    const metaChanged = activeWorkflowMeta
+      ? JSON.stringify(workflowMetaSnapshot(activeWorkflowMeta)) !== JSON.stringify(lastSavedMeta)
+      : false;
+    return nodesChanged || edgesChanged || tagCatalogChanged || laneLabelsChanged || reuseOverwriteChanged || metaChanged;
+  }, [activeWorkflowId, workflows, nodes, edges, tagCatalog, laneLabels, reuseOverwriteGeneratedAssets, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels, lastSavedReuseOverwriteGeneratedAssets, lastSavedMeta]);
 
   // Explicit save: persist current nodes/edges to backend and update snapshot
   const handleSave = useCallback(async () => {
     if (!activeWorkflowId || isSaving) return;
     setIsSaving(true);
     try {
-      const base = workflows.find((w) => w.id === activeWorkflowId);
-      if (!base) return;
+      let base = workflows.find((w) => w.id === activeWorkflowId);
+      if (!base) {
+        console.warn(`[App] handleSave: workflow ${activeWorkflowId} missing from list, fetching from server`);
+        base = await api.getWorkflow(activeWorkflowId);
+        setWorkflows((prev) => (
+          prev.some((workflow) => workflow.id === base!.id)
+            ? prev.map((workflow) => (workflow.id === base!.id ? { ...workflow, ...base! } : workflow))
+            : [...prev, base!]
+        ));
+      }
       const wf: WorkflowItem = {
         ...base,
         nodes,
@@ -255,23 +299,26 @@ export default function App() {
         reuseOverwriteGeneratedAssets,
         updatedAt: nowLabel(),
       };
-      await api.saveWorkflow(wf);
+      console.log(`[App] handleSave: saving workflow ${activeWorkflowId}`);
+      const saved = await api.saveWorkflow(wf);
       setLastSavedNodes(nodes);
       setLastSavedEdges(edges);
       setLastSavedTagCatalog(tagCatalog);
       setLastSavedLaneLabels(laneLabels);
       setLastSavedReuseOverwriteGeneratedAssets(reuseOverwriteGeneratedAssets);
+      setLastSavedMeta(workflowMetaSnapshot(saved));
       setWorkflows((prev) =>
         prev.map((w) => (
           w.id === activeWorkflowId
             ? {
                 ...w,
+                ...saved,
                 nodes,
                 edges,
                 tagCatalog,
                 laneLabels,
                 reuseOverwriteGeneratedAssets,
-                updatedAt: nowLabel(),
+                updatedAt: saved.updatedAt,
               }
             : w
         ))
@@ -297,6 +344,7 @@ export default function App() {
         workflow.id === activeWorkflowId
           ? {
               ...workflow,
+              ...lastSavedMeta,
               nodes: lastSavedNodes,
               edges: lastSavedEdges,
               tagCatalog: lastSavedTagCatalog,
@@ -307,7 +355,7 @@ export default function App() {
       ))
     );
     setSelectedNodeId(null);
-  }, [activeWorkflowId, isDirty, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels, lastSavedReuseOverwriteGeneratedAssets]);
+  }, [activeWorkflowId, isDirty, lastSavedNodes, lastSavedEdges, lastSavedTagCatalog, lastSavedLaneLabels, lastSavedReuseOverwriteGeneratedAssets, lastSavedMeta]);
 
   // Flush save before running workflow (safety measure)
   const flushSave = async () => {
@@ -429,27 +477,23 @@ export default function App() {
       setLastSavedTagCatalog(loadedTagCatalog);
       setLastSavedLaneLabels(full.laneLabels ?? []);
       setLastSavedReuseOverwriteGeneratedAssets(Boolean(full.reuseOverwriteGeneratedAssets));
+      setLastSavedMeta(workflowMetaSnapshot(full));
       setFullRunId(null);
       setSingleRunIds({});
       setIsRunning(false);
       hydratedRunIdRef.current = null;
       setSelectedNodeId(full.nodes.length > 0 ? full.nodes[0].id : null);
-      setWorkflows((prev) =>
-        prev.map((w) =>
-          w.id === id
-            ? {
-                ...w,
-                nodes: full.nodes,
-                edges: full.edges,
-                icon: full.icon || w.icon,
-                color: full.color || w.color,
-                tagCatalog: loadedTagCatalog,
-                laneLabels: full.laneLabels ?? [],
-                reuseOverwriteGeneratedAssets: Boolean(full.reuseOverwriteGeneratedAssets),
-              }
-            : w
-        )
-      );
+      setWorkflows((prev) => {
+        const hydrated: WorkflowItem = {
+          ...full,
+          tagCatalog: loadedTagCatalog,
+          laneLabels: full.laneLabels ?? [],
+          reuseOverwriteGeneratedAssets: Boolean(full.reuseOverwriteGeneratedAssets),
+        };
+        const existing = prev.find((workflow) => workflow.id === id);
+        if (!existing) return [...prev, hydrated];
+        return prev.map((workflow) => (workflow.id === id ? { ...existing, ...hydrated } : workflow));
+      });
       setCurrentView('canvas');
       if (updateUrl) navigateTo({ view: 'canvas', workflowId: id });
     } catch (e) {

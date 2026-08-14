@@ -74,6 +74,46 @@ Design rules:
 4. **Pointers are part of the contract.** Document asset locations and naming in `NODE.md`. An edge that only says "see `chapter-1.json`" is valid when the path is stable and the receiver validates the file.
 5. **Do not use edges as a cache.** Re-transmitting large shared content "for convenience" creates prompt bloat, harder diffs in run history, and divergent copies. Files are the source of truth; edges announce what changed and where to find it.
 
+### Shared run-asset helpers (`lib/`)
+
+When several nodes share the same on-disk contract — write once under `assetsDir`, read by stable relative path, keep edge JSON lean — put the filesystem helpers in `lib/`, not inside one node directory. Nodes import them with a relative path such as `../../lib/source-brief-asset.ts`; tests live beside other host tests under `server/*.test.ts`.
+
+| Module | Contract | Writer | Readers |
+| --- | --- | --- | --- |
+| [`lib/source-brief-asset.ts`](../lib/source-brief-asset.ts) | `source-brief.md` under run `assetsDir` | `clip-storyboard` | `mermaid-en-html`, `fish-audio-narration`, and any node that needs the verified upstream brief |
+
+API surface:
+
+```ts
+import {
+  SOURCE_BRIEF_ASSET,
+  writeSourceBriefAsset,
+  readSourceBrief,
+  stripEmbeddedSourceBrief,
+  type SourceBriefCarrier,
+} from '../../lib/source-brief-asset.ts';
+```
+
+Rules for this pattern:
+
+1. **One canonical filename.** `SOURCE_BRIEF_ASSET` is `'source-brief.md'`. Do not fork per-node copies of the reader/writer.
+2. **Edge carries a pointer, file carries the body.** After validation, the writer sets `sourceBriefPath` on its output document and deletes embedded `sourceBrief`. Downstream nodes call `readSourceBrief(carrier, assetsDir)` so older runs that still embed `sourceBrief` keep working.
+3. **Strip before re-emitting.** Nodes that pass a storyboard document forward should use `stripEmbeddedSourceBrief` so prompt-sized text does not round-trip on every edge.
+4. **Path safety is mandatory.** Helpers resolve paths only under `assetsDir` and reject escapes; receiving nodes still validate content locally.
+5. **New shared assets follow the same shape.** Add a new `lib/<asset>.ts` when a second node needs the same relative path contract; keep node-specific parsing in the node directory.
+
+Example edge document shape after `clip-storyboard`:
+
+```json
+{
+  "slug": "app-launch-video-en",
+  "clips": [],
+  "sourceBriefPath": "source-brief.md"
+}
+```
+
+The brief text lives at `<run>/assets/source-brief.md`. A downstream Demo UI node reads it with `readSourceBrief(document, assetsDir)` instead of expecting the full brief on the edge.
+
 ## Design Order
 
 1. **Define the result.** What the user receives, and what makes it acceptable.
@@ -350,25 +390,25 @@ Downstream nodes resolve those files from the run asset root, validate them, and
 
 ### A lean example
 
-`workflows/app-launch-video/` keeps only genuine boundaries — content contract, storyboard generation, narration measurement, Demo UI generation, and video rendering — each independently validatable and runnable:
+`workflows/app-launch-video-en/` keeps only genuine boundaries — workflow JSON brief, storyboard generation, parallel narration and Demo UI assets, and video rendering — each independently validatable and runnable:
 
 ```text
-content-brief -> clip-storyboard
-                   |-> edge-tts-narration --\
-                   \-> ui-html-generation --+-> app-video-render
+workflow-json-brief -> clip-storyboard
+                          |-> fish-audio-narration --\
+                          \-> mermaid-en-html --------+-> app-video-render
 ```
 
 | Node | Lane | Independent responsibility |
 | --- | --- | --- |
-| [`content-brief`](../nodes/content-brief/NODE.md) | Script Copy | Validate the editorial contract and evidence boundary without a model call. |
-| [`clip-storyboard`](../nodes/clip-storyboard/NODE.md) | Storyboard JSON | Convert a brief into validated clip JSON, reusable structures, and narration anchors. |
-| [`edge-tts-narration`](../nodes/edge-tts-narration/NODE.md) | Parallel Assets | Convert clip narration to MP3 and measure the shot timeline. |
-| [`ui-html-generation`](../nodes/ui-html-generation/NODE.md) | Parallel Assets | Generate and independently validate offline HTML for each Demo UI target. |
+| [`workflow-json-brief`](../nodes/workflow-json-brief/NODE.md) | Workflow JSON | Read and validate a real `workflow.json`, then emit a grounded explainer brief without a generative repair loop. |
+| [`clip-storyboard`](../nodes/clip-storyboard/NODE.md) | Storyboard JSON | Convert a brief into validated clip JSON, reusable structures, and narration anchors; write `source-brief.md` once and return `sourceBriefPath`. |
+| [`fish-audio-narration`](../nodes/fish-audio-narration/NODE.md) | Parallel Assets | Convert clip narration to MP3 and measure the shot timeline. |
+| [`mermaid-en-html`](../nodes/mermaid-en-html/NODE.md) | Parallel Assets | Read `sourceBriefPath`, render workflow/Mermaid Demo UI HTML, and validate each offline document independently. |
 | [`app-video-render`](../nodes/app-video-render/NODE.md) | Video Preview | Join timeline, narration, and Demo UI into preview and MP4 preparation; ships `render-video.sh`. |
 
-`clip-storyboard` invents no duration values and generates no HTML — it marks visual cuts with `**anchors**` in narration. `edge-tts-narration` resolves those anchors against real word boundaries, and `ui-html-generation` validates each offline HTML document independently. Reusable structures such as process strips and comparison tables are declared once and referenced by clips instead of being regenerated per node. Shared run artifacts (chapter JSON, MP3s, offline HTML) live as files under the run asset tree; later nodes consume paths and validated slices, not repeated full-body edge transfers — keeping each hop's text small enough for LLM context and human run history.
+`clip-storyboard` invents no duration values and generates no HTML — it marks visual cuts with `**anchors**` in narration. `fish-audio-narration` resolves those anchors against real word boundaries, and `mermaid-en-html` reads the verified brief from `source-brief.md` via `readSourceBrief`. Reusable structures such as process strips and comparison tables are declared once and referenced by clips instead of being regenerated per node. Shared run artifacts (chapter JSON, `source-brief.md`, MP3s, offline HTML) live as files under the run asset tree; later nodes consume paths and validated slices, not repeated full-body edge transfers — keeping each hop's text small enough for LLM context and human run history.
 
-The MP4 path requires local `ffmpeg` and a Chromium-family browser. `EDGE_TTS_PROXY` and `EDGE_TTS_DISABLE_PROXY` control narration network routing.
+The MP4 path requires local `ffmpeg` and a Chromium-family browser. Fish Audio credentials and proxy settings control narration network routing.
 
 ## Checklist
 

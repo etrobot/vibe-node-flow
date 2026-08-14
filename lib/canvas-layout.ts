@@ -13,9 +13,14 @@ export const NODE_HEIGHT = 80;
 /** Horizontal gap between two adjacent columns (px). */
 export const COL_GAP = 80;
 /** Full stride of one column = node width + gap (px). */
-export const COL_SPACING = NODE_WIDTH + COL_GAP; // 260
+export const COL_SPACING = NODE_WIDTH + COL_GAP; // 245
 /** Vertical snapping grid for the y coordinate (px). */
 export const GRID_Y_SIZE = 20;
+/**
+ * Visual canvas dot-grid size (px). Must divide COL_SPACING so every
+ * swimlane divider lands on a column of dots.
+ */
+export const GRID_SIZE = 35;
 
 /** Minimum number of column guides to always render on the canvas. */
 export const MIN_COLUMNS = 4;

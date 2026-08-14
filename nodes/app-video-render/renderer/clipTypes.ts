@@ -41,7 +41,6 @@ export interface ChartDataItem {
   label: string;
   value: number;
   labelPrefix?: string;
-  color?: string;
 }
 
 export interface LineChartMetric {
@@ -51,16 +50,6 @@ export interface LineChartMetric {
   direction?: 'up' | 'down';
   valueStart?: number;
   valueEnd?: number;
-}
-
-export interface ComparisonTableColumn {
-  label: string;
-  featured?: boolean;
-}
-
-export interface ComparisonTableRow {
-  feature: string;
-  values: Array<boolean | string>;
 }
 
 export interface ClipItem {
@@ -97,8 +86,7 @@ export interface ClipItem {
   lineRightValueEnd?: number;
   chartHeading?: string;
   chartDescription?: string;
-  comparisonColumns?: ComparisonTableColumn[];
-  comparisonRows?: ComparisonTableRow[];
+  comparisonCsv?: string;
   sourceBvid?: string;
   sourceStart?: number;
   sourceEnd?: number;
@@ -117,20 +105,10 @@ export interface ClipItem {
   };
 }
 
-/** Explicit colors overriding the hue-derived theme, when the storyboard sets them. */
-export interface ClipPalette {
-  background: string;
-  foreground: string;
-  muted: string;
-  accent: string;
-  secondary: string;
-}
-
 export interface Clip {
   speech: string;
   background: ClipBackground;
   items: ClipItem[];
-  hue?: number;
   ctaText?: string;
 }
 
@@ -144,8 +122,7 @@ export interface ClipChapter {
 
 export interface ClipsDocument {
   clips: Clip[];
-  hue?: number;
-  palette?: ClipPalette;
+  slug?: string;
   title?: string;
   summary?: string;
   hook?: string;

@@ -33,6 +33,7 @@ import {
 import {AnimatePresence, motion} from 'motion/react';
 import * as LucideIcons from 'lucide-react';
 import type {ChartDataItem, Clip, ClipItem, LineChartMetric} from './clipTypes';
+import {parseComparisonCsv} from '../comparisonCsv';
 
 interface ClipTypeRendererProps {
   clip: Clip;
@@ -2267,9 +2268,8 @@ function ChartBar(props: ClipTypeRendererProps) {
             const currentHeight = ((entry.value / maxVal) * 100) * progress;
             const currentValue = Math.round(entry.value * progress);
             const highlighted = index === data.length - 1;
-            const style = entry.color
-              ? {background: entry.color}
-              : undefined;
+            const barColors = ['#8b5cf6', '#06b6d4', '#f43f5e', '#10b981', '#f59e0b', '#ec4899'];
+            const style = {background: barColors[index % barColors.length]};
 
             return (
               <div key={`${entry.label}-${index}`} className="flex-1 flex flex-col items-center justify-end h-full group">
@@ -2422,7 +2422,7 @@ function ChartPie(props: ClipTypeRendererProps) {
         ...entry,
         percentage,
         startPercent,
-        color: entry.color || palette[index % palette.length],
+        color: palette[index % palette.length],
       };
     });
   }, [rawData, total]);
@@ -2656,15 +2656,16 @@ function renderComparisonValue(value: boolean | string | undefined, active: bool
 }
 
 function SceneComparison({item, localTime}: ClipTypeRendererProps) {
-  const columns = item.comparisonColumns?.length
-    ? item.comparisonColumns
+  const parsedCsv = parseComparisonCsv(item.comparisonCsv);
+  const columns = parsedCsv?.columns.length
+    ? parsedCsv.columns
     : [
       {label: 'Option A'},
       {label: 'Option B'},
       {label: 'Option C', featured: true},
     ];
-  const rows = item.comparisonRows?.length
-    ? item.comparisonRows
+  const rows = parsedCsv?.rows.length
+    ? parsedCsv.rows
     : [
       {feature: 'Feature 1', values: [false, true, true]},
       {feature: 'Feature 2', values: [false, false, true]},
@@ -2694,7 +2695,7 @@ function SceneComparison({item, localTime}: ClipTypeRendererProps) {
           className="grid gap-2 md:gap-4 p-4 md:p-6 border-b border-zinc-800 bg-zinc-950/60 font-black text-xs md:text-sm text-zinc-400 tracking-wider"
           style={{gridTemplateColumns}}
         >
-          <div className="text-zinc-300">{item.label || 'Feature'}</div>
+          <div className="text-zinc-300">{item.label || parsedCsv?.featureLabel || 'Feature'}</div>
           {columns.map((column, index) => (
             <div
               key={`${column.label}-${index}`}

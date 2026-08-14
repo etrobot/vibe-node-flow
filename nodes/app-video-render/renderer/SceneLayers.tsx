@@ -2,14 +2,13 @@ import type {CSSProperties} from 'react';
 import BackgroundStage from './BackgroundStage';
 import ForegroundStage from './ForegroundStage';
 import {getSceneTransitionState} from './SceneTransition';
-import type {Clip, ClipBackground, ClipPalette} from './clipTypes';
+import type {Clip, ClipBackground} from './clipTypes';
 import {getClipBackground} from './clipModel';
 
 interface SceneLayersProps {
   clips: Clip[];
   time: number;
   hue?: number;
-  palette?: ClipPalette;
   projectName?: string | null;
   themeStyle: CSSProperties;
   resolveBackgroundVideoUrl?: (background: ClipBackground) => string | undefined;
@@ -36,7 +35,6 @@ export default function SceneLayers({
   clips,
   time,
   hue,
-  palette,
   projectName,
   themeStyle,
   resolveBackgroundVideoUrl,
@@ -49,7 +47,6 @@ export default function SceneLayers({
           clips={clips}
           time={time}
           hue={hue}
-          palette={palette}
           projectName={projectName}
           resolveBackgroundVideoUrl={resolveBackgroundVideoUrl}
           force2DWithoutVideo={force2DWithoutVideo}

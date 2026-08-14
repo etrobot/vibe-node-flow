@@ -11,7 +11,7 @@
  *    `global-components` and referenced by `key`; a shot picks the highlighted
  *    node with a semantic `spot` instead of a positional `targetIndex`.
  *  - Item durations. Timing comes from `**anchors**` in the narration, resolved
- *    against real Edge TTS word boundaries by `edge-tts-narration`. A model
+ *    against the generated narration timeline by `fish-audio-narration`. A model
  *    guessing seconds is what made narration and picture drift apart before.
  *
  * `resolve.ts` expands both back into the flat item shape the renderer reads.
@@ -133,22 +133,11 @@ export interface StoryboardCard {
   number?: string;
 }
 
-export interface StoryboardComparisonColumn {
-  label: string;
-  featured?: boolean;
-}
-
-export interface StoryboardComparisonRow {
-  feature: string;
-  values: Array<boolean | string>;
-}
-
 export interface StoryboardChartDatum {
   key: string;
   label: string;
   value: number;
   labelPrefix?: string;
-  color?: string;
 }
 
 export interface StoryboardLineMetric {
@@ -166,8 +155,8 @@ export interface StoryboardGlobalComponent {
   key: string;
   component: GlobalComponentType;
   cards?: StoryboardCard[];
-  comparisonColumns?: StoryboardComparisonColumn[];
-  comparisonRows?: StoryboardComparisonRow[];
+  /** First CSV row is the header; the first column of each later row is the feature. */
+  comparisonCsv?: string;
   chartData?: StoryboardChartDatum[];
   lineMetrics?: StoryboardLineMetric[];
   chartHeading?: string;
@@ -197,7 +186,8 @@ export interface StoryboardItem {
 
 export interface StoryboardClip {
   speech: string;
-  background: ClipBackground;
+  /** Assigned by sanitizeStoryboard; never authored by the storyboard model. */
+  background?: ClipBackground;
   items: StoryboardItem[];
 }
 
@@ -208,32 +198,29 @@ export interface StoryboardChapter {
   clipCount: number;
 }
 
-export interface StoryboardPalette {
-  background: string;
-  foreground: string;
-  muted: string;
-  accent: string;
-  secondary: string;
-}
-
 export interface StoryboardDocument {
   slug: string;
   title: string;
   hook: string;
   summary: string;
   closing: string;
-  hue: number;
-  palette?: StoryboardPalette;
   chapters: StoryboardChapter[];
   'global-components'?: StoryboardGlobalComponent[];
   clips: StoryboardClip[];
+  /**
+   * Relative path under the run assetsDir to the verified upstream brief file
+   * (`source-brief.md`). Prefer this over embedding the brief text on the edge.
+   */
+  sourceBriefPath?: string;
+  /** @deprecated Prefer sourceBriefPath; kept only for older run history. */
+  sourceBrief?: string;
 }
 
 /** Fields carrying a component's reusable payload, by component type. */
 const PAYLOAD_FIELDS: Record<GlobalComponentType, string[]> = {
   'pyramid-highlight': ['cards'],
   'process-card-highlight': ['cards'],
-  'comparison-table': ['comparisonColumns', 'comparisonRows'],
+  'comparison-table': ['comparisonCsv'],
   'chart-bar': ['chartData'],
   'chart-pie': ['chartData'],
   'chart-line': ['lineMetrics'],
@@ -260,33 +247,39 @@ export function componentNodeKeys(component: StoryboardGlobalComponent): string[
     case 'chart-line':
       return (component.lineMetrics || []).map((metric) => String(metric?.key ?? ''));
     case 'comparison-table':
-      return (component.comparisonRows || []).map((row) => String(row?.feature ?? ''));
+      return (parseComparisonCsv(component.comparisonCsv)?.rows || [])
+        .map((row) => row.feature);
     default:
       return [];
   }
 }
 
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const ANCHOR_PATTERN = /\*\*([^*]+)\*\*/g;
 
 /**
  * Components written straight into a clip's `items`. Mirrors the builder's
  * SKILL.md, minus the reserved brand and media types.
  */
+/**
+ * Menu handed to the model. Selection principles mirror prompt.md §四:
+ * failure/emotion → shatter/popup; process → process-card; hierarchy → pyramid;
+ * numbers → flowing-stats; trends → chart-line; structure/compare → comparison-table.
+ */
 export const DIRECT_COMPONENT_GUIDE = [
-  'text-typing: typed command, compact claim, or generated-output line. Only as the first item of a clip.',
-  'text-popup: punchy alert, reaction, or quick reveal.',
-  'text-shatter: broken old approach, risk, failure, or disruption.',
-  'text-zoom: one important conclusion.',
-  'text-impact: stacked keyword build; include cumulative `words` array.',
+  'text-typing: opening typed claim. Only as the first item of a clip; never after item 0.',
+  'text-popup: punchy alert, reaction, reveal, or light meme-like beat.',
+  'text-shatter: failure, risk, collapse, broken old approach, or emotional crash.',
+  'text-zoom: one important conclusion or turn.',
+  'text-impact: stacked keyword / checklist build; include cumulative `words` array.',
   'text-title / text-logo: closing beat only, and always used as a pair.',
   'ui-dropfiles / ui-prompt-input / ui-render-loading / ui-video-preview:'
   + ' product Demo UI beats. Use at most two of these in the whole storyboard'
   + ' (prefer one input moment + one result moment). ui-prompt-input must include `prompt`.',
   'ui-icon-text: one principle, benefit, boundary, or status; must include a lucide `icon` name.',
-  'flowing-stats: growth, usage, reach, revenue, count, or speed metric.',
+  'flowing-stats: explicit number in narration — growth, cost, count, speed, revenue.',
   'element-growth: something compounding or scaling up.',
-  'scene-clock: time pressure, countdown, speed, or schedule.',
+  'scene-clock: only when narration is about waiting, loading, delay, timeout, countdown,'
+  + ' or explicit seconds/minutes/hours; otherwise do not use.',
   'swipe-delete: removing old work, bad leads, risk, or waste.',
 ].join('\n');
 
@@ -296,20 +289,78 @@ export const DIRECT_COMPONENT_GUIDE = [
  * `spot` values is how a diagram builds up instead of restarting each time.
  */
 export const GLOBAL_COMPONENT_GUIDE = [
-  'process-card-highlight: workflow or process overview; `cards` with a lucide `icon` and `title` each.'
-  + ' A shot picks the focused step with `spot`.',
+  'process-card-highlight: unidirectional workflow / steps (prompt.md `flow` / `loopflow` intent);'
+  + ' `cards` with a lucide `icon` and `title` each. A shot picks the focused step with `spot`.',
   'pyramid-highlight: hierarchy or capability layers, base first; `cards` as above, focused by `spot`.',
-  'comparison-table: structured comparison; `comparisonColumns` plus `comparisonRows`,'
-  + ' each row holding one value per column. `spot` optionally names a row `feature`.',
+  'comparison-table: structure / classification / plan contrast (prompt.md `structure` intent);'
+  + ' use one `comparisonCsv` string with a header row and one data row per comparison.'
+  + ' The first column is the row feature; `spot` optionally names that feature.',
   'chart-bar / chart-pie: direct numeric comparison or composition; `chartData` entries with'
   + ' `key`, `label` and numeric `value`.',
-  'chart-line: trend or before/after motion; `lineMetrics` entries with `key`, `label`,'
-  + ' `valueStart` and `valueEnd`.',
-  'feedback-cards: a wall of reactions or testimonials; `cards` whose `title` is the quoted line.',
+  'chart-line: trend or breakthrough (prompt.md `linechart` intent); `lineMetrics` entries with'
+  + ' `key`, `label`, `valueStart` and `valueEnd`.',
+  'feedback-cards: reactions, testimonials, or story-like state beats; `cards` whose `title`'
+  + ' is the quoted line. Prefer this over inventing a `story` component.',
 ].join('\n');
 
 function text(value: unknown): string {
   return String(value ?? '').trim();
+}
+
+function parseCsvRows(value: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === '"') {
+      if (quoted && value[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === ',' && !quoted) {
+      row.push(cell.trim());
+      cell = '';
+    } else if ((character === '\n' || character === '\r') && !quoted) {
+      if (character === '\r' && value[index + 1] === '\n') index += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += character;
+    }
+  }
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+  return rows;
+}
+
+function csvValue(value: string): boolean | string {
+  if (value.toLowerCase() === 'true') return true;
+  if (value.toLowerCase() === 'false') return false;
+  return value;
+}
+
+export function parseComparisonCsv(value: unknown): {
+  featureLabel: string;
+  columns: Array<{ label: string }>;
+  rows: Array<{ feature: string; values: Array<boolean | string> }>;
+} | null {
+  const parsed = parseCsvRows(text(value));
+  if (parsed.length < 2 || parsed[0].length < 2) return null;
+  const featureLabel = parsed[0][0];
+  const columns = parsed[0].slice(1).map((label) => ({ label }));
+  const rows = parsed.slice(1)
+    .filter((cells) => text(cells[0]))
+    .map((cells) => ({
+      feature: cells[0],
+      values: columns.map((_, index) => csvValue(cells[index + 1] ?? '')),
+    }));
+  return rows.length ? { featureLabel, columns, rows } : null;
 }
 
 /** Accept a fenced or prose-wrapped response and return the JSON object body. */
@@ -341,6 +392,43 @@ export function plainSpeech(speech: string): string {
   return String(speech ?? '').replace(ANCHOR_PATTERN, '$1');
 }
 
+/** Presentation fields that belong to the renderer, never to storyboard JSON. */
+const RENDERER_PRESENTATION_FIELDS = [
+  'hue',
+  'palette',
+  'background',
+  'color',
+  'colors',
+  'backgroundColor',
+  'foregroundColor',
+  'textColor',
+  'borderColor',
+  'fill',
+  'stroke',
+  'gradient',
+  'theme',
+  'style',
+  'css',
+] as const;
+
+function stripRendererPresentationFields(value: unknown, changes: string[], path: string): void {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => stripRendererPresentationFields(entry, changes, `${path}[${index}]`));
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  const record = value as Record<string, unknown>;
+  for (const field of RENDERER_PRESENTATION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(record, field)) {
+      delete record[field];
+      changes.push(`${path}.${field}: Removed renderer-owned presentation field`);
+    }
+  }
+  for (const [key, child] of Object.entries(record)) {
+    stripRendererPresentationFields(child, changes, `${path}.${key}`);
+  }
+}
+
 /**
  * Auto-correct common structural oversights in LLM-generated storyboard JSON
  * before strict contract validation is run.
@@ -357,6 +445,11 @@ export function sanitizeStoryboard(
   const doc = JSON.parse(JSON.stringify(value)) as any;
   const changes: string[] = [];
 
+  // The model writes editorial/script content only. Remove every known visual
+  // styling field before any structural normalization, then assign the small
+  // set of presentation metadata required by the renderer below.
+  stripRendererPresentationFields(doc, changes, 'storyboard');
+
   // 1. Ensure required document fields
   if (!text(doc.title)) doc.title = 'Untitled Storyboard';
   if (!text(doc.hook)) doc.hook = doc.title;
@@ -372,10 +465,22 @@ export function sanitizeStoryboard(
       if (!clip || typeof clip !== 'object') return;
       const cLabel = `Clip ${clipIdx + 1}`;
 
+      const assignedBackground = CLIP_BACKGROUNDS[clipIdx % CLIP_BACKGROUNDS.length];
+      clip.background = assignedBackground;
+      changes.push(`${cLabel}: Assigned deterministic background ${assignedBackground}`);
+
       if (Array.isArray(clip.items)) {
         clip.items.forEach((item: any, itemIdx: number) => {
           if (!item || typeof item !== 'object') return;
           const iLabel = `${cLabel} item ${itemIdx + 1}`;
+
+          // LLMs sometimes collapse an explicit Mermaid target into its state
+          // string. Normalize that shorthand before downstream HTML nodes read
+          // the storyboard.
+          if (item.demoUi === 'workflow-canvas' || item.demoUi === 'node-mermaid') {
+            item.demoUi = { state: item.demoUi };
+            changes.push(`${iLabel}: Normalized Mermaid demoUi state to an object`);
+          }
 
           // Cleanup stray key/spot on direct components
           if (!isGlobalComponentType(item.type)) {
@@ -527,7 +632,7 @@ export function sanitizeStoryboard(
 /**
  * Runtime a clip's narration will occupy. Without authored durations the speech
  * itself is the only signal, so estimate from its length; the real number
- * arrives once Edge TTS has spoken it.
+ * arrives once the TTS provider has spoken it.
  */
 export function estimateSpeechSeconds(speech: string): number {
   const plain = plainSpeech(speech).trim();
@@ -570,6 +675,7 @@ export const DEFAULT_MAX_DEMO_UI_HTML_ITEMS = 2;
 export interface StoryboardValidationOptions {
   minClips: number;
   maxClips: number;
+  minItemsPerClip?: number;
   minComponentTypes: number;
   targetDurationSeconds: number;
   durationTolerance: number;
@@ -631,17 +737,24 @@ function validateGlobalComponent(
     seenKeys.add(key);
   }
 
-  if (!isGlobalComponentType(component.component)) {
+  const componentType = component.component;
+  if (!isGlobalComponentType(componentType)) {
     errors.push(
       `${label} component must be one of ${GLOBAL_COMPONENT_TYPES.join(', ')}; `
-      + `received ${JSON.stringify(component.component ?? null)}.`,
+      + `received ${JSON.stringify(componentType ?? null)}.`,
     );
     return;
   }
 
-  const named = `${label} (${component.component})`;
-  for (const field of PAYLOAD_FIELDS[component.component]) {
+  const named = `${label} (${componentType})`;
+  for (const field of PAYLOAD_FIELDS[componentType]) {
     const value = component[field];
+    if (field === 'comparisonCsv') {
+      if (!parseComparisonCsv(value)) {
+        errors.push(`${named} comparisonCsv must contain a header row and at least one data row.`);
+      }
+      continue;
+    }
     if (!Array.isArray(value) || !value.length) {
       errors.push(`${named} is missing a non-empty ${field} array.`);
     }
@@ -689,22 +802,6 @@ function validateGlobalComponent(
     });
   }
 
-  if (component.component === 'comparison-table') {
-    const columns = Array.isArray(component.comparisonColumns) ? component.comparisonColumns : [];
-    const rows = Array.isArray(component.comparisonRows) ? component.comparisonRows : [];
-    columns.forEach((column: any, columnIndex: number) => {
-      if (!text(column?.label)) {
-        errors.push(`${named} comparisonColumns ${columnIndex + 1} is missing label.`);
-      }
-    });
-    rows.forEach((row: any, rowIndex: number) => {
-      const rowLabel = `${named} comparisonRows ${rowIndex + 1}`;
-      if (!text(row?.feature)) errors.push(`${rowLabel} is missing feature.`);
-      if (!Array.isArray(row?.values) || row.values.length !== columns.length) {
-        errors.push(`${rowLabel} must hold exactly ${columns.length} values, one per column.`);
-      }
-    });
-  }
 }
 
 function validateItem(
@@ -824,6 +921,10 @@ function validateClip(
     errors.push(`${label} is missing items.`);
     return;
   }
+  const minItemsPerClip = Math.max(1, options.minItemsPerClip ?? 1);
+  if (clip.items.length < minItemsPerClip) {
+    errors.push(`${label} has ${clip.items.length} item(s); it must contain at least ${minItemsPerClip}.`);
+  }
   if (clip.items.length > MAX_ITEMS_PER_CLIP) {
     errors.push(`${label} has ${clip.items.length} items; keep 1-${MAX_ITEMS_PER_CLIP}.`);
   }
@@ -891,19 +992,6 @@ function validateChapters(document: any, clipCount: number, errors: string[]): v
   }
 }
 
-function validatePalette(palette: any, errors: string[]): void {
-  if (palette === undefined) return;
-  if (!palette || typeof palette !== 'object' || Array.isArray(palette)) {
-    errors.push('palette must be an object when present.');
-    return;
-  }
-  for (const role of ['background', 'foreground', 'muted', 'accent', 'secondary'] as const) {
-    if (!HEX_COLOR.test(text(palette[role]))) {
-      errors.push(`palette.${role} must be a #rrggbb hex color.`);
-    }
-  }
-}
-
 export function validateStoryboard(
   value: unknown,
   options: StoryboardValidationOptions,
@@ -922,10 +1010,6 @@ export function validateStoryboard(
   for (const field of ['title', 'hook', 'summary', 'closing'] as const) {
     if (!text(document[field])) errors.push(`${field} is required.`);
   }
-  const hue = Number(document.hue);
-  if (!Number.isFinite(hue) || hue < 0 || hue > 360) errors.push('hue must be a number between 0 and 360.');
-  validatePalette(document.palette, errors);
-
   const declared = document['global-components'];
   const globals = new Map<string, StoryboardGlobalComponent>();
   if (declared !== undefined) {
@@ -1002,10 +1086,10 @@ export function validateStoryboard(
   const lower = options.targetDurationSeconds * (1 - options.durationTolerance);
   const upper = options.targetDurationSeconds * (1 + options.durationTolerance);
   if (duration < lower || duration > upper) {
-    errors.push(
+    warnings.push(
       `${options.timingMode === 'anchor' ? 'Estimated narration' : 'Estimated runtime'} `
       + `${duration.toFixed(1)}s must fall within ${lower.toFixed(1)}-${upper.toFixed(1)}s `
-      + `(target ${options.targetDurationSeconds}s).`,
+      + `(target ${options.targetDurationSeconds}s); continuing because duration is advisory.`,
     );
   }
 

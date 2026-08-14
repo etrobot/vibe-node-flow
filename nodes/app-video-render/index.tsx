@@ -83,7 +83,6 @@ function toPreviewDocument(value: unknown): ClipsDocument | null {
 
   return {
     title: candidate.title || 'App Video',
-    hue: Number.isFinite(Number(candidate.hue)) ? Number(candidate.hue) : 220,
     chapters: Array.isArray(candidate.chapters) ? candidate.chapters : undefined,
     clips,
   } as ClipsDocument;
@@ -130,7 +129,9 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
 
   const narrationUrl = useMemo(() => {
     if (manifest?.narrationUrl) return manifest.narrationUrl;
-    const narrationNode = allNodes.find((n) => n.type === 'edge-tts-narration' && n.output);
+    const narrationNode = allNodes.find((n) => (
+      (n.type === 'fish-audio-narration' || n.type === 'local-tts-narration') && n.output
+    ));
     const narrationManifest = parseManifest(narrationNode?.output);
     return narrationManifest?.combinedUrl || null;
   }, [allNodes, manifest]);
