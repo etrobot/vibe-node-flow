@@ -1,7 +1,7 @@
 import cron, { type ScheduledTask } from "node-cron";
 import type { WorkflowScheduleStatus } from "../App/types";
 import * as storage from "./storage";
-import { startWorkflowRun } from "./run-service";
+import { getActiveFullWorkflowRun, startWorkflowRun } from "./run-service";
 import {
   ensureWorkflowScheduleFile,
   readWorkflowSchedule,
@@ -28,6 +28,14 @@ export async function syncWorkflowSchedule(workflowId: string): Promise<void> {
   const task = cron.schedule(
     schedule.cron,
     async (context) => {
+      const active = getActiveFullWorkflowRun(workflowId);
+      if (active) {
+        console.warn(
+          `[scheduler] ${workflowId} skipped scheduled trigger at ${context.triggeredAt.toISOString()} because run ${active.id} is still active (trigger: ${active.trigger})`,
+        );
+        return;
+      }
+
       try {
         const job = startWorkflowRun(workflowId, "schedule");
         console.log(

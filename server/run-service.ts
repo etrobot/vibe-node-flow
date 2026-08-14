@@ -279,6 +279,28 @@ class WorkflowRunJobImpl implements WorkflowRunJob {
   }
 }
 
+/** Return the newest still-running full workflow job (excludes single-node runs). */
+export function getActiveFullWorkflowRun(workflowId: string): ActiveRunSnapshot | undefined {
+  return [...jobs.values()]
+    .filter(
+      (job) =>
+        job.workflowId === workflowId &&
+        job.status === "running" &&
+        job.trigger !== "single",
+    )
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0]
+    ?.snapshot();
+}
+
+function assertWorkflowNotAlreadyRunning(workflowId: string): void {
+  const active = getActiveFullWorkflowRun(workflowId);
+  if (active) {
+    throw new Error(
+      `Workflow ${workflowId} is already running (runId: ${active.id}, trigger: ${active.trigger})`,
+    );
+  }
+}
+
 /** Shared entry point for manual API runs and future schedule triggers. */
 export function startWorkflowRun(
   workflowId: string,
@@ -290,6 +312,9 @@ export function startWorkflowRun(
   assertFlowNodeLimit(workflow.nodes);
   assertNoOverlappingEdges(workflow.nodes, workflow.edges);
   assertWorkflowPluginsAvailable(workflow);
+  if (trigger === "schedule") {
+    assertWorkflowNotAlreadyRunning(workflowId);
+  }
   const job = new WorkflowRunJobImpl(workflow, trigger);
   jobs.set(job.id, job);
   return job;
