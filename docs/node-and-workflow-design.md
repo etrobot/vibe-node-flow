@@ -169,7 +169,34 @@ export default {
 } satisfies NodeModule;
 ```
 
-`server.ts` default-exports `{ type, execute }`. `execute` receives the current node, upstream text input, accepted previous outputs, workflow identity, and asset directories; it returns `{ output, logs? }` and may return a diagnostic warning:
+`server.ts` default-exports `{ type, execute }`. `execute` receives the current node, upstream text input, accepted previous outputs, workflow identity, the runtime asset directories, and the host database path; it returns `{ output, logs? }` and may return a diagnostic warning:
+
+#### Runtime-owned paths
+
+The host resolves every path a node needs for persisted files or databases and injects it through `NodePluginContext`. A node must use these values instead of rebuilding paths from `process.cwd()`, environment variables, workflow IDs, or run IDs:
+
+| Context field | Meaning | Usage |
+| --- | --- | --- |
+| `workflowDir` | Workflow asset root | Backward-compatible workflow-level asset access. New generated files belong in `assetsDir`. |
+| `workflowDefinitionDir` | Git-syncable workflow definition directory | Read `workflow.json`, `schedule.json`, and workflow-owned source files. |
+| `assetsDir` | Current run's generated-asset directory | Read/write artifacts shared by nodes in this run. |
+| `nodeAssetsDir` | Persistent directory owned by the current node | Read/write node-owned assets reused across runs. |
+| `databasePath` | Host SQLite database used for workflow and run state | Open the database when the node needs host database access. |
+
+`databasePath` follows the same rule as `assetsDir` and `nodeAssetsDir`: it is a runtime path, not node configuration. This keeps single-node runs, full workflow runs, and workers on the same database location. The node may report the operation with `onResourceAccess`; the host attaches the resolved database path to the audit entry before it is streamed to the node panel or persisted in run history:
+
+```ts
+async function execute({ databasePath, onResourceAccess }: NodePluginContext): Promise<NodePluginResult> {
+  const database = new Database(databasePath);
+  onResourceAccess?.({
+    kind: 'database',
+    operation: 'read',
+    detail: 'workflow state',
+  });
+  // ... query the database ...
+  return { output: result };
+}
+```
 
 ```ts
 import type { NodePluginContext, NodePluginResult } from '../../server/plugins.ts';
@@ -192,6 +219,7 @@ Node logs have two separate purposes and must not be mixed:
 
 - `logs` is a human-readable `string[]` for progress, milestones, retries, warnings, and diagnostics. It is shown in the node panel and stored in run history.
 - `resourceAccesses` is structured audit data for external resources. It records whether the node read or wrote a `database`, `filesystem`, or `environment`; it is shown as compact `DB` / `FS` / `ENV` filters in the node panel.
+- Database access entries receive the host-resolved `databasePath` as `path` before they reach the panel or run history. Nodes should use `databasePath` from `NodePluginContext` instead of reconstructing a database location.
 
 Use `createNodeLogger(onLog)` so the same line is retained in the final result and streamed to the live run UI:
 

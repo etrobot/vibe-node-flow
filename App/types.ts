@@ -11,6 +11,8 @@ export type NodeResourceOperation = 'read' | 'write';
 export interface NodeResourceAccess {
   kind: NodeResourceKind;
   operation: NodeResourceOperation;
+  /** Runtime-resolved resource path, when the host can provide one. */
+  path?: string;
   detail?: string;
 }
 

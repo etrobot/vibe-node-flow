@@ -18,6 +18,7 @@ import {
   workflowDir as workflowDefinitionDir,
   resolveWorkflowRunAssetsDir,
   nodeAssetsDir,
+  DB_PATH,
 } from "./paths.ts";
 import { makeRunId } from "./run-id.ts";
 // Kept as a compatibility export for integrations that used the old engine
@@ -199,6 +200,7 @@ async function execNode(
     runId,
     reuseOverwriteGeneratedAssets,
   );
+  const databasePath = DB_PATH;
   console.log(
     `[engine] node=${node.id} type=${node.type} run=${runId}`
     + ` reuseOverwriteGeneratedAssets=${reuseOverwriteGeneratedAssets}`
@@ -206,8 +208,14 @@ async function execNode(
   );
   const resourceAccesses: NodeResourceAccess[] = [];
   const reportResourceAccess = (access: NodeResourceAccess) => {
-    resourceAccesses.push(access);
-    onResourceAccess?.(access);
+    // Database access is displayed in the node panel as part of the execution
+    // audit. Resolve its path here, alongside the other runtime-owned paths,
+    // instead of making each node reconstruct it from process state.
+    const resolvedAccess = access.kind === "database" && !access.path
+      ? { ...access, path: databasePath }
+      : access;
+    resourceAccesses.push(resolvedAccess);
+    onResourceAccess?.(resolvedAccess);
   };
   let result;
   try {
@@ -221,6 +229,7 @@ async function execNode(
       workflowDefinitionDir: workflowDefinitionDir(workflowId),
       assetsDir,
       nodeAssetsDir: nodeAssetsDir(node.id),
+      databasePath,
       onLog,
       onResourceAccess: reportResourceAccess,
     });

@@ -8,6 +8,10 @@ import {
   type DiscoveredNodePlugin,
   type NodePluginDiagnostic,
 } from "./plugin-discovery.ts";
+import {
+  findCrossNodeImports,
+  formatCrossNodeImportViolation,
+} from "./node-import-policy.ts";
 
 export type NodeLogFn = (line: string) => void;
 
@@ -27,6 +31,8 @@ export interface NodePluginContext {
   assetsDir: string;
   /** Persistent assets owned by this node and reused across runs. */
   nodeAssetsDir: string;
+  /** Runtime database used by the host for workflow and run state. */
+  databasePath: string;
   /** Stream one console line to the live run UI while the node is still executing. */
   onLog?: NodeLogFn;
   /** Record a redacted database, filesystem, or environment access. */
@@ -142,6 +148,15 @@ export async function loadNodePlugins(
 
   const discovered = discoverNodePlugins(projectRoot);
   diagnostics.push(...discovered.diagnostics);
+  const nodeImportViolations = findCrossNodeImports(projectRoot);
+  const blockedNodeDirs = new Set(nodeImportViolations.map((violation) => violation.fromNode));
+  for (const violation of nodeImportViolations) {
+    diagnostics.push({
+      dirName: violation.fromNode,
+      dir: path.join(projectRoot, "nodes", violation.fromNode),
+      message: formatCrossNodeImportViolation(violation),
+    });
+  }
   if (options.log !== false) {
     for (const diagnostic of diagnostics) {
       console.warn(`[node-plugin] ${diagnostic.dirName}: ${diagnostic.message}`);
@@ -149,6 +164,12 @@ export async function loadNodePlugins(
   }
 
   for (const candidate of discovered.plugins) {
+    if (blockedNodeDirs.has(candidate.dirName)) {
+      if (options.log !== false) {
+        console.warn(`[node-plugin] ${candidate.dirName}: node import boundary violation; plugin skipped`);
+      }
+      continue;
+    }
     const expectedType = candidate.type;
     const previous = registeredTypes.get(expectedType);
     if (previous) {
@@ -220,6 +241,7 @@ export function watchNodePlugins(
 ): () => void {
   const nodesRoot = path.resolve(projectRoot, "nodes");
   if (!fs.existsSync(nodesRoot)) return () => undefined;
+  const workflowsRoot = path.resolve(projectRoot, "workflows");
 
   const watchers = new Map<string, fs.FSWatcher>();
   let reloadTimer: ReturnType<typeof setTimeout> | undefined;
@@ -267,12 +289,15 @@ export function watchNodePlugins(
   };
 
   const refreshDirectoryWatchers = () => {
-    watchDirectory(nodesRoot);
-    for (const entry of fs.readdirSync(nodesRoot, { withFileTypes: true })) {
-      if (entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("_")) {
-        watchDirectory(path.join(nodesRoot, entry.name));
+    const visit = (directory: string) => {
+      watchDirectory(directory);
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+        if (entry.isDirectory()) visit(path.join(directory, entry.name));
       }
-    }
+    };
+    visit(nodesRoot);
+    if (fs.existsSync(workflowsRoot)) visit(workflowsRoot);
   };
 
   refreshDirectoryWatchers();

@@ -85,6 +85,7 @@ function renderContext(
     workflowDir: root,
     assetsDir: path.join(root, 'generated'),
     nodeAssetsDir: path.join(root, 'node-assets'),
+    databasePath: path.join(root, 'studio.db'),
   };
 }
 
