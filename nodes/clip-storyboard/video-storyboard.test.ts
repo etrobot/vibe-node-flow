@@ -21,11 +21,7 @@ import {
 } from './prompt-source.ts';
 
 const OPTIONS: StoryboardValidationOptions = {
-  minClips: 3,
-  maxClips: 12,
   minComponentTypes: 6,
-  targetDurationSeconds: 20,
-  durationTolerance: 0.35,
   timingMode: 'anchor',
   maxGlobalComponents: 12,
 };
@@ -203,11 +199,7 @@ test('storyboard prompt owns the complete opening composition', () => {
     ...({} as any),
     slug: 'opening-flow',
     language: 'Chinese',
-    minClips: 8,
-    maxClips: 12,
     minComponentTypes: 7,
-    targetDurationSeconds: 90,
-    durationTolerance: 0.3,
     timingMode: 'anchor',
     maxGlobalComponents: 5,
     maxDemoUiHtmlItems: 3,
@@ -259,7 +251,7 @@ test('a clip needs exactly one anchor fewer than it has items', () => {
 
 test('under duration timing the old plain-speech contract still holds', () => {
   const document = fixture();
-  const options = { ...OPTIONS, timingMode: 'duration' as const, targetDurationSeconds: 16 };
+  const options = { ...OPTIONS, timingMode: 'duration' as const };
   // Anchors are now illegal, and every item needs seconds.
   const { errors } = validateStoryboard(document, options);
   assert.ok(errors.some((issue) => /Clip 1 speech contains \*\* markers/.test(issue)));
@@ -410,20 +402,7 @@ test('chapters must start at clip 0 and cover every clip', () => {
   ));
 });
 
-test('narration duration outside the target window is advisory, not a hard failure', () => {
-  const document = fixture();
-  document.clips[0].speech += ' ' + 'word '.repeat(400);
-  const report = validateStoryboard(document, OPTIONS);
-
-  assert.doesNotMatch(report.errors.join('\n'), /Estimated narration/);
-  assert.match(report.warnings.join('\n'), /Estimated narration .* continuing because duration is advisory/);
-});
-
-test('thin component variety remains an error while duration stays advisory', () => {
-  const durationReport = validateStoryboard(fixture(), { ...OPTIONS, targetDurationSeconds: 300 });
-  assert.doesNotMatch(durationReport.errors.join('\\n'), /Estimated narration/);
-  assert.match(durationReport.warnings.join('\\n'), /Estimated narration .* continuing because duration is advisory/);
-
+test('thin component variety remains an error', () => {
   const thin = validateStoryboard(fixture(), { ...OPTIONS, minComponentTypes: 20 }).errors;
   assert.ok(thin.some((issue) => /uses 7 component types; at least 20 are required/.test(issue)));
 });

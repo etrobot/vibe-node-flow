@@ -135,12 +135,6 @@ export function normalizeWorkflowJsonBriefConfig(value: unknown): WorkflowJsonBr
     sourceWorkflowPath: text(raw.sourceWorkflowPath),
     targetLanguage: text(raw.targetLanguage) || DEFAULT_WORKFLOW_JSON_BRIEF_CONFIG.targetLanguage,
     targetAudience: text(raw.targetAudience) || DEFAULT_WORKFLOW_JSON_BRIEF_CONFIG.targetAudience,
-    targetDurationSeconds: integer(
-      raw.targetDurationSeconds,
-      DEFAULT_WORKFLOW_JSON_BRIEF_CONFIG.targetDurationSeconds,
-      30,
-      900,
-    ),
     explanationFocus: text(raw.explanationFocus) || DEFAULT_WORKFLOW_JSON_BRIEF_CONFIG.explanationFocus,
     includeNodeDocs: raw.includeNodeDocs !== false,
     includeNodeConfig: raw.includeNodeConfig !== false,
@@ -729,7 +723,6 @@ export async function buildWorkflowExplanationBrief(
       '- Workflow description: ' + (text(document.description) || 'Not provided'),
       '- Target language: ' + options.config.targetLanguage,
       '- Target audience: ' + options.config.targetAudience,
-      '- Target duration: ' + options.config.targetDurationSeconds + ' seconds',
       '- Explanation focus: ' + options.config.explanationFocus,
     ].join('\n')),
     section('Accuracy Boundary', [

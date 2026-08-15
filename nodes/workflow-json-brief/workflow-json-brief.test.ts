@@ -87,7 +87,6 @@ test('brief includes exact graph and redacts sensitive configuration', async () 
     projectRoot: process.cwd(),
     config: normalizeWorkflowJsonBriefConfig({
       targetLanguage: 'Chinese',
-      targetDurationSeconds: 75,
       includeNodeDocs: false,
     }),
     source,

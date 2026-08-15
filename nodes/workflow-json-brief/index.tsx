@@ -54,18 +54,6 @@ const WorkflowJsonBriefPanel: React.FC<NodeModuleEditorProps> = ({ node, onUpdat
             className="input-pill w-full text-xs"
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-ink">Target duration (seconds)</span>
-          <input
-            type="number"
-            min={30}
-            max={900}
-            disabled={readOnly}
-            value={Number(config.targetDurationSeconds || 90)}
-            onChange={(event) => updateConfig(node, { targetDurationSeconds: Number(event.target.value) }, onUpdateNode)}
-            className="input-pill w-full text-xs"
-          />
-        </label>
       </div>
 
       <label className="flex flex-col gap-1">

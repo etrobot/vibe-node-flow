@@ -42,7 +42,6 @@
         "sourceWorkflowPath": "workflows/app-launch-video-en/workflow.json",
         "targetLanguage": "English",
         "targetAudience": "People familiar with automation and AI tools who have not seen this workflow implementation",
-        "targetDurationSeconds": 90,
         "explanationFocus": "Why the workflow exists, what every node does, how data moves along the real edges, important configuration, final output, and warning or failure boundaries",
         "includeNodeDocs": true,
         "includeNodeConfig": true,
@@ -68,12 +67,7 @@
         "slug": "",
         "language": "English",
         "tone": "clear, restrained, technical walkthrough",
-        "minClips": 6,
-        "maxClips": 10,
-        "minItemsPerClip": 1,
         "minComponentTypes": 5,
-        "targetDurationSeconds": 90,
-        "durationTolerance": 0.35,
         "timingMode": "anchor",
         "maxGlobalComponents": 4,
         "maxDemoUiHtmlItems": 2,
@@ -101,8 +95,7 @@
         "concurrency": 1,
         "applyTiming": true,
         "minItemSeconds": 0.35,
-        "timeoutMs": 120000,
-        "durationTolerance": 0.35
+        "timeoutMs": 120000
       }
     },
     {

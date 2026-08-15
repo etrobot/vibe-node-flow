@@ -27,8 +27,9 @@ Do not generate `hue`, `palette`, `background`, or chart datum colors. They are 
 
 - Set `slug` from the source workflow ID using lowercase kebab-case.
 - Write every speech and on-screen string in English.
-- Produce 6-10 clips and about 90 seconds of narration, within 35 percent.
-- Use 1-3 items in every clip and at least five distinct item types overall.
+- Produce enough clips to cover the brief faithfully; clip count and total narration length are not capped.
+- Every clip must contain at least two visual items; item count per clip is not capped.
+- Use at least five distinct item types overall.
 - Do not generate `background`; the storyboard node assigns it deterministically from `aurora`, `blur`, `wave`, and `semrush-glow`.
 - The final clip, and only the final clip, pairs `text-title` with `text-logo`.
 - `text-typing` may only be the first item of a clip.

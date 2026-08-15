@@ -111,7 +111,8 @@ const SPOT_REQUIRED_TYPES = new Set<string>(['pyramid-highlight', 'process-card-
 
 export const MIN_ITEM_DURATION = 0.6;
 export const MAX_ITEM_DURATION = 6;
-export const MAX_ITEMS_PER_CLIP = 3;
+/** Minimum visual items required in every clip. */
+export const DEFAULT_MIN_ITEMS_PER_CLIP = 2;
 export const MAX_GLOBAL_COMPONENTS = 12;
 
 /** Speech pace used to estimate runtime, since items no longer carry seconds. */
@@ -673,12 +674,8 @@ export const DEMO_UI_HTML_ITEM_TYPES = new Set([
 export const DEFAULT_MAX_DEMO_UI_HTML_ITEMS = 2;
 
 export interface StoryboardValidationOptions {
-  minClips: number;
-  maxClips: number;
   minItemsPerClip?: number;
   minComponentTypes: number;
-  targetDurationSeconds: number;
-  durationTolerance: number;
   timingMode: TimingMode;
   maxGlobalComponents: number;
   /** Ceiling on product Demo UI HTML placeholders across the whole storyboard. */
@@ -921,12 +918,12 @@ function validateClip(
     errors.push(`${label} is missing items.`);
     return;
   }
-  const minItemsPerClip = Math.max(1, options.minItemsPerClip ?? 1);
+  const minItemsPerClip = Math.max(
+    DEFAULT_MIN_ITEMS_PER_CLIP,
+    options.minItemsPerClip ?? DEFAULT_MIN_ITEMS_PER_CLIP,
+  );
   if (clip.items.length < minItemsPerClip) {
     errors.push(`${label} has ${clip.items.length} item(s); it must contain at least ${minItemsPerClip}.`);
-  }
-  if (clip.items.length > MAX_ITEMS_PER_CLIP) {
-    errors.push(`${label} has ${clip.items.length} items; keep 1-${MAX_ITEMS_PER_CLIP}.`);
   }
 
   if (options.timingMode === 'anchor') {
@@ -1037,9 +1034,6 @@ export function validateStoryboard(
     return { errors, warnings, metrics: {} };
   }
   const clips = document.clips as StoryboardClip[];
-  if (clips.length < options.minClips || clips.length > options.maxClips) {
-    errors.push(`clips must contain ${options.minClips}-${options.maxClips} entries; received ${clips.length}.`);
-  }
 
   clips.forEach((clip, index) => {
     validateClip(clip, index, index === clips.length - 1, globals, options, errors, warnings);
@@ -1083,16 +1077,6 @@ export function validateStoryboard(
   }
 
   const duration = estimateDurationSeconds(clips, options.timingMode);
-  const lower = options.targetDurationSeconds * (1 - options.durationTolerance);
-  const upper = options.targetDurationSeconds * (1 + options.durationTolerance);
-  if (duration < lower || duration > upper) {
-    warnings.push(
-      `${options.timingMode === 'anchor' ? 'Estimated narration' : 'Estimated runtime'} `
-      + `${duration.toFixed(1)}s must fall within ${lower.toFixed(1)}-${upper.toFixed(1)}s `
-      + `(target ${options.targetDurationSeconds}s); continuing because duration is advisory.`,
-    );
-  }
-
   const speechWords = clips.reduce(
     (total, clip) => total + plainSpeech(clip?.speech).split(/\s+/).filter(Boolean).length,
     0,

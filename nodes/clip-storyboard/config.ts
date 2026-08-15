@@ -7,15 +7,10 @@ export interface ClipStoryboardConfig {
   language: string;
   /** Visual tone hint, e.g. "confident product launch". */
   tone: string;
-  minClips: number;
-  maxClips: number;
   /** Minimum visual items in every clip. */
   minItemsPerClip: number;
   /** Distinct component types the storyboard must use, so scenes stay varied. */
   minComponentTypes: number;
-  targetDurationSeconds: number;
-  /** Fraction of targetDurationSeconds the estimated runtime may deviate. */
-  durationTolerance: number;
   /**
    * `anchor` (default): items carry no seconds and `**anchors**` in the speech
    * mark the shot switches, which `fish-audio-narration` maps onto the measured
@@ -60,12 +55,8 @@ export const DEFAULT_CLIP_STORYBOARD_CONFIG: ClipStoryboardConfig = {
   slug: '',
   language: 'English',
   tone: 'confident product launch',
-  minClips: 8,
-  maxClips: 14,
-  minItemsPerClip: 1,
+  minItemsPerClip: 2,
   minComponentTypes: 6,
-  targetDurationSeconds: 60,
-  durationTolerance: 0.25,
   timingMode: 'anchor',
   maxGlobalComponents: 12,
   maxDemoUiHtmlItems: 2,

@@ -109,7 +109,7 @@ export async function executeWorkflowJsonBrief(
       'Mermaid materials: ' + built.mermaidMaterials.length + ' diagram(s) extracted from selected NODE.md files.',
       'Redacted ' + built.redactedConfigValues + ' sensitive configuration value(s).',
       'Produced a ' + output.length + '-character workflow explainer brief for '
-        + config.targetLanguage + ' / ' + config.targetDurationSeconds + 's.',
+        + config.targetLanguage + '.',
     );
     return { output, logs: log.logs };
   } catch (error) {

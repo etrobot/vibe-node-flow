@@ -21,7 +21,6 @@ import {
   GLOBAL_COMPONENT_GUIDE,
   GLOBAL_COMPONENT_TYPES,
   MAX_ITEM_DURATION,
-  MAX_ITEMS_PER_CLIP,
   MIN_ITEM_DURATION,
   parseStoryboardJson,
   sanitizeStoryboard,
@@ -46,10 +45,7 @@ function integer(value: unknown, fallback: number, min: number, max: number): nu
 
 function normalizeConfig(value: unknown): ClipStoryboardConfig {
   const raw = value && typeof value === 'object' ? value as Partial<ClipStoryboardConfig> : {};
-  const minClips = integer(raw.minClips, DEFAULT_CLIP_STORYBOARD_CONFIG.minClips, 3, 40);
-  const maxClips = Math.max(minClips, integer(raw.maxClips, DEFAULT_CLIP_STORYBOARD_CONFIG.maxClips, 3, 40));
   const temperature = Number(raw.temperature);
-  const tolerance = Number(raw.durationTolerance);
   const timingMode: TimingMode = raw.timingMode === 'duration' ? 'duration' : 'anchor';
   return {
     ...DEFAULT_CLIP_STORYBOARD_CONFIG,
@@ -57,19 +53,8 @@ function normalizeConfig(value: unknown): ClipStoryboardConfig {
     slug: clean(raw.slug),
     language: clean(raw.language) || DEFAULT_CLIP_STORYBOARD_CONFIG.language,
     tone: clean(raw.tone) || DEFAULT_CLIP_STORYBOARD_CONFIG.tone,
-    minClips,
-    maxClips,
-    minItemsPerClip: integer(raw.minItemsPerClip, DEFAULT_CLIP_STORYBOARD_CONFIG.minItemsPerClip, 1, 3),
+    minItemsPerClip: integer(raw.minItemsPerClip, DEFAULT_CLIP_STORYBOARD_CONFIG.minItemsPerClip, 2, 20),
     minComponentTypes: integer(raw.minComponentTypes, DEFAULT_CLIP_STORYBOARD_CONFIG.minComponentTypes, 1, 20),
-    targetDurationSeconds: integer(
-      raw.targetDurationSeconds,
-      DEFAULT_CLIP_STORYBOARD_CONFIG.targetDurationSeconds,
-      15,
-      900,
-    ),
-    durationTolerance: Number.isFinite(tolerance)
-      ? Math.max(0.05, Math.min(0.6, tolerance))
-      : DEFAULT_CLIP_STORYBOARD_CONFIG.durationTolerance,
     timingMode,
     maxGlobalComponents: integer(
       raw.maxGlobalComponents,
@@ -155,13 +140,9 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
       + ' global component by key, then the node by spot, and bold the on-screen label/title that'
       + ' matches that node — never skip the spot word to bold a more specific later phrase.',
       'Never split a word or anchor bare punctuation, and never anchor a whole sentence.',
-      `Total narration should read in about ${config.targetDurationSeconds} seconds`
-      + ` (±${Math.round(config.durationTolerance * 100)}%) at a natural pace.`,
     ]
     : [
       `Each item duration is ${MIN_ITEM_DURATION}-${MAX_ITEM_DURATION} seconds.`,
-      `Item durations total about ${config.targetDurationSeconds} seconds`
-      + ` (±${Math.round(config.durationTolerance * 100)}%).`,
       '"speech" is plain narration a voice actor reads aloud: no markdown, no ** markers.',
     ];
 
@@ -204,10 +185,9 @@ export function buildStoryboardPrompt(config: ClipStoryboardConfig, brief: strin
     '',
     slugRule,
     `Write every "speech" and on-screen string in ${config.language}.`,
-    `Produce ${config.minClips}-${config.maxClips} clips.`,
-    `Every clip must contain ${config.minItemsPerClip}-${MAX_ITEMS_PER_CLIP} visual items; never emit a single-item clip.`,
+    'Produce enough clips to cover the brief faithfully; clip count and total narration length are not capped.',
+    `Every clip must contain at least ${config.minItemsPerClip} visual items; item count per clip is not capped.`,
     'Colors are renderer-owned. Do not generate hue, palette, background, or chart datum color fields; the storyboard and renderer assign them deterministically.',
-    `Each clip holds 1-${MAX_ITEMS_PER_CLIP} items.`,
     ...timingRules,
     'On-screen text lives in item fields such as "title"; keep it to 2-6 words.',
     `Use at least ${config.minComponentTypes} distinct item types across the storyboard.`,
@@ -339,8 +319,7 @@ async function execute({
     config.promptFile
       ? `Storyboard prompt: workflow file ${config.promptFile}`
       : 'Storyboard prompt: built-in contract + nodes/clip-storyboard/prompt.md sections.',
-    `Storyboard contract: ${config.minClips}-${config.maxClips} clips, `
-    + `${config.targetDurationSeconds}s ±${Math.round(config.durationTolerance * 100)}%, `
+    `Storyboard contract: uncapped clip count and narration length, `
     + `${config.minComponentTypes}+ component types, ${config.timingMode} timing.`,
     `Repair policy: initial generation plus up to ${STORYBOARD_RETRY_LIMIT} retries.`,
   );
@@ -348,6 +327,7 @@ async function execute({
 
   for (let attempt = 1; attempt <= STORYBOARD_ATTEMPT_LIMIT; attempt += 1) {
     log.push(`Calling LLM for storyboard attempt ${attempt}/${STORYBOARD_ATTEMPT_LIMIT}...`);
+    log.push('LLM request: no max_tokens cap (provider/model default applies).');
     const requestStarted = Date.now();
     const { content } = await callLLM({ temperature: config.temperature, messages });
     log.push(
@@ -361,11 +341,7 @@ async function execute({
     try {
       const parsed = parseStoryboardJson(content);
       const validationOpts = {
-        minClips: config.minClips,
-        maxClips: config.maxClips,
         minComponentTypes: config.minComponentTypes,
-        targetDurationSeconds: config.targetDurationSeconds,
-        durationTolerance: config.durationTolerance,
         timingMode: config.timingMode,
         maxGlobalComponents: config.maxGlobalComponents,
         maxDemoUiHtmlItems: config.maxDemoUiHtmlItems,
