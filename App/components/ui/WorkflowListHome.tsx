@@ -304,21 +304,21 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 >
                   <button
                     onClick={() => void handleOpenSchedule(workflow)}
-                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
+                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
                   >
                     <CalendarClock className="w-3.5 h-3.5" />
                     <span>Schedule</span>
                   </button>
                   <button
                     onClick={() => handleStartEditMeta(workflow)}
-                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
+                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Rename</span>
                   </button>
                   <button
                     onClick={() => onOpenHistory(workflow.id)}
-                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
+                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
                   >
                     <History className="w-3.5 h-3.5" />
                     <span>History</span>
@@ -379,7 +379,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                           {renderLucideIcon(workflowIcon, 'w-3.5 h-3.5')}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium text-ink group-hover:text-primary transition-colors">
+                          <div className="font-medium text-ink group-hover:text-primary-text transition-colors">
                             {workflow.name}
                           </div>
                           <div className="text-[11px] text-muted leading-relaxed mt-0.5 line-clamp-2">
@@ -398,21 +398,21 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                         <button
                           onClick={() => void handleOpenSchedule(workflow)}
                           title="Schedule"
-                          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary border border-hairline"
+                          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary-text border border-hairline"
                         >
                           <CalendarClock className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleStartEditMeta(workflow)}
                           title="Rename"
-                          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary border border-hairline"
+                          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary-text border border-hairline"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => onOpenHistory(workflow.id)}
                           title="Run History"
-                          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary border border-hairline"
+                          className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-muted hover:text-primary-text border border-hairline"
                         >
                           <History className="w-3.5 h-3.5" />
                         </button>
@@ -470,7 +470,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
       {/* Top Header */}
       <header className="h-14 px-6 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg text-primary  ring-2 ring-primary/40 flex items-center justify-center">
+          <div className="p-2 rounded-lg text-primary-text  ring-2 ring-primary/40 flex items-center justify-center">
             <Workflow className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -566,7 +566,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                       {editColor.toUpperCase()}
                     </span>
                   </span>
-                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-primary-text">
                     <Palette className="w-3.5 h-3.5" />
                     Choose
                   </span>
@@ -623,7 +623,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
           <div className="w-full max-w-md card-panel overflow-hidden flex flex-col">
             <div className="panel-header">
               <div className="flex items-center gap-2.5">
-                <CalendarClock className="w-4 h-4 text-primary" />
+                <CalendarClock className="w-4 h-4 text-primary-text" />
                 <div>
                   <h3 className="font-medium text-sm text-ink">Server Schedule</h3>
                   <p className="text-[11px] text-muted mt-0.5">{schedulingWorkflow.name}</p>

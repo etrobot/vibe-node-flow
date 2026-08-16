@@ -53,6 +53,7 @@ export function applyTheme(id: string) {
     '--color-surface-card': isBinance ? get('surfaceCardDark', '#1e2329') : get('surfaceCard', '#ffffff'),
     '--color-surface-strong': isBinance ? get('surfaceElevatedDark', '#2b3139') : get('surfaceElevated', get('surfaceSoft', '#e6e5e0')),
     '--color-primary': get('primary', '#f54e00'),
+    '--color-primary-text': resolvedId === 'posthog' ? get('primaryActive', get('primary', '#f54e00')) : get('primary', '#f54e00'),
     '--color-primary-active': get('primaryActive', '#d04200'),
     '--color-primary-light': get('primaryDisabled', '#fef0e8'),
     '--color-black': isBinance ? get('canvasDark', '#0b0e11') : get('black', get('surfaceDark', '#000000')),

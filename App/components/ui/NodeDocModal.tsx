@@ -241,7 +241,7 @@ export const NodeDocModal: React.FC<NodeDocModalProps> = ({
       <div className="flex h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden card-panel">
         <div className="panel-header shrink-0">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="rounded-lg border border-hairline bg-surface-canvas p-2.5 text-primary">
+            <div className="rounded-lg border border-hairline bg-surface-canvas p-2.5 text-primary-text">
               <BookOpen className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0">

@@ -19,9 +19,9 @@ const VARIANTS: Record<Variant, string> = {
   default: "bg-primary text-on-primary hover:bg-primary-active border border-primary",
   secondary: "bg-surface-card text-ink hover:bg-surface-canvas-soft border border-hairline-strong",
   ghost: "hover:bg-surface-canvas-soft hover:text-ink",
-  outline: "border border-primary bg-transparent text-primary hover:bg-primary hover:text-on-primary",
+  outline: "border border-primary bg-transparent text-primary-text hover:bg-primary hover:text-on-primary",
   destructive: "bg-semantic-error text-white hover:bg-semantic-error/80 border border-semantic-error",
-  link: "text-primary underline-offset-4 hover:underline",
+  link: "text-primary-text underline-offset-4 hover:underline",
 };
 
 const SIZES: Record<Size, string> = {

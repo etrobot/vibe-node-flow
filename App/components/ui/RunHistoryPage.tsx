@@ -270,7 +270,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                 onClick={togglePicker}
                 className="btn-pill bg-surface-canvas-soft hover:bg-surface-card text-ink border border-hairline flex items-center gap-1.5 px-3 py-1.5"
               >
-                <CalendarDays className="w-3.5 h-3.5" />
+                <CalendarDays className="w-3.5 h-3.5 text-primary" />
                 <span className="whitespace-nowrap">{dateLabel}</span>
               </button>
               {datePickerOpen && (

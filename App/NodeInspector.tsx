@@ -699,7 +699,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
             <div className="space-y-1 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-semibold text-ink flex items-center gap-1.5">
-                  <Terminal className="w-4 h-4 text-primary" />
+                  <Terminal className="w-4 h-4 text-primary-text" />
                   Unified execution logs & data flow
                 </div>
                 <span className="text-[10px] text-muted font-mono">{logItems.length} records</span>

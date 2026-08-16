@@ -64,7 +64,7 @@ export const NodeTagManagerModal: React.FC<NodeTagManagerModalProps> = ({
       <div className="w-full max-w-md card-panel overflow-hidden flex flex-col">
         <div className="panel-header">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2.5 rounded-lg border border-hairline bg-surface-canvas text-primary">
+            <div className="p-2.5 rounded-lg border border-hairline bg-surface-canvas text-primary-text">
               <Tags className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0">

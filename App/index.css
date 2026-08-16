@@ -40,6 +40,7 @@
 
   /* ---- Brand Voltage (Cursor Orange) — use scarcely ---- */
   --color-primary:      #f54e00;  /* Cursor Orange — CTAs, wordmark */
+  --color-primary-text: var(--color-primary);  /* Text-safe primary accent */
   --color-primary-active: #d04200;  /* Press state */
   --color-primary-light: #fef0e8;  /* Tinted background for orange */
 

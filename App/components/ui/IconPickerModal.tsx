@@ -69,7 +69,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
         <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
           <div>
             <label className="block text-xs font-medium text-ink mb-2 flex items-center gap-1.5">
-              <Palette className="w-3.5 h-3.5 text-primary" /> Choose {subjectLabel} Color
+              <Palette className="w-3.5 h-3.5 text-primary-text" /> Choose {subjectLabel} Color
             </label>
             <div className="flex flex-wrap items-center gap-2">
               {PRESET_COLORS.map((preset) => {

@@ -863,7 +863,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                         onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); onRunSingleNode(node.id); }}
                         title="Run this node alone"
-                        className="p-1 rounded-full text-muted hover:text-primary hover:bg-primary-light transition-colors cursor-pointer"
+                        className="p-1 rounded-full text-muted hover:text-primary-text hover:bg-primary-light transition-colors cursor-pointer"
                       >
                         <Play className="w-3 h-3 fill-current" />
                       </button>
@@ -934,7 +934,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
 
                 {/* Middle Text Label Block */}
                 <div className="mt-1.5 w-full flex flex-col items-center justify-center text-center px-1">
-                  <div className={`w-full text-xs font-medium tracking-tight whitespace-normal break-words leading-tight ${isSelected ? 'text-primary font-semibold' : 'text-ink'}`}>
+                  <div className={`w-full text-xs font-medium tracking-tight whitespace-normal break-words leading-tight ${isSelected ? 'text-primary-text font-semibold' : 'text-ink'}`}>
                     {node.title}
                   </div>
                   {nodeModule.badge && (
