@@ -21,12 +21,22 @@ import {
   X,
 } from 'lucide-react';
 
+export interface RunHistoryContext {
+  workflowId: string | null;
+  status: string;
+  query: string;
+  fromDate: string | null;
+  toDate: string | null;
+  page: number;
+}
+
 interface RunHistoryPageProps {
   workflows: WorkflowItem[];
   initialWorkflowId?: string | null;
+  initialContext?: RunHistoryContext | null;
   onBack: () => void;
   backLabel?: string;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: (runId: string, context?: RunHistoryContext) => void;
   /** When true, renders without the outer wrapper and header — for embedding in a tabbed layout. */
   embedded?: boolean;
 }
@@ -87,6 +97,7 @@ const statusChip = (status: string) => {
 export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
   workflows,
   initialWorkflowId,
+  initialContext,
   onBack,
   backLabel,
   onOpenRun,
@@ -94,19 +105,26 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
 }) => {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(initialContext?.page ?? 0);
   const [pageSize] = useState(20);
-  const [filterWorkflowId, setFilterWorkflowId] = useState(initialWorkflowId || 'all');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [query, setQuery] = useState('');
+  const [filterWorkflowId, setFilterWorkflowId] = useState(
+    initialContext?.workflowId || initialWorkflowId || 'all',
+  );
+  const [filterStatus, setFilterStatus] = useState(initialContext?.status || 'all');
+  const [query, setQuery] = useState(initialContext?.query || '');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fromDate, setFromDate] = useState<string | null>(TODAY);
-  const [toDate, setToDate] = useState<string | null>(TODAY);
+  const [fromDate, setFromDate] = useState<string | null>(
+    initialContext?.fromDate === undefined ? TODAY : initialContext.fromDate,
+  );
+  const [toDate, setToDate] = useState<string | null>(
+    initialContext?.toDate === undefined ? TODAY : initialContext.toDate,
+  );
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [draftFrom, setDraftFrom] = useState(TODAY);
-  const [draftTo, setDraftTo] = useState(TODAY);
+  const [draftFrom, setDraftFrom] = useState(initialContext?.fromDate ?? TODAY);
+  const [draftTo, setDraftTo] = useState(initialContext?.toDate ?? TODAY);
   const datePickerRef = useRef<HTMLDivElement>(null);
+  const initialPageRef = useRef(initialContext?.page ?? 0);
 
   const loadRuns = async (targetPage = page) => {
     setLoading(true);
@@ -137,8 +155,10 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
   }, [initialWorkflowId]);
 
   useEffect(() => {
-    setPage(0);
-    void loadRuns(0);
+    const targetPage = initialPageRef.current;
+    initialPageRef.current = 0;
+    setPage(targetPage);
+    void loadRuns(targetPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterWorkflowId, filterStatus, fromDate, toDate]);
 
@@ -437,7 +457,14 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                 {visibleRuns.map((run) => (
                   <tr
                     key={run.id}
-                    onClick={() => onOpenRun(run.id)}
+                    onClick={() => onOpenRun(run.id, {
+                      workflowId: filterWorkflowId === 'all' ? null : filterWorkflowId,
+                      status: filterStatus,
+                      query,
+                      fromDate,
+                      toDate,
+                      page,
+                    })}
                     className="group cursor-pointer hover:bg-surface-canvas/60 transition-colors"
                   >
                     <td className="py-2 px-3">

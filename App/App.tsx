@@ -15,6 +15,7 @@ import type { NodeTextInput } from '../lib/node-io';
 import { Header } from './components/ui/Header';
 import { HomePage } from './components/ui/HomePage';
 import { RunDetailPage } from './components/ui/RunDetailPage';
+import type { RunHistoryContext } from './components/ui/RunHistoryPage';
 import { FlowCanvas } from './FlowCanvas';
 import { NodeInspector } from './NodeInspector';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -187,6 +188,7 @@ export default function App() {
   const [homeInitialTab, setHomeInitialTab] = useState<'history' | 'workflows'>(
     initialRoute.view === 'home' ? initialRoute.tab : 'history',
   );
+  const [historyReturnContext, setHistoryReturnContext] = useState<RunHistoryContext | null>(null);
 
   // All Workflows (metadata + graph) loaded from the backend filesystem store
   const [workflows, setWorkflows] = useState<WorkflowItem[]>([]);
@@ -226,6 +228,11 @@ export default function App() {
   const nodesRef = useRef<FlowNode[]>([]);
   const edgesRef = useRef<FlowEdge[]>([]);
   const hydratedRunIdRef = useRef<string | null>(null);
+  // Keep the exact history context that opened a run detail page. The detail
+  // route itself is intentionally stable (/runs/:id), so this belongs in the
+  // app navigation state rather than in the run record.
+  const runDetailReturnRouteRef = useRef<AppRoute | null>(null);
+  const runDetailReturnContextRef = useRef<RunHistoryContext | null>(null);
   nodesRef.current = nodes;
   edgesRef.current = edges;
 
@@ -603,6 +610,7 @@ export default function App() {
   };
 
   const handleOpenHistory = (workflowId: string | null) => {
+    setHistoryReturnContext(null);
     setHistoryFilterWorkflowId(workflowId);
     setHomeInitialTab('history');
     setSelectedRunId(null);
@@ -610,10 +618,28 @@ export default function App() {
     navigateTo({ view: 'home', tab: 'history', workflowId });
   };
 
-  const handleOpenRunDetail = (runId: string) => {
+  const handleOpenRunDetail = (runId: string, context?: RunHistoryContext) => {
+    const currentRoute = parseRoute(window.location);
+    runDetailReturnContextRef.current = context ?? null;
+    runDetailReturnRouteRef.current = currentRoute.view === 'home'
+      ? {
+          ...currentRoute,
+          workflowId: context?.workflowId === undefined ? currentRoute.workflowId : context.workflowId,
+        }
+      : { view: 'home', tab: 'history', workflowId: context?.workflowId ?? null };
     setSelectedRunId(runId);
     setCurrentView('run-detail');
     navigateTo({ view: 'run-detail', runId });
+  };
+
+  const handleBackFromRunDetail = () => {
+    const returnRoute = runDetailReturnRouteRef.current
+      ?? { view: 'home', tab: 'history', workflowId: null } satisfies AppRoute;
+    setHistoryReturnContext(runDetailReturnContextRef.current);
+    runDetailReturnRouteRef.current = null;
+    runDetailReturnContextRef.current = null;
+    // Replace the detail entry so browser Back does not reopen the same run.
+    navigateTo(returnRoute, true);
   };
 
   const handleHomeTabChange = (
@@ -625,6 +651,7 @@ export default function App() {
     } else {
       setHomeInitialTab('workflows');
       setHistoryFilterWorkflowId(null);
+      setHistoryReturnContext(null);
       setCurrentView('home');
       navigateTo({ view: 'home', tab: 'workflows', workflowId: null });
     }
@@ -948,6 +975,7 @@ export default function App() {
         <HomePage
           workflows={workflows}
           initialFilterWorkflowId={historyFilterWorkflowId}
+          initialHistoryContext={historyReturnContext}
           initialTab={homeInitialTab}
           onOpenWorkflow={handleOpenWorkflow}
           onDuplicateWorkflow={handleDuplicateWorkflow}
@@ -964,7 +992,7 @@ export default function App() {
     return (
       <RunDetailPage
         runId={selectedRunId}
-        onBack={() => handleOpenHistory(null)}
+        onBack={handleBackFromRunDetail}
         onOpenWorkflow={(workflowId) => void handleOpenWorkflow(workflowId)}
       />
     );

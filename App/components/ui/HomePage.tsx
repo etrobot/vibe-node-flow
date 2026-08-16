@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { WorkflowItem } from '../../types';
 import { RunHistoryPage } from './RunHistoryPage';
+import type { RunHistoryContext } from './RunHistoryPage';
 import { WorkflowListHome } from './WorkflowListHome';
 import { History, Workflow } from 'lucide-react';
 
@@ -9,6 +10,7 @@ import { ThemeSelector } from './ThemeSelector';
 interface HomePageProps {
   workflows: WorkflowItem[];
   initialFilterWorkflowId?: string | null;
+  initialHistoryContext?: RunHistoryContext | null;
   initialTab?: 'history' | 'workflows';
   onOpenWorkflow: (id: string) => void;
   onDuplicateWorkflow: (id: string) => void;
@@ -16,13 +18,14 @@ interface HomePageProps {
   onEditWorkflowMeta: (
     id: string, name: string, description: string, icon: string, color: string
   ) => void;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: (runId: string, context?: RunHistoryContext) => void;
   onChangeTab?: (tab: 'history' | 'workflows', workflowId?: string | null) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   workflows,
   initialFilterWorkflowId,
+  initialHistoryContext,
   initialTab,
   onOpenWorkflow,
   onDuplicateWorkflow,
@@ -97,6 +100,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <RunHistoryPage
             workflows={workflows}
             initialWorkflowId={historyFilterWorkflowId}
+            initialContext={initialHistoryContext}
             onBack={() => changeTab('workflows')}
             onOpenRun={onOpenRun}
             embedded
