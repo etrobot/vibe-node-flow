@@ -107,15 +107,17 @@ export function boundaryOffsets(plain: string, boundaries: WordBoundary[]): numb
   for (const boundary of boundaries) {
     const word = String(boundary?.text ?? '');
     if (!word) {
-      offsets.push(cursor);
+      offsets.push(-1);
       continue;
     }
     let index = plain.indexOf(word, cursor);
     if (index === -1) index = lower.indexOf(word.toLowerCase(), cursor);
     if (index === -1) {
       // Punctuation and normalization differences: hold position rather than
-      // rewinding, so later boundaries keep their order.
-      offsets.push(cursor);
+      // rewinding, so later boundaries keep their order. -1 is important:
+      // returning cursor makes a partial timestamp match look valid and can
+      // push unresolved Chinese anchors to the end of the clip.
+      offsets.push(-1);
       continue;
     }
     offsets.push(index);
@@ -193,14 +195,19 @@ export function resolveClipTiming(options: ResolveClipTimingOptions): ClipTiming
     return { items: evenSplit(itemCount, audioSeconds), measured: false, warnings };
   }
 
-  const offsets = boundaryOffsets(plain, options.boundaries || []);
-  const measured = offsets.length > 0;
+  const boundaries = options.boundaries || [];
+  const offsets = boundaryOffsets(plain, boundaries);
+  const measuredSwitches = anchors.map((anchor) => {
+    const position = offsets.findIndex((offset) => offset >= anchor.charIndex);
+    if (position === -1) return null;
+    return Math.max(0, Number(boundaries[position]?.offsetSeconds) || 0);
+  });
+  // Do not treat a partially matched timestamp stream as measured. Missing
+  // Chinese anchors otherwise become `audioSeconds`, and the clamp below
+  // leaves all later items with only the minimum visible duration.
+  const measured = measuredSwitches.every((value) => value !== null);
   const switches = measured
-    ? anchors.map((anchor) => {
-      const position = offsets.findIndex((offset) => offset >= anchor.charIndex);
-      if (position === -1) return audioSeconds;
-      return Math.max(0, Number(options.boundaries[position]?.offsetSeconds) || 0);
-    })
+    ? measuredSwitches as number[]
     : anchors.map((anchor) => (
       audioSeconds * Math.max(0, Math.min(1, anchor.charIndex / Math.max(1, plain.length)))
     ));

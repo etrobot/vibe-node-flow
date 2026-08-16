@@ -120,6 +120,23 @@ test('audio-only TTS maps anchor text position onto the measured MP3 duration', 
   ]);
 });
 
+test('partial timestamp matches do not make the first Chinese item consume the clip', () => {
+  const result = resolveClipTiming({
+    speech: '先介绍流程，**然后**展示结果，**最后**总结。',
+    itemCount: 3,
+    audioSeconds: 6,
+    minItemSeconds: 0.35,
+    boundaries: [
+      { text: '先', offsetSeconds: 0, durationSeconds: 0.2 },
+      { text: '介绍', offsetSeconds: 0.2, durationSeconds: 0.4 },
+    ],
+  });
+
+  assert.equal(result.measured, false);
+  assert.deepEqual(result.items.map((item) => item.durationSeconds), [2, 2.333, 1.667]);
+  assert.ok(result.items.every((item) => item.durationSeconds >= 0.35));
+});
+
 test('timing falls back to an even split rather than guessing', () => {
   const boundaries = [
     { text: 'Ideas', offsetSeconds: 0, durationSeconds: 0.4 },
