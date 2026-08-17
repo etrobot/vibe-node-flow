@@ -4,6 +4,9 @@ A small visual workflow framework for AI applications. A workflow is a DAG of so
 
 > **Important:** Nodes and workflows are created and maintained by a Coding Agent. The browser UI is for observation and inspection only — users watch runs, review outputs, and diagnose issues through it. All authoring of nodes, edges, prompts, and validation logic is done by the agent writing source code under `nodes/` and `workflows/`.
 
+<img width="3022" height="1708" alt="image" src="https://github.com/user-attachments/assets/1b5db451-d741-4294-8a9f-552ab8d5e566" />
+
+
 ## Design
 
 Genno follows a node-first design: first build a small set of complete, independently useful and self-validating nodes; only then compose them into a workflow. A node must be usable both as an independent application capability and as a composable DAG node. The host orchestrates discovery, graph execution, persistence and diagnostics; edges carry data only.
