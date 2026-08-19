@@ -52,10 +52,20 @@ export default defineConfig(() => {
       // Always bind hooks to the host application's singleton runtime.
       dedupe: ['react', 'react-dom'],
     },
+    // Vite otherwise crawls every HTML file below the project root. Runtime
+    // browser profiles and the vendored Flow extension contain HTML entry
+    // points with extension-only dynamic imports, so they must not be treated
+    // as application dependency entries.
+    optimizeDeps: {
+      entries: ['index.html'],
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
+      // Keep HMR separate from the default workspace WebSocket port (24678).
+      hmr: process.env.DISABLE_HMR !== 'true'
+        ? { port: Number(process.env.VITE_HMR_PORT || 24679) }
+        : false,
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {
         // Workflow saves are runtime persistence from the editor. Watching them
