@@ -6,7 +6,7 @@ import { parseJsonObject, toRendererDocument, narrationTimingFromManifest } from
 import { InteractivePlayer } from './renderer/InteractivePlayer';
 import { RenderEntrypoint } from './renderer/RenderEntrypoints';
 import type { ClipsDocument } from './renderer/clipTypes';
-import { Film, Play, Terminal, Loader2 } from 'lucide-react';
+import { Film, Play } from 'lucide-react';
 
 interface RenderClipEntry {
   index: number;
@@ -100,7 +100,6 @@ function megabytes(value: number | undefined): string {
 const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
   node,
   allNodes,
-  readOnly,
   runId,
 }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'mp4'>('preview');
@@ -159,64 +158,35 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header Tabs and Manual Render Button */}
-      <div className="flex items-center justify-between border-b border-hairline pb-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('preview')}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-              activeTab === 'preview'
-                ? 'bg-surface-elevated text-ink border border-hairline'
-                : 'text-muted hover:text-ink'
-            }`}
-          >
-            <Play className="w-3.5 h-3.5" />
-            HTML5 Preview
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('mp4')}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-              activeTab === 'mp4'
-                ? 'bg-surface-elevated text-ink border border-hairline'
-                : 'text-muted hover:text-ink'
-            }`}
-          >
-            <Film className="w-3.5 h-3.5" />
-            Exported MP4
-            {manifest?.videoUrl ? (
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            ) : null}
-          </button>
-        </div>
-
-        {/* Extra capability: rendering is intentionally outside workflow execution. */}
-        {canOpenRenderTerminal ? (
-          <button
-            type="button"
-            disabled={openingRenderTerminal}
-            onClick={() => void openRenderTerminal()}
-            title="Open a terminal and run the MP4 render script"
-            className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors cursor-pointer"
-          >
-            {openingRenderTerminal ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Opening terminal...
-              </>
-            ) : (
-              <>
-                <Terminal className="w-3.5 h-3.5" />
-                Render MP4
-              </>
-            )}
-          </button>
-        ) : !readOnly ? (
-          <span className="text-[11px] text-muted" title="Run the workflow first to create a render context.">
-            Run workflow to enable MP4 render
-          </span>
-        ) : null}
+      {/* Header Tabs */}
+      <div className="flex items-center gap-2 border-b border-hairline pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('preview')}
+          className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+            activeTab === 'preview'
+              ? 'bg-surface-elevated text-ink border border-hairline'
+              : 'text-muted hover:text-ink'
+          }`}
+        >
+          <Play className="w-3.5 h-3.5" />
+          HTML5 Preview
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('mp4')}
+          className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+            activeTab === 'mp4'
+              ? 'bg-surface-elevated text-ink border border-hairline'
+              : 'text-muted hover:text-ink'
+          }`}
+        >
+          <Film className="w-3.5 h-3.5" />
+          Exported MP4
+          {manifest?.videoUrl ? (
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          ) : null}
+        </button>
       </div>
 
       {renderTerminalError ? (
@@ -260,7 +230,7 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
             </div>
           ) : (
             <div className="rounded-xl border border-hairline bg-surface-canvas p-8 text-center text-sm text-muted">
-              No MP4 video exported yet. Click the <span className="font-semibold text-ink">Render MP4</span> button above to render this video.
+              No MP4 video exported yet. Switch to <span className="font-semibold text-ink">HTML5 Preview</span> and use <span className="font-semibold text-ink">Render MP4</span> in the player controls.
             </div>
           )}
         </div>
