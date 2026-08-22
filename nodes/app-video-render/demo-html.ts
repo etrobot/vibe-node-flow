@@ -461,3 +461,27 @@ export function isSafeDemoFile(file: string): boolean {
     && file.split('/').every((part) => Boolean(part) && part !== '.' && part !== '..')
     && file.startsWith('demo/');
 }
+
+function demoUiHtmlFile(item: any): string {
+  const demoUi = item?.demoUi;
+  if (!demoUi || typeof demoUi !== 'object') return '';
+  return String(demoUi.htmlFile ?? '').trim();
+}
+
+/**
+ * Product Demo UI HTML is optional. Mermaid/state markers without a generated
+ * file must not block render — the built-in React clip types already cover them.
+ */
+export function stripUnresolvedDemoUi(document: Record<string, any> | null | undefined): number {
+  if (!document || !Array.isArray(document.clips)) return 0;
+  let dropped = 0;
+  for (const clip of document.clips) {
+    for (const item of clip?.items || []) {
+      if (!item || item.demoUi === undefined) continue;
+      if (isSafeDemoFile(demoUiHtmlFile(item))) continue;
+      delete item.demoUi;
+      dropped += 1;
+    }
+  }
+  return dropped;
+}

@@ -388,9 +388,12 @@ function formatFastClockParts(localTime: number, duration: number) {
   };
 }
 
-function TextTyping({item, localTime}: ClipTypeRendererProps) {
-  const charsToShow = Math.floor(localTime * (item.typingSpeed || 42));
-  const finished = charsToShow >= cleanText(item.title).length;
+function TextTyping({item, localTime, duration}: ClipTypeRendererProps) {
+  const text = cleanText(item.title);
+  const holdSeconds = Math.max(0.35, (Number.isFinite(duration) && duration > 0 ? duration : 1) * 0.82);
+  const typingSpeed = item.typingSpeed || Math.max(6, text.length / holdSeconds);
+  const charsToShow = Math.floor(localTime * typingSpeed);
+  const finished = charsToShow >= text.length;
   const cursorVisible = Math.floor(localTime / 0.16) % 2 === 0;
 
   return (
@@ -558,7 +561,7 @@ function TextLogo({clip, item, localTime}: ClipTypeRendererProps) {
           transform: `translate3d(0, ${lerp(40, 0, ctaProgress)}px, 0)`,
           boxShadow: `0 0 ${lerp(0, 44, glow)}px ${lerp(0, 12, glow)}px var(--theme-glow)`,
         }}
-        className="relative z-10 px-10 py-5 bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] text-white font-extrabold text-xl md:text-2xl rounded-full tracking-wide flex items-center gap-3"
+        className="relative z-10 px-10 py-5 bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-secondary)] text-white font-extrabold text-xl md:text-2xl rounded-full tracking-wide flex items-center gap-2"
       >
         {ctaText}
         <ArrowUp className="w-6 h-6" />
@@ -647,7 +650,7 @@ function MiniSearchResult({
       }}
       className="rounded-xl border border-white/8 bg-zinc-950/82 p-4 shadow-[0_16px_38px_rgba(0,0,0,0.35)]"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="h-8 w-8 rounded-full bg-white/12 flex items-center justify-center text-xs font-bold text-white/80">
           {title.slice(0, 1)}
         </div>
@@ -689,7 +692,7 @@ function SemrushSearch({item, localTime}: ClipTypeRendererProps) {
             ))}
             <div className="mt-8 grid gap-2">
               {['AI match', 'Search intent', 'Local pages', 'SERP gaps'].map((label, index) => (
-                <div key={label} className="flex items-center justify-between rounded-lg bg-white/[0.04] px-3 py-2 text-xs text-zinc-500">
+                <div key={label} className="flex items-center justify-between rounded-md bg-white/[0.04] px-3 py-2 text-xs text-zinc-500">
                   <span>{label}</span>
                   <span className="font-bold text-[#ff4da6]">{84 + index * 3}%</span>
                 </div>
@@ -782,10 +785,10 @@ function SitePreview({compact = false}: {compact?: boolean}) {
         <div className="mx-auto mb-4 h-8 w-36 rounded-full bg-white/80 text-center text-xs leading-8 shadow-sm">Book your stay</div>
         <h3 className="text-center text-4xl font-black text-[#9fb7d3]">{compact ? 'YOUR SPACE' : 'YOUR SPACE'}</h3>
         <p className="mx-auto mt-2 max-w-md text-center text-sm text-black/50">Vacation rental management, automated booking, and owner reporting in one site.</p>
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="mt-5 grid grid-cols-3 gap-2">
           {['Listings', 'Owners', 'Revenue'].map((label, index) => (
-            <div key={label} className="rounded-lg bg-white p-3 shadow-sm">
-              <div className="mb-2 h-16 rounded-md bg-gradient-to-br from-black/10 to-black/5" />
+            <div key={label} className="rounded-md bg-white p-2 shadow-sm">
+              <div className="mb-2 h-16 rounded-sm bg-gradient-to-br from-black/10 to-black/5" />
               <p className="text-xs font-bold">{label}</p>
               <p className="text-[10px] text-black/50">{index === 0 ? 'Hudson Row' : index === 1 ? 'Portal' : '+28%'}</p>
             </div>
@@ -810,7 +813,7 @@ function ChatPanel({localTime, expanded = false}: {localTime: number; expanded?:
         <div className="semrush-ui-3d mb-auto rounded-xl bg-white/[0.035] p-4 text-sm" style={{transform: 'translateZ(34px)'}}>
           <p className="mb-3 text-zinc-400">Thought for 6s</p>
           <p className="text-white">Looking good. Here is the picture:</p>
-          <div className="mt-4 overflow-hidden rounded-lg border border-white/8">
+          <div className="mt-4 overflow-hidden rounded-md border border-white/8">
             {['US', 'UK', 'CA', 'AU'].map((row, index) => (
               <div key={row} className="grid grid-cols-3 border-b border-white/5 px-3 py-2 text-xs last:border-0">
                 <span>{row}</span>
@@ -875,13 +878,13 @@ function SemrushPublish({localTime}: ClipTypeRendererProps) {
     <Css3DStage localTime={localTime} shot="publish" className="w-[1120px] aspect-video">
       <div className="relative h-full overflow-hidden rounded-3xl bg-[radial-gradient(circle_at_90%_20%,rgba(91,121,255,0.95),transparent_28%),radial-gradient(circle_at_86%_86%,rgba(255,88,24,0.95),transparent_35%),radial-gradient(circle_at_55%_84%,rgba(255,42,151,0.86),transparent_34%),#050507] p-5 shadow-[0_35px_120px_rgba(0,0,0,0.72)]">
         <div
-          className="semrush-ui-3d absolute right-24 top-6 z-30 flex items-center gap-3 rounded-xl bg-zinc-950/92 p-3 shadow-[0_20px_70px_rgba(0,0,0,0.62),0_0_40px_rgba(37,99,235,0.25)]"
+          className="semrush-ui-3d absolute right-24 top-6 z-30 flex items-center gap-2 rounded-xl bg-zinc-950/92 p-2 shadow-[0_20px_70px_rgba(0,0,0,0.62),0_0_40px_rgba(37,99,235,0.25)]"
           style={{transform: `translateZ(${lerp(60, 150, progress)}px) scale(${lerp(0.94, 1.08, progress)})`}}
         >
           <div className="h-9 w-9 rounded-full bg-violet-700 text-center text-xs font-bold leading-9 text-white">N</div>
-          <button className="rounded-md bg-white/10 px-4 py-2 text-sm font-semibold text-white">Share</button>
-          <button className="rounded-md bg-white/10 px-3 py-2 text-sm font-semibold text-white">GitHub</button>
-          <button className="rounded-md bg-blue-600 px-5 py-2 text-sm font-black text-white shadow-[0_0_30px_rgba(37,99,235,0.62)]">Publish</button>
+          <button className="rounded-sm bg-white/10 px-4 py-2 text-sm font-semibold text-white">Share</button>
+          <button className="rounded-sm bg-white/10 px-3 py-2 text-sm font-semibold text-white">GitHub</button>
+          <button className="rounded-sm bg-blue-600 px-5 py-2 text-sm font-black text-white shadow-[0_0_30px_rgba(37,99,235,0.62)]">Publish</button>
         </div>
         <div
           style={{
@@ -909,10 +912,10 @@ function SemrushAudit({localTime}: ClipTypeRendererProps) {
         <div className="semrush-ui-3d relative ml-auto mr-16 mt-14 w-[62%] rounded-xl border border-white/10 bg-[#151518]/96 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.62),0_0_50px_rgba(255,65,154,0.16)]" style={{transform: 'translateZ(128px)'}}>
           <div className="mb-5 flex items-center justify-between">
             <h3 className="font-bold">Your SEO review</h3>
-            <button className="rounded-md bg-blue-600 px-3 py-1 text-xs font-bold shadow-[0_0_24px_rgba(37,99,235,0.45)]">Run</button>
+            <button className="rounded-sm bg-blue-600 px-3 py-1 text-xs font-bold shadow-[0_0_24px_rgba(37,99,235,0.45)]">Run</button>
           </div>
-          <div className="rounded-lg border border-white/8 bg-black/32 p-4">
-            <div className="flex items-center gap-3">
+          <div className="rounded-md border border-white/8 bg-black/32 p-4">
+            <div className="flex items-center gap-2">
               {done ? <CheckCircle className="h-5 w-5 text-emerald-400" /> : <XIcon className="h-5 w-5 text-rose-500" />}
               <div className="h-3 flex-1 rounded-full bg-white/10">
                 <div className="h-full rounded-full bg-gradient-to-r from-[#ff4da6] to-[#6478ff]" style={{width: done ? '86%' : '34%'}} />
@@ -921,7 +924,7 @@ function SemrushAudit({localTime}: ClipTypeRendererProps) {
             <p className="mt-3 text-sm text-zinc-400">{done ? 'Fixable technical gaps found.' : 'Search results show transactional loss.'}</p>
           </div>
         </div>
-        <div className="semrush-ui-3d absolute bottom-14 left-14 grid grid-cols-2 gap-3 text-sm text-white/75" style={{transform: 'translateZ(40px)'}}>
+        <div className="semrush-ui-3d absolute bottom-14 left-14 grid grid-cols-2 gap-2 text-sm text-white/75" style={{transform: 'translateZ(40px)'}}>
           {['Audit', 'Keyword analysis', 'AI readability', 'Backlinks'].map((label) => (
             <div key={label} className="rounded-full border border-white/10 bg-black/45 px-5 py-3 shadow-[0_14px_34px_rgba(0,0,0,0.35)]">{label}</div>
           ))}
@@ -977,7 +980,7 @@ function SemrushFeatureCloud({localTime}: ClipTypeRendererProps) {
           );
         })}
         <div
-          className="absolute bottom-16 left-1/2 rounded-lg bg-blue-600 px-6 py-3 font-bold shadow-[0_16px_40px_rgba(37,99,235,0.35),0_0_36px_rgba(37,99,235,0.32)]"
+          className="absolute bottom-16 left-1/2 rounded-md bg-blue-600 px-6 py-3 font-bold shadow-[0_16px_40px_rgba(37,99,235,0.35),0_0_36px_rgba(37,99,235,0.32)]"
           style={{
             opacity: clamp01(buttonProgress),
             transform: `translateX(-50%) translateY(${lerp(38, 0, buttonProgress)}px) translateZ(${lerp(-40, 126, buttonProgress)}px) scale(${lerp(0.76, 1, buttonProgress)})`,
@@ -1098,7 +1101,7 @@ function MediaSurface({
         opacity: clamp01(localTime / 0.18),
         transform: `translate3d(calc(-50% + ${lerp(180, 0, progress)}px), -50%, 0) scale(${lerp(0.96, 1, progress)})`,
       }}
-      className="w-[96%] md:w-[94%] max-w-7xl aspect-video absolute top-1/2 left-1/2 overflow-hidden rounded-lg bg-black/20 shadow-[0_18px_48px_rgba(0,0,0,0.28)]"
+      className="w-[96%] md:w-[94%] max-w-7xl aspect-video absolute top-1/2 left-1/2 overflow-hidden rounded-md bg-black/20 shadow-[0_18px_48px_rgba(0,0,0,0.28)]"
     >
       {children}
     </div>
@@ -1301,8 +1304,8 @@ function UiPromptInput({item, localTime, duration}: ClipTypeRendererProps) {
             </p>
           </div>
 
-          <div className="mt-6 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+          <div className="mt-6 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <span className="px-4 py-2 rounded-full bg-white/8 text-white/70 text-sm md:text-base font-medium">Chat</span>
               <span className="h-10 w-10 md:h-11 md:w-11 rounded-full bg-white/8 flex items-center justify-center text-white/70">
                 <AudioLines className="w-5 h-5" />
@@ -1366,16 +1369,16 @@ function AppPreviewMock({localTime, revealFrom = 0}: {localTime: number; revealF
         </div>
       </div>
       <div className="grid grid-cols-[1.1fr_1fr] gap-5 px-6 py-5">
-        <div className="flex flex-col justify-center gap-3">
+        <div className="flex flex-col justify-center gap-2">
           <div className="w-fit rounded-full bg-[var(--theme-primary)]/10 px-3 py-1 text-[11px] font-bold text-[var(--theme-primary)]">New listings daily</div>
           <h3 className="text-3xl font-black leading-tight tracking-tight">Buy & sell, <br />with built-in chat.</h3>
           <p className="text-sm text-black/50 max-w-xs">A real marketplace with listings, messaging and secure checkout — generated for you.</p>
-          <div className="flex gap-3">
-            <div className="rounded-lg bg-[var(--theme-primary)] px-4 py-2 text-sm font-bold text-white">Browse</div>
-            <div className="rounded-lg border border-black/20 px-4 py-2 text-sm font-bold">Sell item</div>
+          <div className="flex gap-2">
+            <div className="rounded-md bg-[var(--theme-primary)] px-4 py-2 text-sm font-bold text-white">Browse</div>
+            <div className="rounded-md border border-black/20 px-4 py-2 text-sm font-bold">Sell item</div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="overflow-hidden rounded-xl border border-black/10 shadow-sm">
               <div className={`h-16 ${['bg-gradient-to-br from-rose-200 to-orange-200', 'bg-gradient-to-br from-indigo-200 to-sky-200', 'bg-gradient-to-br from-violet-200 to-fuchsia-200', 'bg-gradient-to-br from-emerald-200 to-lime-200'][i]}`} />
@@ -1425,7 +1428,7 @@ function UiRenderLoading({item, localTime, duration}: ClipTypeRendererProps) {
               </div>
             </div>
           ) : (
-            <div className="h-full w-full p-3 md:p-4">
+            <div className="h-full w-full p-2 md:p-4">
               <AppPreviewMock localTime={localTime} revealFrom={buildDuration} />
             </div>
           )}
@@ -1433,7 +1436,7 @@ function UiRenderLoading({item, localTime, duration}: ClipTypeRendererProps) {
 
         {/* Feature chips popping in over the finished app */}
         {!building && (
-          <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex gap-3">
+          <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
             {featureChips.map((chip, index) => {
               const chipIn = backOut((localTime - buildDuration - 0.25 - index * 0.14) / 0.4);
               return (
@@ -1481,7 +1484,7 @@ function UiVideoPreview({localTime}: ClipTypeRendererProps) {
             }}
           >
             <div className="flex gap-4 items-center">
-              <div className="h-8 w-24 bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-accent)] rounded-lg" />
+              <div className="h-8 w-24 bg-gradient-to-r from-[var(--theme-primary)] to-[var(--theme-accent)] rounded-md" />
               <div
                 className="h-4 w-32 bg-white/10 rounded"
                 style={{opacity: 0.5 + 0.5 * (0.5 + 0.5 * wave(localTime, 1))}}
@@ -1592,7 +1595,7 @@ function XProfile({item, localTime}: ClipTypeRendererProps) {
   ];
 
   return (
-    <div className="absolute inset-0 p-3 md:p-5 z-20 overflow-hidden flex items-start justify-center">
+    <div className="absolute inset-0 p-2 md:p-5 z-20 overflow-hidden flex items-start justify-center">
       <div
         style={enterStyle(localTime, {opacity: 0, scale: 0.96, y: 20, blur: 8}, 0.36)}
         className="relative h-[118%] md:h-[122%] max-h-none aspect-[9/19.5] bg-zinc-950 text-white overflow-hidden select-none rounded-[2rem] border border-white/10 shadow-[0_28px_90px_rgba(0,0,0,0.45),0_0_60px_var(--theme-glow)]"
@@ -1674,7 +1677,7 @@ function XProfile({item, localTime}: ClipTypeRendererProps) {
                   <div
                     key={post.body}
                     style={enterStyle(rowTime, {opacity: 0, y: 28, blur: 6}, 0.42)}
-                    className="px-5 py-3 border-b border-white/10 flex gap-3"
+                    className="px-5 py-3 border-b border-white/10 flex gap-2"
                   >
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--theme-primary)] to-[var(--theme-accent)] shrink-0" />
                     <div className="min-w-0 flex-1">
@@ -1684,7 +1687,7 @@ function XProfile({item, localTime}: ClipTypeRendererProps) {
                         <span className="text-zinc-500 font-mono truncate">@semrushai</span>
                       </div>
                       <p className="text-sm md:text-base text-zinc-200 mt-1">{post.body}</p>
-                      <div className="mt-3 grid grid-cols-3 gap-3 text-zinc-500 text-xs">
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-zinc-500 text-xs">
                         <span className="flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5" />{post.stats[0]}</span>
                         <span className="flex items-center gap-1.5"><Repeat2 className="w-3.5 h-3.5" />{post.stats[1]}</span>
                         <span className="flex items-center gap-1.5"><Heart className="w-3.5 h-3.5" />{post.stats[2]}</span>
@@ -1896,7 +1899,7 @@ function ElementGrowth({clip, item, localTime}: ClipTypeRendererProps) {
         <button
           type="button"
           onClick={() => setManualTriggerAt((current) => current ?? localTime)}
-          className={`px-8 py-5 md:px-10 md:py-6 rounded-3xl border flex flex-col items-center justify-center gap-3 backdrop-blur-xl transition-colors duration-300 cursor-pointer ${
+          className={`px-8 py-5 md:px-10 md:py-6 rounded-3xl border flex flex-col items-center justify-center gap-2 backdrop-blur-xl transition-colors duration-300 cursor-pointer ${
             isTriggered
               ? 'border-[var(--theme-primary)]'
               : 'border-white/20 hover:border-white/45 hover:bg-zinc-900'
@@ -2132,7 +2135,7 @@ function SwipeDelete({item, localTime, duration}: ClipTypeRendererProps) {
         <div className="p-6 space-y-3 relative">
           {/* Item 1 */}
           <div className="h-[84px] bg-zinc-950/50 rounded-2xl p-4 border border-zinc-800/60 flex items-center justify-between transition-all">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                 <Film className="w-5 h-5 text-emerald-400" />
               </div>
@@ -2160,7 +2163,7 @@ function SwipeDelete({item, localTime, duration}: ClipTypeRendererProps) {
               className="absolute inset-0 bg-zinc-950/95 p-4 flex items-center justify-between border-l-4 border-l-rose-500/50 z-10"
               style={{transform: `translateX(${swipeX}px)`}}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <div className="w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
                   <Film className="w-5 h-5 text-rose-400" />
                 </div>
@@ -2173,7 +2176,7 @@ function SwipeDelete({item, localTime, duration}: ClipTypeRendererProps) {
 
           {/* Item 3 */}
           <div className="h-[84px] bg-zinc-950/50 rounded-2xl p-4 border border-zinc-800/60 flex items-center justify-between transition-all">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="w-11 h-11 rounded-xl bg-[var(--theme-primary)]/10 border border-[var(--theme-primary)]/20 flex items-center justify-center">
                 <Film className="w-5 h-5 text-[var(--theme-primary)]" />
               </div>
@@ -2377,8 +2380,8 @@ function ChartLine(props: ClipTypeRendererProps) {
             const first = index === 0;
 
             return (
-              <div key={`${metric.label}-${index}`} className={`bg-zinc-900/60 p-3 rounded-xl border flex items-center gap-3 flex-1 md:flex-none ${first ? 'border-rose-500/10' : 'border-cyan-500/10'}`}>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${first ? 'bg-rose-500/10' : 'bg-cyan-500/10'}`}>
+              <div key={`${metric.label}-${index}`} className={`bg-zinc-900/60 p-2 rounded-xl border flex items-center gap-2 flex-1 md:flex-none ${first ? 'border-rose-500/10' : 'border-cyan-500/10'}`}>
+                <div className={`w-8 h-8 rounded-md flex items-center justify-center ${first ? 'bg-rose-500/10' : 'bg-cyan-500/10'}`}>
                   {metric.direction === 'down'
                     ? <TrendingDown className={`w-5 h-5 ${first ? 'text-rose-500' : 'text-cyan-400'}`} />
                     : <TrendingUp className={`w-5 h-5 ${first ? 'text-rose-500' : 'text-cyan-400'}`} />}
@@ -2483,7 +2486,7 @@ function ChartPie(props: ClipTypeRendererProps) {
             {segments.map((segment, index) => (
               <div
                 key={`${segment.label}-${index}`}
-                className={`flex items-center justify-between gap-3 p-1.5 rounded-lg border ${
+                className={`flex items-center justify-between gap-2 p-1.5 rounded-md border ${
                   hoveredIndex === index ? 'bg-zinc-900/60 border-zinc-700/80' : 'bg-transparent border-transparent'
                 }`}
                 onMouseEnter={() => setHoveredIndex(index)}
@@ -2699,7 +2702,7 @@ function SceneComparison({item, localTime}: ClipTypeRendererProps) {
           {columns.map((column, index) => (
             <div
               key={`${column.label}-${index}`}
-              className={`text-center relative rounded-lg py-1 ${column.featured ? 'text-[var(--theme-primary)] font-extrabold bg-[var(--theme-primary)]/5' : ''}`}
+              className={`text-center relative rounded-md py-1 ${column.featured ? 'text-[var(--theme-primary)] font-extrabold bg-[var(--theme-primary)]/5' : ''}`}
             >
               {column.label}
               {column.featured && (
@@ -2732,7 +2735,7 @@ function SceneComparison({item, localTime}: ClipTypeRendererProps) {
                 {columns.map((column, index) => (
                   <div
                     key={`${row.feature}-${column.label}-${index}`}
-                    className={`min-h-9 flex justify-center items-center rounded-lg ${column.featured ? 'bg-[var(--theme-primary)]/5' : ''}`}
+                    className={`min-h-9 flex justify-center items-center rounded-md ${column.featured ? 'bg-[var(--theme-primary)]/5' : ''}`}
                   >
                     {renderComparisonValue(row.values[index], Boolean(column.featured), rowProgress)}
                   </div>
@@ -2761,9 +2764,9 @@ function PyramidHighlight(props: ClipTypeRendererProps) {
   const highlightActive = localTime >= 0.75;
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/40 backdrop-blur-md rounded-3xl p-8 gap-3 relative">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950/40 backdrop-blur-md rounded-3xl p-8 gap-2 relative">
 
-      <div className="flex flex-col items-center w-full max-w-xl gap-3.5">
+      <div className="flex flex-col items-center w-full max-w-xl gap-2.5">
         {layers.map((layer, index) => {
           const isVisible = localTime >= 0.1;
           const isTarget = highlightActive && index === targetIndex;

@@ -35,7 +35,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
       aria-label="Manual input"
     >
       <div className="w-full max-w-6xl rounded-xl border border-hairline bg-surface-card p-6 shadow-2xl">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-ink">Manual input</h2>
             <p className="mt-1 text-xs text-muted">
@@ -46,7 +46,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
             type="button"
             onClick={onClose}
             title="Cancel"
-            className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
+            className="grid h-8 w-8 place-items-center rounded-md text-muted hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -62,7 +62,7 @@ export const ManualInputModal: React.FC<ManualInputModalProps> = ({
             }
           }}
           placeholder="Paste or write the input for this run..."
-          className="mt-4 min-h-[26rem] w-full resize-y rounded-lg border border-hairline bg-surface-card p-4 font-mono text-xs leading-relaxed text-ink shadow-inner outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
+          className="mt-4 min-h-[26rem] w-full resize-y rounded-md border border-hairline bg-surface-card p-4 font-mono text-xs leading-relaxed text-ink shadow-inner outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
         />
         <div className="mt-3 flex justify-end gap-2">
           <button

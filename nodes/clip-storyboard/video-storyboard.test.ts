@@ -125,7 +125,7 @@ test('sanitizeStoryboard auto-corrects structural defects in malformed LLM respo
         items: [
           // Extra Demo UI HTML items beyond max 1
           { type: 'ui-prompt-input' },
-          { type: 'ui-render-loading' },
+          { type: 'ui-render-loading', demoUi: true },
         ],
       },
     ],
@@ -149,6 +149,7 @@ test('sanitizeStoryboard auto-corrects structural defects in malformed LLM respo
 
   // Verify Demo UI capping & demotion
   assert.equal((sanitized as any).clips[1].items[1].type, 'ui-icon-text');
+  assert.equal((sanitized as any).clips[1].items[1].demoUi, undefined);
 
   // Verify chapters rebalanced
   assert.equal((sanitized as any).chapters[0].startClip, 0);

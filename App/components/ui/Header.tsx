@@ -77,11 +77,11 @@ export const Header: React.FC<HeaderProps> = ({
     <>
       <header className="relative z-50 h-14 px-3 sm:px-5 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md">
         {/* Left: Back button & Brand / Title */}
-        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           {onBackToHome && (
             <button
               onClick={onBackToHome}
-              className="rounded-md p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1 text-xs shrink-0"
+              className="rounded-sm p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1 text-xs shrink-0"
               title="Back to workflow list"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={() => setIsWorkflowIconModalOpen(true)}
             title="Click to configure workflow icon and color"
-            className="p-1.5 sm:p-2 rounded-lg border border-hairline flex items-center justify-center transition-all hover:scale-105 cursor-pointer shrink-0 bg-surface-card"
+            className="p-1.5 sm:p-2 rounded-md border border-hairline flex items-center justify-center transition-all hover:scale-105 cursor-pointer shrink-0 bg-surface-card"
             style={{
               backgroundColor: '#ffffff',
               borderColor: `${workflowColor}40`,

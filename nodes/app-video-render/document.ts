@@ -4,8 +4,14 @@
  * process/pyramid/feedback cards silently fall back to hardcoded defaults.
  */
 
-import { hydrateDocument } from './hydrate.ts';
+import {
+  alignDocumentToTiming,
+  hydrateDocument,
+  type HydrateOptions,
+} from './hydrate.ts';
 import { CLIP_BACKGROUNDS } from './renderer/clipTypes.ts';
+
+export { narrationTimingFromManifest, type ClipTiming, type HydrateOptions } from './hydrate.ts';
 
 const RENDERER_PRESENTATION_FIELDS = new Set([
   'hue',
@@ -77,7 +83,10 @@ function normalizeRendererPresentation(candidate: Record<string, any>): Record<s
  * Normalize a storyboard or render-manifest payload into the flat clip document
  * the InteractivePlayer and Playwright renderer both consume.
  */
-export function toRendererDocument(value: unknown): Record<string, any> | null {
+export function toRendererDocument(
+  value: unknown,
+  options: HydrateOptions = {},
+): Record<string, any> | null {
   const parsed = parseJsonObject(value);
   if (!parsed) return null;
 
@@ -90,7 +99,10 @@ export function toRendererDocument(value: unknown): Record<string, any> | null {
   const normalized = normalizeRendererPresentation(candidate);
   // Hydrate compact authoring documents; keep already-timed renderer documents
   // intact so narration anchors remain available to render manifests.
-  return needsHydration(normalized)
-    ? hydrateDocument(normalized as any)
+  const rendered = needsHydration(normalized)
+    ? hydrateDocument(normalized as any, options)
     : normalized;
+  return options.timing?.length
+    ? alignDocumentToTiming(rendered as Record<string, any>, options.timing)
+    : rendered;
 }

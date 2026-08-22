@@ -4,10 +4,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { ProxyAgent, fetch as undiciFetch, type Dispatcher } from 'undici';
+import type { WordBoundary } from './timing.ts';
 
 const execFileAsync = promisify(execFile);
 
-export const FISH_AUDIO_TTS_URL = 'https://api.fish.audio/v1/tts';
+/** Timestamped streaming TTS. Returns SSE with audio chunks and word alignments. */
+export const FISH_AUDIO_TTS_URL = 'https://api.fish.audio/v1/tts/stream/with-timestamp';
 export const FISH_AUDIO_TTS_MODEL = 's2.1-pro-free';
 /** Official Fish Audio voice model ID. Keep this fixed for a consistent narrator. */
 export const FISH_AUDIO_REFERENCE_ID = '79d0bd3e4e5444b18f7b6d89b5927bf1';
@@ -58,6 +60,8 @@ export interface SynthesisResult {
   /** Number of successful provider requests used for this narration. */
   requests: number;
   generationIds: string[];
+  /** Word/segment alignments from the timestamp stream. Empty if Fish sent none. */
+  boundaries: WordBoundary[];
 }
 
 export class FishAudioTtsError extends Error {
@@ -132,6 +136,7 @@ export function speechRequestBody(input: string): {
   format: string;
   sample_rate: number;
   mp3_bitrate: number;
+  latency: 'normal';
   prosody: { speed: number };
 } {
   return {
@@ -141,10 +146,117 @@ export function speechRequestBody(input: string): {
     // Pin 44.1 kHz so a later chunk cannot arrive as 32 kHz and play back slow.
     sample_rate: FISH_AUDIO_SAMPLE_RATE,
     mp3_bitrate: FISH_AUDIO_MP3_BITRATE,
+    // Narration can wait for a stable take; `balanced`/`low` split text earlier.
+    latency: 'normal',
     // Lock speaking rate. Omitting this lets S2 drift slower on long chunks,
     // which the model then follows with a lower pitch / different timbre.
     prosody: { speed: 1 },
   };
+}
+
+/** Pull JSON payloads out of standard SSE `data:` frames. */
+export function parseSseDataLines(raw: string): string[] {
+  const payloads: string[] = [];
+  let dataLines: string[] = [];
+  const flush = () => {
+    if (!dataLines.length) return;
+    payloads.push(dataLines.join('\n'));
+    dataLines = [];
+  };
+  for (const line of String(raw ?? '').split(/\r?\n/)) {
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).replace(/^ /, ''));
+      continue;
+    }
+    if (line === '') flush();
+  }
+  flush();
+  return payloads;
+}
+
+function roundSeconds(value: number): number {
+  return Number(value.toFixed(3));
+}
+
+/**
+ * Latest-wins alignment per `chunk_seq`, audio concatenated in event order.
+ * Fish Audio replaces snapshots for the same chunk; collecting every snapshot
+ * would duplicate words.
+ */
+export function collectTimestampStream(raw: string): { audio: Buffer; boundaries: WordBoundary[] } {
+  const audioParts: Buffer[] = [];
+  const byChunk = new Map<number, { offset: number; segments: Array<{ text: string; start: number; end: number }> }>();
+
+  for (const payload of parseSseDataLines(raw)) {
+    const trimmed = payload.trim();
+    if (!trimmed || trimmed === '[DONE]') continue;
+    let event: any;
+    try {
+      event = JSON.parse(trimmed);
+    } catch {
+      throw new FishAudioTtsError('Fish Audio timestamp stream returned non-JSON SSE data.');
+    }
+    if (!event || typeof event !== 'object') continue;
+
+    if (typeof event.audio_base64 === 'string' && event.audio_base64) {
+      audioParts.push(Buffer.from(event.audio_base64, 'base64'));
+    }
+
+    const alignment = event.alignment;
+    if (!alignment || typeof alignment !== 'object' || !Array.isArray(alignment.segments)) continue;
+    if (!Number.isInteger(event.chunk_seq)) continue;
+
+    const segments = alignment.segments
+      .map((segment: any) => ({
+        text: String(segment?.text ?? '').trim(),
+        start: Number(segment?.start),
+        end: Number(segment?.end),
+      }))
+      .filter((segment: { text: string; start: number; end: number }) => (
+        Boolean(segment.text)
+        && Number.isFinite(segment.start)
+        && Number.isFinite(segment.end)
+      ));
+    byChunk.set(Number(event.chunk_seq), {
+      offset: Number(event.chunk_audio_offset_sec) || 0,
+      segments,
+    });
+  }
+
+  const boundaries: WordBoundary[] = [];
+  for (const seq of [...byChunk.keys()].sort((left, right) => left - right)) {
+    const chunk = byChunk.get(seq);
+    if (!chunk) continue;
+    for (const segment of chunk.segments) {
+      const start = chunk.offset + segment.start;
+      const end = chunk.offset + segment.end;
+      boundaries.push({
+        text: segment.text,
+        offsetSeconds: roundSeconds(Math.max(0, start)),
+        durationSeconds: roundSeconds(Math.max(0, end - start)),
+      });
+    }
+  }
+
+  return {
+    audio: stripLeadingId3(Buffer.concat(audioParts)),
+    boundaries,
+  };
+}
+
+/** Stretch/compress word times so they cover the measured MP3, not the alignment clock. */
+export function scaleWordBoundaries(boundaries: WordBoundary[], audioSeconds: number): WordBoundary[] {
+  if (!boundaries.length || !(audioSeconds > 0)) return boundaries;
+  const last = boundaries[boundaries.length - 1];
+  const alignedEnd = last.offsetSeconds + last.durationSeconds;
+  if (!(alignedEnd > 0)) return boundaries;
+  const ratio = audioSeconds / alignedEnd;
+  if (Math.abs(ratio - 1) < 0.01) return boundaries;
+  return boundaries.map((boundary) => ({
+    text: boundary.text,
+    offsetSeconds: roundSeconds(boundary.offsetSeconds * ratio),
+    durationSeconds: roundSeconds(boundary.durationSeconds * ratio),
+  }));
 }
 
 /**
@@ -395,12 +507,13 @@ async function synthesizeChunk(options: {
   dispatcher?: Dispatcher;
   timeoutMs: number;
   fetcher: SpeechFetcher;
-}): Promise<{ audio: Buffer; generationId: string | null }> {
+}): Promise<{ audio: Buffer; generationId: string | null; boundaries: WordBoundary[] }> {
   const init: Record<string, unknown> = {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${options.apiKey}`,
       'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
       model: FISH_AUDIO_TTS_MODEL,
     },
     body: JSON.stringify(speechRequestBody(options.text)),
@@ -411,22 +524,27 @@ async function synthesizeChunk(options: {
   const response = await options.fetcher(FISH_AUDIO_TTS_URL, init);
   if (!response.ok) throw await responseError(response);
 
+  const raw = await response.text();
   const contentType = String(response.headers.get('content-type') ?? '').toLowerCase();
-  if (!contentType.startsWith('audio/')) {
+  const looksLikeSse = contentType.includes('text/event-stream') || /^\s*(?:event:|data:)/m.test(raw);
+  if (!looksLikeSse) {
     throw new FishAudioTtsError(
-      `Fish Audio TTS returned ${contentType || 'an unknown content type'} instead of audio.`,
+      `Fish Audio TTS returned ${contentType || 'no content type'} instead of a timestamp SSE stream.`,
       { status: response.status },
     );
   }
 
-  const audio = stripLeadingId3(Buffer.from(await response.arrayBuffer()));
-  if (!audio.length) throw new FishAudioTtsError('Fish Audio TTS returned an empty audio response.');
-  if (mp3DurationSeconds(audio) <= 0) {
-    throw new FishAudioTtsError('Fish Audio TTS returned audio that is not a valid MP3 stream.');
+  const collected = collectTimestampStream(raw);
+  if (!collected.audio.length) {
+    throw new FishAudioTtsError('Fish Audio timestamp stream returned no audio.');
+  }
+  if (mp3DurationSeconds(collected.audio) <= 0) {
+    throw new FishAudioTtsError('Fish Audio timestamp stream returned audio that is not a valid MP3 stream.');
   }
   return {
-    audio,
+    audio: collected.audio,
     generationId: response.headers.get('x-generation-id'),
+    boundaries: collected.boundaries,
   };
 }
 
@@ -447,6 +565,8 @@ export async function synthesizeSpeech(options: SynthesisOptions): Promise<Synth
 
   const parts: Buffer[] = [];
   const generationIds: string[] = [];
+  const boundaries: WordBoundary[] = [];
+  let audioCursor = 0;
   try {
     for (const chunk of chunks) {
       let lastError: unknown;
@@ -459,7 +579,16 @@ export async function synthesizeSpeech(options: SynthesisOptions): Promise<Synth
             timeoutMs,
             fetcher,
           });
+          const chunkSeconds = mp3DurationSeconds(result.audio);
           parts.push(result.audio);
+          for (const boundary of result.boundaries) {
+            boundaries.push({
+              text: boundary.text,
+              offsetSeconds: roundSeconds(boundary.offsetSeconds + audioCursor),
+              durationSeconds: boundary.durationSeconds,
+            });
+          }
+          audioCursor += chunkSeconds;
           if (result.generationId) generationIds.push(result.generationId);
           lastError = undefined;
           break;
@@ -486,5 +615,6 @@ export async function synthesizeSpeech(options: SynthesisOptions): Promise<Synth
     durationSeconds,
     requests: chunks.length,
     generationIds,
+    boundaries: scaleWordBoundaries(boundaries, durationSeconds),
   };
 }

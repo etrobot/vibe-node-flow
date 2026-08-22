@@ -88,7 +88,7 @@ const WorkflowTagChip: React.FC<{
         title={title || tag}
         onClick={onClick}
         className={`h-5 max-w-[112px] truncate border px-1.5 text-[10px] font-medium leading-none transition-all cursor-pointer ${
-          onRemove ? 'rounded-l-md' : 'rounded-md'
+          onRemove ? 'rounded-l-md' : 'rounded-sm'
         } ${selected ? 'ring-2 ring-black/10 shadow-2xs' : 'opacity-90 hover:opacity-100'}`}
         style={{
           backgroundColor: colors.background,
@@ -380,7 +380,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
           type="button"
           title="Add workflow tags"
           onClick={() => handleStartEditMeta(workflow)}
-          className="h-5 inline-flex items-center gap-0.5 rounded-md border border-dashed border-hairline px-1.5 text-[10px] font-medium text-muted hover:text-ink hover:border-hairline-strong cursor-pointer"
+          className="h-5 inline-flex items-center gap-0.5 rounded-sm border border-dashed border-hairline px-1.5 text-[10px] font-medium text-muted hover:text-ink hover:border-hairline-strong cursor-pointer"
         >
           <Plus className="w-2.5 h-2.5" />
           {tags.length === 0 ? 'Tag' : ''}
@@ -390,11 +390,11 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
   };
 
   const renderContent = () => (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
       {/* Toolbar: search + tag filters */}
-      <div className="card-panel p-3 sm:p-3.5 space-y-3">
+      <div className="card-panel p-2 md:flex gap-1 align-middle">
         {/* Search Box */}
-        <div className="relative flex-1 max-w-full sm:max-w-md">
+        <div className="relative flex-1 max-w-full sm:max-w-md mb-1 md:m-0">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="text"
@@ -414,20 +414,16 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted font-semibold mr-1">
-            <Tags className="w-3 h-3" />
-            Tags
-          </span>
           <button
             type="button"
             onClick={() => setSelectedFilterTags([])}
-            className={`h-6 px-2 rounded-md border text-[10px] font-medium cursor-pointer ${
+            className={`h-6 px-2 rounded-sm border text-[10px] font-medium cursor-pointer ${
               selectedFilterTags.length === 0
                 ? 'bg-primary text-on-primary border-primary'
                 : 'bg-surface-canvas text-muted border-hairline hover:text-ink'
             }`}
           >
-            All
+            All tags
           </button>
           {availableTags.map(({ tag, count }) => (
             <WorkflowTagChip
@@ -448,7 +444,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
       {/* Empty State */}
       {filteredWorkflows.length === 0 && (
         <div className="p-8 sm:p-12 text-center card-panel flex flex-col items-center justify-center space-y-3">
-          <div className="p-4 bg-surface-canvas rounded-lg text-muted">
+          <div className="p-4 bg-surface-canvas rounded-md text-muted">
             <Search className="w-8 h-8" />
           </div>
           <h3 className="text-sm font-medium text-ink">
@@ -475,10 +471,10 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 onClick={() => onOpenWorkflow(workflow.id)}
                 className="card-panel p-4 space-y-3 hover:border-hairline-strong transition-all cursor-pointer active:scale-[0.99]"
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5 min-w-0">
                     <div
-                      className="p-2 rounded-lg border shrink-0 flex items-center justify-center"
+                      className="p-2 rounded-md border shrink-0 flex items-center justify-center"
                       style={{
                         backgroundColor: `${workflowColor}15`,
                         borderColor: `${workflowColor}35`,
@@ -525,35 +521,35 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 >
                   <button
                     onClick={() => void handleOpenSchedule(workflow)}
-                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
+                    className="flex-1 py-1.5 rounded-sm bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
                   >
                     <CalendarClock className="w-3.5 h-3.5" />
                     <span>Schedule</span>
                   </button>
                   <button
                     onClick={() => handleStartEditMeta(workflow)}
-                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
+                    className="flex-1 py-1.5 rounded-sm bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Rename</span>
                   </button>
                   <button
                     onClick={() => onOpenHistory(workflow.id)}
-                    className="flex-1 py-1.5 rounded-md bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
+                    className="flex-1 py-1.5 rounded-sm bg-surface-canvas text-muted hover:text-primary-text flex items-center justify-center gap-1 text-[11px] font-medium border border-hairline"
                   >
                     <History className="w-3.5 h-3.5" />
                     <span>History</span>
                   </button>
                   <button
                     onClick={(e) => handleDuplicate(workflow.id, e)}
-                    className="p-1.5 rounded-md bg-surface-canvas text-muted hover:text-ink border border-hairline"
+                    className="p-1.5 rounded-sm bg-surface-canvas text-muted hover:text-ink border border-hairline"
                     title="Duplicate"
                   >
                     <Copy className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setDeletingId(workflow.id)}
-                    className="p-1.5 rounded-md bg-surface-canvas text-muted hover:text-semantic-error border border-hairline"
+                    className="p-1.5 rounded-sm bg-surface-canvas text-muted hover:text-semantic-error border border-hairline"
                     title="Delete"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -590,7 +586,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                     <td className="py-3 px-4">
                       <div className="flex items-start gap-2.5">
                         <div
-                          className="p-1.5 rounded-lg border shrink-0 mt-0.5 flex items-center justify-center"
+                          className="p-1.5 rounded-md border shrink-0 mt-0.5 flex items-center justify-center"
                           style={{
                             backgroundColor: `${workflowColor}15`,
                             borderColor: `${workflowColor}35`,
@@ -692,8 +688,8 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
 
       {/* Top Header */}
       <header className="h-14 px-6 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg text-primary-text  ring-2 ring-primary/40 flex items-center justify-center">
+        <div className="flex items-center gap-2">
+          <div className="p-2 rounded-md text-primary-text  ring-2 ring-primary/40 flex items-center justify-center">
             <Workflow className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -711,7 +707,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => onOpenHistory(null)}
             className="btn-pill bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-2 text-xs cursor-pointer"
@@ -765,10 +761,10 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditAppearanceOpen(true)}
-                  className="w-full flex items-center gap-3 p-3 bg-surface-canvas hover:bg-surface-canvas-soft border border-hairline hover:border-hairline-strong rounded-lg text-left transition-all cursor-pointer"
+                  className="w-full flex items-center gap-2 p-2 bg-surface-canvas hover:bg-surface-canvas-soft border border-hairline hover:border-hairline-strong rounded-md text-left transition-all cursor-pointer"
                 >
                   <span
-                    className="w-10 h-10 rounded-lg border border-hairline flex items-center justify-center shrink-0"
+                    className="w-10 h-10 rounded-md border border-hairline flex items-center justify-center shrink-0"
                     style={{
                       backgroundColor: `${editColor}15`,
                       borderColor: `${editColor}35`,
@@ -812,7 +808,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 <label className="block text-xs font-medium text-ink mb-1">
                   Tags
                 </label>
-                <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-hairline bg-surface-canvas p-2.5 min-h-[42px]">
+                <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-hairline bg-surface-canvas p-2.5 min-h-[42px]">
                   {editTags.map((tag) => (
                     <WorkflowTagChip
                       key={tagKey(tag)}
@@ -926,7 +922,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
               </div>
             ) : (
               <form onSubmit={handleSaveSchedule} className="p-6 space-y-4">
-                <label className="flex items-start gap-3 p-3 rounded-lg border border-hairline bg-surface-canvas cursor-pointer">
+                <label className="flex items-start gap-2 p-2 rounded-md border border-hairline bg-surface-canvas cursor-pointer">
                   <input
                     type="checkbox"
                     checked={scheduleEnabled}
@@ -969,13 +965,13 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 </div>
 
                 {scheduleNextRunAt && scheduleEnabled && (
-                  <div className="text-[11px] text-muted bg-surface-canvas rounded-lg border border-hairline p-3">
+                  <div className="text-[11px] text-muted bg-surface-canvas rounded-md border border-hairline p-2">
                     Next run: {new Date(scheduleNextRunAt).toLocaleString('en-US')}
                   </div>
                 )}
 
                 {scheduleError && (
-                  <div className="text-[11px] text-semantic-error bg-semantic-error/5 rounded-lg border border-semantic-error/20 p-3">
+                  <div className="text-[11px] text-semantic-error bg-semantic-error/5 rounded-md border border-semantic-error/20 p-2">
                     {scheduleError}
                   </div>
                 )}
@@ -1007,7 +1003,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
       {deletingId && (
         <div className="modal-overlay">
           <div className="w-full max-w-sm card-panel p-6 text-center space-y-4">
-            <div className="p-3 bg-semantic-error/5 text-semantic-error rounded-lg w-12 h-12 mx-auto flex items-center justify-center border border-semantic-error/20">
+            <div className="p-2 bg-semantic-error/5 text-semantic-error rounded-md w-12 h-12 mx-auto flex items-center justify-center border border-semantic-error/20">
               <AlertCircle className="w-6 h-6" />
             </div>
             <div>
@@ -1016,7 +1012,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                 This action cannot be undone. Nodes and connections will be permanently lost.
               </p>
             </div>
-            <div className="flex items-center justify-center gap-3 pt-2">
+            <div className="flex items-center justify-center gap-2 pt-2">
               <button
                 onClick={() => setDeletingId(null)}
                 className="btn-pill bg-surface-canvas-soft hover:bg-surface-card text-ink text-xs border border-hairline"

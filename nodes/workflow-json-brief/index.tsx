@@ -44,7 +44,7 @@ const WorkflowJsonBriefPanel: React.FC<NodeModuleEditorProps> = ({ node, onUpdat
         </span>
       </label>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-2 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-ink">Narration language</span>
           <input

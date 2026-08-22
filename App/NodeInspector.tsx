@@ -7,6 +7,7 @@ import { NodeDocModal } from '@/App/components/ui/NodeDocModal';
 import { ErrorBoundary } from '@/App/components/ErrorBoundary';
 import { getModule, getNodeDoc, nodeHasCustomPanel } from './registry';
 import { resolveUpstreamInput } from '@/App/utils/upstream';
+import { useMobileViewport } from '@/App/utils/viewport';
 import {
   ChevronRight,
   ChevronLeft,
@@ -93,6 +94,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   const activeModule = node ? getModule(node.type) : null;
   const nodeDoc = node ? getNodeDoc(node.type) : null;
   const hasCustomPanel = nodeHasCustomPanel(node);
+  const isMobile = useMobileViewport();
 
   // Read/Save "openPanelOnClickNode" state in node.config
   const openPanelOnClickNode = Boolean(node?.config?.openPanelOnClickNode ?? false);
@@ -366,7 +368,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
         return renderValue(result.data, path);
       }
       // Plain text: preserve newlines and quotes as-is, no escaping
-      return <div className="whitespace-pre-wrap break-words text-ink">{value}</div>;
+      return <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-ink">{value}</div>;
     }
     if (Array.isArray(value)) {
       const collapsed = collapsedJsonPaths.has(path);
@@ -510,39 +512,44 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   };
 
   if (isCollapsed) {
+    // Must stay a free-floating absolute button. The parent split pane is
+    // `relative`; wrapping this in a 0-width `relative` box hides it.
     return (
       <button
         type="button"
         onClick={onToggleCollapse}
         title="Expand details panel"
-        className="absolute right-4 top-3.5 z-40 p-2 rounded-lg bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+        aria-label="Expand details panel"
+        className="absolute right-4 top-3.5 z-50 p-2 rounded-md bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
     );
   }
 
-  const mobilePanelOverlay = 'max-sm:fixed max-sm:inset-x-0 max-sm:top-14 max-sm:bottom-0 max-sm:w-full max-sm:min-w-0 max-sm:max-w-none';
+  const panelClassName = isMobile
+    ? 'fixed inset-x-0 top-14 bottom-0 z-40 flex flex-col bg-surface-canvas border-t border-hairline-strong overflow-hidden min-w-0 max-w-[100vw]'
+    : variant === 'column'
+      ? 'relative z-40 shrink-0 w-[min(420px,42vw)] min-w-[280px] max-w-[560px] h-full bg-surface-canvas border-l border-hairline-strong flex flex-col overflow-hidden min-w-0'
+      : 'relative z-40 shrink-0 w-[min(420px,33vw)] min-w-[280px] max-w-[600px] h-full bg-surface-canvas border-t sm:border-t-0 sm:border-l border-hairline-strong flex flex-col overflow-hidden min-w-0';
 
-  const panelClassName = variant === 'column'
-    ? `relative z-40 w-full sm:w-[min(420px,42vw)] sm:min-w-[280px] sm:max-w-[560px] h-full bg-surface-canvas border-l border-hairline-strong flex flex-col shrink-0 max-sm:border-l-0 ${mobilePanelOverlay}`
-    : `relative z-40 w-full sm:w-[420px] md:w-1/3 sm:min-w-[380px] sm:max-w-[600px] h-full bg-surface-canvas border-t sm:border-t-0 sm:border-l border-hairline-strong flex flex-col shrink-0 max-sm:min-w-0 max-sm:max-w-none ${mobilePanelOverlay} sm:relative sm:inset-auto`;
-
-  return (
+  const panel = (
     <>
-      <div className={panelClassName}>
-        {/* Collapse button — desktop only; mobile uses the header close button */}
+      <div className="relative z-50 h-full overflow-visible">
+        {/* Hang outside the overflow-hidden panel so the canvas can still see it. */}
         <button
           type="button"
           onClick={onToggleCollapse}
           title="Collapse details panel"
-          className="absolute top-3.5 -left-10 z-40 hidden sm:grid place-items-center p-2 rounded-lg bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-sm transition-all cursor-pointer"
+          aria-label="Collapse details panel"
+          className="absolute top-3.5 -left-10 z-50 hidden sm:grid place-items-center p-2 rounded-md bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-md transition-all cursor-pointer"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
 
+      <div className={panelClassName}>
         {/* Header */}
-        <div className="relative h-14 px-4 border-b border-hairline-soft flex items-center justify-between shrink-0 bg-surface-canvas/90 backdrop-blur-md gap-3">
+        <div className="relative h-14 px-4 border-b border-hairline-soft flex items-center justify-between shrink-0 bg-surface-canvas/90 backdrop-blur-md gap-2">
           {node && activeModule ? (
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <button
@@ -550,7 +557,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 onClick={() => !readOnly && setShowIconModal(true)}
                 disabled={readOnly}
                 title={readOnly ? undefined : 'Click to change node icon and color'}
-                className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 bg-surface-card transition-transform ${
+                className={`w-8 h-8 rounded-md border flex items-center justify-center shrink-0 bg-surface-card transition-transform ${
                   !readOnly ? 'hover:scale-105 cursor-pointer' : ''
                 }`}
                 style={{
@@ -627,7 +634,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 onClick={onToggleCollapse}
                 title="Close panel"
                 aria-label="Close panel"
-                className="sm:hidden grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
+                className="sm:hidden grid h-7 w-7 shrink-0 place-items-center rounded-md border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -641,7 +648,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 onClick={() => setShowNodeDocModal(true)}
                 title="View NODE.md documentation"
                 aria-label="View node documentation"
-                className="grid h-7 w-7 place-items-center rounded-lg border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
+                className="grid h-7 w-7 place-items-center rounded-md border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
               >
                 <CircleHelp className="h-3.5 w-3.5" />
               </button>
@@ -669,7 +676,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 onClick={onToggleCollapse}
                 title="Close panel"
                 aria-label="Close panel"
-                className="sm:hidden grid h-7 w-7 place-items-center rounded-lg border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
+                className="sm:hidden grid h-7 w-7 place-items-center rounded-md border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -679,7 +686,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 
         {!node || !activeModule ? (
           <div className="flex-1 p-6 flex flex-col items-center justify-center text-center space-y-3 text-muted">
-            <div className="p-4 rounded-lg bg-surface-card border border-hairline text-muted">
+            <div className="p-4 rounded-md bg-surface-card border border-hairline text-muted">
               <Terminal className="w-8 h-8" />
             </div>
             <div>
@@ -710,7 +717,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowFullPanelModal(true)}
-                  className="text-xs border border rounded-md px-2 py-1 flex items-center gap-1 font-medium cursor-pointer"
+                  className="text-xs border border rounded-sm px-2 py-1 flex items-center gap-1 font-medium cursor-pointer"
                 >
                   <span>open custom node panel</span>
                   <ExternalLink className="w-3 h-3" />
@@ -742,7 +749,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
               </div>
 
               {/* Filter category pills */}
-              <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar">
+              <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden custom-scrollbar">
                 {([
                   { id: 'logs', label: 'Console' },
                   { id: 'input', label: 'Input' },
@@ -759,6 +766,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                   return (
                   <button
                     key={cat.id}
+                    type="button"
                     onClick={() => setFilterCategory(cat.id)}
                     title={isResource
                       ? `${cat.label}: ${resourceCount > 0 ? `${resourceCount} recorded access(es)` : 'no recorded access'}`
@@ -791,7 +799,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
             </div>
 
             {/* Log Stream List — accordion: expanding one block fills the height and collapses the others */}
-            <div className="flex-1 flex flex-col gap-1.5 min-h-0">
+            <div className="flex-1 flex flex-col gap-1.5 min-h-0 min-w-0">
               {filteredLogItems.length === 0 ? (
                 <div className="p-6 text-center text-muted text-xs bg-surface-card rounded-xl border border-hairline">
                   <Filter className="w-5 h-5 mx-auto mb-2 opacity-50" />
@@ -803,7 +811,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                   return (
                     <div
                       key={item.id}
-                      className={`rounded-lg bg-surface-card border border-hairline text-xs flex flex-col min-h-0 overflow-hidden transition-[flex-grow] ${
+                      className={`rounded-md bg-surface-card border border-hairline text-xs flex flex-col min-h-0 overflow-hidden transition-[flex-grow] ${
                         isExpanded ? 'flex-1 border-hairline-strong' : 'shrink-0'
                       }`}
                     >
@@ -864,8 +872,10 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 
                       {/* Content — only rendered when expanded; fills remaining height with internal scroll */}
                       {isExpanded && (
-                        <div className="flex-1 min-h-0 overflow-auto custom-scrollbar border-t border-hairline-soft bg-surface-canvas-soft p-2.5 text-ink font-mono text-[11px] leading-relaxed">
-                          {renderContent(item.content, item.id, item.category === 'logs')}
+                        <div className="flex-1 min-h-0 min-w-0 overflow-auto custom-scrollbar border-t border-hairline-soft bg-surface-canvas-soft p-2.5 text-ink font-mono text-[11px] leading-relaxed">
+                          <div className="min-w-0 max-w-full overflow-x-auto">
+                            {renderContent(item.content, item.id, item.category === 'logs')}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -876,6 +886,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           </div>
           </>
         )}
+      </div>
       </div>
 
       {!readOnly && node && (
@@ -895,7 +906,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
             type="button"
             onClick={() => setShowFullPanelModal(false)}
             title="Close panel (Esc)"
-            className="absolute top-3 right-3 md:top-4 md:right-4 z-10 grid place-items-center w-7 h-7 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="absolute top-2 right-3 md:top-4 md:right-4 z-10 grid place-items-center w-7 h-7 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -951,4 +962,10 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
       )}
     </>
   );
+
+  if (isMobile) {
+    return createPortal(panel, document.body);
+  }
+
+  return panel;
 };

@@ -225,7 +225,7 @@ export const AppLayoutView: React.FC<AppLayoutViewProps> = ({
         )}
       </section>
 
-      <div className="max-sm:w-0 max-sm:shrink-0 max-sm:overflow-visible">
+      <div className="shrink-0 max-sm:w-0 max-sm:overflow-visible">
       <NodeInspector
         node={selectedNode}
         allNodes={nodes}

@@ -206,7 +206,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
 
   if (loading) {
     return (
-      <div className="w-screen h-screen bg-surface-canvas flex flex-col items-center justify-center text-muted text-xs gap-3">
+      <div className="w-screen h-screen bg-surface-canvas flex flex-col items-center justify-center text-muted text-xs gap-2">
         <Loader2 className="w-7 h-7 animate-spin" />
         Loading execution snapshot...
       </div>
@@ -216,7 +216,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
   if (error || !record) {
     return (
       <div className="w-screen h-screen bg-surface-canvas flex flex-col items-center justify-center p-6 text-center">
-        <div className="p-4 rounded-lg bg-semantic-error/5 border border-semantic-error/20 text-semantic-error mb-4">
+        <div className="p-4 rounded-md bg-semantic-error/5 border border-semantic-error/20 text-semantic-error mb-4">
           <AlertCircle className="w-8 h-8" />
         </div>
         <h1 className="text-base font-medium text-ink">Failed to load execution details</h1>
@@ -231,15 +231,15 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
   return (
     <div className="w-screen h-screen flex flex-col bg-surface-canvas font-sans text-body overflow-hidden antialiased">
       <header className="h-14 px-5 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={onBack}
-            className="rounded-md p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1.5 text-xs shrink-0"
+            className="rounded-sm p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1.5 text-xs shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div
-            className="p-2 rounded-lg shrink-0 flex items-center justify-center"
+            className="p-2 rounded-md shrink-0 flex items-center justify-center"
             style={{
               backgroundColor: `${workflowAppearance.color}15`,
               borderColor: `${workflowAppearance.color}35`,
@@ -265,7 +265,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
             <LayoutToggle layout={workspaceLayout} onChange={onWorkspaceLayoutChange} />
           )}
           <ThemeSelector />
-          <div className="hidden lg:flex items-center gap-3 text-[11px] text-muted mr-1">
+          <div className="hidden lg:flex items-center gap-2 text-[11px] text-muted mr-1">
             <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatTime(record.startedAt)}</span>
             <span className="font-mono">{formatDuration(record.durationMs)}</span>
           </div>
@@ -322,7 +322,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
           />
         </div>
 
-        <div className="max-sm:w-0 max-sm:shrink-0 max-sm:overflow-visible">
+        <div className="shrink-0 max-sm:w-0 max-sm:overflow-visible">
         <NodeInspector
           node={selectedNode}
           allNodes={nodes}

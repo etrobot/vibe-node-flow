@@ -106,6 +106,96 @@ function derivedDurations(clip: Record<string, any>, mode: 'anchor' | 'duration'
   return items.map(() => round(Math.max(minItemSeconds, share)));
 }
 
+/** Spread `totalSeconds` across weights, preserving proportions and the exact sum. */
+export function distributeDurations(weights: number[], totalSeconds: number): number[] {
+  const count = weights.length;
+  if (!count) return [];
+  const safeTotal = Math.max(0, Number(totalSeconds) || 0);
+  const positive = weights.map((weight) => (Number.isFinite(weight) && weight > 0 ? weight : 0));
+  const mass = positive.reduce((sum, value) => sum + value, 0);
+  const raw = mass > 0
+    ? positive.map((value) => value * (safeTotal / mass))
+    : positive.map(() => safeTotal / count);
+  const rounded = raw.map((value) => round(value));
+  const drift = round(safeTotal - rounded.reduce((sum, value) => sum + value, 0));
+  if (rounded.length) {
+    rounded[rounded.length - 1] = round(Math.max(0, rounded[rounded.length - 1] + drift));
+  }
+  return rounded;
+}
+
+function clipTimingItems(entry: ClipTiming, itemCount: number): number[] | null {
+  const items = Array.isArray(entry.items) ? entry.items : [];
+  if (items.length !== itemCount || !items.every((item) => item.durationSeconds > 0)) return null;
+  return items
+    .slice()
+    .sort((left, right) => left.index - right.index)
+    .map((item) => item.durationSeconds);
+}
+
+/**
+ * Stretch or replace item durations so each clip occupies the measured
+ * narration length. Speech-rate estimates are only a fallback shape.
+ */
+export function alignDocumentToTiming(
+  document: Record<string, any>,
+  timing?: ClipTiming[],
+): Record<string, any> {
+  if (!timing?.length || !Array.isArray(document?.clips)) return document;
+  for (const [clipIndex, clip] of document.clips.entries()) {
+    if (!clip || !Array.isArray(clip.items) || !clip.items.length) continue;
+    const entry = timing.find((candidate) => candidate.clipIndex === clipIndex);
+    if (!entry) continue;
+    const measuredItems = clipTimingItems(entry, clip.items.length);
+    const next = measuredItems
+      || (entry.durationSeconds > 0
+        ? distributeDurations(
+          clip.items.map((item: any) => Number(item?.duration) || 0),
+          entry.durationSeconds,
+        )
+        : null);
+    if (!next) continue;
+    clip.items.forEach((item: any, itemIndex: number) => {
+      if (item && typeof item === 'object') item.duration = next[itemIndex];
+    });
+  }
+  return document;
+}
+
+/** Read the measured clip/item timeline from a fish-audio (or compatible) manifest. */
+export function narrationTimingFromManifest(value: unknown): ClipTiming[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const parsed = value as Record<string, any>;
+  const fromTimeline = (Array.isArray(parsed.timeline) ? parsed.timeline : [])
+    .filter((entry: any) => Number.isInteger(entry?.clipIndex))
+    .map((entry: any) => ({
+      clipIndex: Number(entry.clipIndex),
+      startSeconds: Number(entry.startSeconds) || 0,
+      durationSeconds: Number(entry.durationSeconds) || 0,
+      items: (Array.isArray(entry.items) ? entry.items : [])
+        .filter((item: any) => Number.isInteger(item?.index) && Number(item.durationSeconds) > 0)
+        .map((item: any) => ({
+          index: Number(item.index),
+          startSeconds: Number(item.startSeconds) || 0,
+          durationSeconds: Number(item.durationSeconds),
+        })),
+    }));
+  if (fromTimeline.length) return fromTimeline;
+
+  return (Array.isArray(parsed.clips) ? parsed.clips : [])
+    .map((clip: any, position: number) => ({
+      clip: clip,
+      position,
+    }))
+    .filter(({ clip }) => Number(clip?.durationSeconds) > 0 && typeof clip?.file === 'string')
+    .map(({ clip, position }) => ({
+      clipIndex: Number.isInteger(clip.index) ? Number(clip.index) : position,
+      startSeconds: Number(clip.startSeconds) || 0,
+      durationSeconds: Number(clip.durationSeconds),
+      items: [] as ClipTiming['items'],
+    }));
+}
+
 export function hydrateItem(
   item: Record<string, any>,
   globals: Map<string, Record<string, any>>,
@@ -141,17 +231,22 @@ export function hydrateClip(
   const minItemSeconds = options.minItemSeconds ?? MIN_ITEM_DURATION;
   const measured = options.timing?.find((entry) => entry.clipIndex === clipIndex);
   const fallback = derivedDurations(clip, mode, minItemSeconds);
+  const items = clip.items || [];
+  const rawSeconds = items.map((_: any, itemIndex: number) => {
+    const slot = measured?.items?.find((entry) => entry.index === itemIndex);
+    return slot && slot.durationSeconds > 0
+      ? slot.durationSeconds
+      : (fallback[itemIndex] ?? minItemSeconds);
+  });
+  const audioSeconds = measured?.durationSeconds ?? 0;
+  const seconds = audioSeconds > 0 ? distributeDurations(rawSeconds, audioSeconds) : rawSeconds;
 
   return {
     speech: plainSpeech(clip.speech).trim(),
     background: CLIP_BACKGROUNDS[clipIndex % CLIP_BACKGROUNDS.length],
-    items: (clip.items || []).map((item: any, itemIndex: number) => {
-      const slot = measured?.items?.find((entry) => entry.index === itemIndex);
-      const seconds = slot && slot.durationSeconds > 0
-        ? slot.durationSeconds
-        : (fallback[itemIndex] ?? minItemSeconds);
-      return hydrateItem(item, globals, seconds);
-    }),
+    items: items.map((item: any, itemIndex: number) => (
+      hydrateItem(item, globals, seconds[itemIndex] ?? minItemSeconds)
+    )),
   };
 }
 

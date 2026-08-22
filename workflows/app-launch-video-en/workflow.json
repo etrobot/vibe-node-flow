@@ -3,7 +3,7 @@
   "name": "Exlpainer Video",
   "description": "",
   "createdAt": "2026-08-13T00:00:00.000Z",
-  "updatedAt": "2026-08-14T15:50:01.417Z",
+  "updatedAt": "2026-08-22T08:44:56.736Z",
   "icon": "Workflow",
   "color": "#03d100",
   "tagCatalog": [
@@ -14,8 +14,7 @@
   ],
   "tags": [
     "video",
-    "voice",
-    "english"
+    "voice"
   ],
   "laneLabels": [
     "Workflow JSON",
@@ -94,7 +93,7 @@
         "writeCombined": true,
         "concurrency": 1,
         "applyTiming": true,
-        "minItemSeconds": 0.35,
+        "minItemSeconds": 0.8,
         "timeoutMs": 120000
       }
     },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Columns3 } from 'lucide-react';
+import { Workflow, PanelsTopLeft } from 'lucide-react';
 import type { WorkspaceLayout } from '../../utils/workspace-layout';
 
 interface LayoutToggleProps {
@@ -10,7 +10,7 @@ interface LayoutToggleProps {
 export const LayoutToggle: React.FC<LayoutToggleProps> = ({ layout, onChange }) => {
   return (
     <div
-      className="flex items-center gap-0.5 bg-surface-card rounded-lg p-0.5 border border-hairline"
+      className="flex items-center gap-0.5 bg-surface-card rounded-md p-0.5 border border-hairline"
       role="group"
       aria-label="Workspace layout"
     >
@@ -20,13 +20,13 @@ export const LayoutToggle: React.FC<LayoutToggleProps> = ({ layout, onChange }) 
         aria-label="Canvas layout"
         aria-pressed={layout === 'canvas'}
         onClick={() => onChange('canvas')}
-        className={`grid place-items-center w-7 h-7 rounded-md transition-all cursor-pointer ${
+        className={`grid place-items-center w-7 h-7 rounded-sm transition-all cursor-pointer ${
           layout === 'canvas'
             ? 'bg-primary text-on-primary shadow-sm'
             : 'text-muted hover:text-ink hover:bg-surface-canvas-soft'
         }`}
       >
-        <Box className="w-3.5 h-3.5" />
+        <Workflow className="w-3.5 h-3.5" />
       </button>
       <button
         type="button"
@@ -34,13 +34,13 @@ export const LayoutToggle: React.FC<LayoutToggleProps> = ({ layout, onChange }) 
         aria-label="App layout"
         aria-pressed={layout === 'app'}
         onClick={() => onChange('app')}
-        className={`grid place-items-center w-7 h-7 rounded-md transition-all cursor-pointer ${
+        className={`grid place-items-center w-7 h-7 rounded-sm transition-all cursor-pointer ${
           layout === 'app'
             ? 'bg-primary text-on-primary shadow-sm'
             : 'text-muted hover:text-ink hover:bg-surface-canvas-soft'
         }`}
       >
-        <Columns3 className="w-3.5 h-3.5" />
+        <PanelsTopLeft className="w-3.5 h-3.5" />
       </button>
     </div>
   );

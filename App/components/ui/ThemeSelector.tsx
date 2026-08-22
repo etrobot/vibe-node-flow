@@ -41,7 +41,7 @@ export const ThemeSelector: React.FC = () => {
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen((value) => !value)}
-        className="grid place-items-center w-7 h-7 rounded-md border border-hairline bg-surface-card text-muted hover:text-ink hover:bg-surface-canvas-soft transition-all cursor-pointer"
+        className="grid place-items-center w-7 h-7 rounded-sm border border-hairline bg-surface-card text-muted hover:text-ink hover:bg-surface-canvas-soft transition-all cursor-pointer"
       >
         <Palette className="w-3.5 h-3.5" />
       </button>

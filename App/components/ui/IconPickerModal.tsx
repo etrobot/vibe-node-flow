@@ -53,8 +53,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
     <div className="modal-overlay">
       <div className="w-full max-w-lg card-panel overflow-hidden flex flex-col max-h-[85vh]">
         <div className="panel-header">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg border flex items-center justify-center transition-all"
+          <div className="flex items-center gap-2">
+            <div className="p-2.5 rounded-md border flex items-center justify-center transition-all"
               style={{ backgroundColor: `${selectedColor}15`, borderColor: `${selectedColor}30`, color: selectedColor }}>
               {renderLucideIcon(selectedIcon, 'w-5 h-5')}
             </div>
@@ -76,7 +76,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
                 const isSelected = selectedColor.toLowerCase() === preset.hex.toLowerCase();
                 return (
                   <button key={preset.hex} type="button" onClick={() => setSelectedColor(preset.hex)} title={preset.label}
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${isSelected ? 'ring-2 ring-offset-2 ring-primary scale-110' : 'hover:scale-105'}`}
+                    className={`w-8 h-8 rounded-md flex items-center justify-center transition-all cursor-pointer ${isSelected ? 'ring-2 ring-offset-2 ring-primary scale-110' : 'hover:scale-105'}`}
                     style={{ backgroundColor: preset.hex }}>
                     {isSelected && <Check className="w-4 h-4 text-white drop-shadow-xs" />}
                   </button>
@@ -84,7 +84,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
               })}
               <div className="flex items-center gap-1.5 ml-2 border-l border-hairline pl-3">
                 <input type="color" value={selectedColor} onChange={(e) => setSelectedColor(e.target.value)}
-                  className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent p-0" title="Custom Hex color" />
+                  className="w-8 h-8 rounded-md cursor-pointer border-0 bg-transparent p-0" title="Custom Hex color" />
                 <input type="text" value={selectedColor} onChange={(e) => setSelectedColor(e.target.value)}
                   className="input-pill w-20 font-mono uppercase text-xs" />
               </div>
@@ -102,12 +102,12 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = ({
                   className="input-pill pl-8" />
               </div>
             </div>
-            <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 p-2.5 bg-surface-canvas border border-hairline rounded-lg max-h-56 overflow-y-auto custom-scrollbar">
+            <div className="grid grid-cols-5 sm:grid-cols-8 gap-2 p-2.5 bg-surface-canvas border border-hairline rounded-md max-h-56 overflow-y-auto custom-scrollbar">
               {filteredIcons.map((iconName) => {
                 const isSelected = selectedIcon === iconName;
                 return (
                   <button key={iconName} type="button" onClick={() => setSelectedIcon(iconName)} title={iconName}
-                    className={`p-2.5 rounded-lg flex items-center justify-center transition-all cursor-pointer ${isSelected ? 'bg-surface-card ring-2 border-transparent scale-110 z-10' : 'hover:bg-surface-card text-muted border border-transparent hover:border-hairline'}`}
+                    className={`p-2.5 rounded-md flex items-center justify-center transition-all cursor-pointer ${isSelected ? 'bg-surface-card ring-2 border-transparent scale-110 z-10' : 'hover:bg-surface-card text-muted border border-transparent hover:border-hairline'}`}
                     style={isSelected ? { color: selectedColor, borderColor: selectedColor, boxShadow: `0 2px 8px ${selectedColor}20` } : {}}>
                     {renderLucideIcon(iconName, 'w-5 h-5')}
                   </button>

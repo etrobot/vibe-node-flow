@@ -6,6 +6,9 @@ import test from 'node:test';
 import type { FlowNode } from '../../App/types.ts';
 import type { NodePluginContext } from '../../server/plugins.ts';
 import { CLIP_ITEM_TYPES } from './renderer/clipTypes.ts';
+import { stripUnresolvedDemoUi } from './demo-html.ts';
+import { toRendererDocument } from './document.ts';
+import { alignDocumentToTiming, distributeDurations } from './hydrate.ts';
 import {
   buildMuxArgs,
   hasCompleteItemTiming,
@@ -261,6 +264,61 @@ test('English Mermaid manifests attach normalized targets to the timed narration
     { state: 'workflow-canvas' },
     { state: 'node-mermaid', materialId: 'node-one-diagram-1-12345678' },
   ]);
+  assert.equal(facts.timing.length, 1);
+  assert.equal(facts.timing[0].durationSeconds, 2);
+});
+
+test('visual item durations stretch to the measured narration length', () => {
+  const document = {
+    title: 'Forge',
+    clips: [{
+      speech: 'Watch it generate.',
+      background: 'aurora',
+      items: [
+        { type: 'text-typing', title: 'Idea', duration: 0.6 },
+        { type: 'text-impact', title: 'Ship', duration: 0.6 },
+      ],
+    }],
+  };
+  const aligned = alignDocumentToTiming(document, [{
+    clipIndex: 0,
+    startSeconds: 0,
+    durationSeconds: 8,
+    items: [],
+  }]);
+  const durations = aligned.clips[0].items.map((item: any) => item.duration);
+  assert.deepEqual(durations, [4, 4]);
+  assert.equal(Number(durations.reduce((sum: number, value: number) => sum + value, 0).toFixed(3)), 8);
+});
+
+test('toRendererDocument prefers measured clip audio over speech-rate estimates', () => {
+  const rendered = toRendererDocument({
+    title: 'Forge',
+    clips: [{
+      speech: 'Watch it generate.',
+      background: 'aurora',
+      items: [
+        { type: 'text-typing', title: 'Idea' },
+        { type: 'text-impact', title: 'Ship' },
+      ],
+    }],
+  }, {
+    timing: [{
+      clipIndex: 0,
+      startSeconds: 0,
+      durationSeconds: 10,
+      items: [
+        { index: 0, startSeconds: 0, durationSeconds: 4 },
+        { index: 1, startSeconds: 4, durationSeconds: 6 },
+      ],
+    }],
+  }) as any;
+  assert.deepEqual(rendered.clips[0].items.map((item: any) => item.duration), [4, 6]);
+});
+
+test('distributeDurations keeps the exact total after rounding', () => {
+  const parts = distributeDurations([1, 1, 1], 10);
+  assert.equal(Number(parts.reduce((sum, value) => sum + value, 0).toFixed(3)), 10);
 });
 
 test('renderer validation accepts measured durations while authored anchors remain in speech', () => {
@@ -501,6 +559,69 @@ test('execute revalidates generated workflow HTML against the merged exact graph
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
+});
+
+test('execute drops leftover Demo UI markers when this workflow generated no HTML', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'genno-render-'));
+  try {
+    const result = await executeAppVideoRender(
+      renderContext(root, {
+        'node-narration': JSON.stringify({
+          slug: 'forge-app-launch',
+          audioDir: '/voice',
+          timeline: [{
+            clipIndex: 0,
+            startSeconds: 0,
+            durationSeconds: 6,
+            items: [
+              { index: 0, startSeconds: 0, durationSeconds: 2.5 },
+              { index: 1, startSeconds: 2.5, durationSeconds: 3.5 },
+            ],
+          }],
+          clips: [{ index: 0, file: 'clip-01.mp3', durationSeconds: 6 }],
+          document: {
+            slug: 'forge-app-launch',
+            clips: [{
+              speech: 'Show the **workflow**.',
+              background: 'aurora',
+              items: [
+                { type: 'text-typing', title: 'Workflow' },
+                { type: 'ui-video-preview', title: 'Canvas', demoUi: { state: 'workflow-canvas' } },
+              ],
+            }],
+          },
+        }),
+      }, { dryRun: true }),
+      { preflight: async () => ({ problems: [], notes: [] }) },
+    );
+    const manifest = JSON.parse(String(result.output));
+    const items = manifest.document.clips[0].items;
+
+    assert.equal(items[1].demoUi, undefined);
+    assert.deepEqual(items.map((item: any) => item.duration), [2.5, 3.5]);
+    assert.ok(manifest.warnings.every((warning: unknown) => !/Demo UI HTML is missing/i.test(String(warning))));
+    assert.ok(result.logs?.some((line: string) => /Dropped 1 Demo UI marker/.test(line)));
+    assert.ok(result.logs?.some((line: string) => /Aligned visual item durations/.test(line)));
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('stripUnresolvedDemoUi keeps only generated HTML embeds', () => {
+  const document = {
+    clips: [{
+      items: [
+        { type: 'ui-video-preview', demoUi: { state: 'workflow-canvas' } },
+        { type: 'ui-video-preview', demoUi: { htmlFile: 'demo/clip-01-item-02.html' } },
+        { type: 'ui-prompt-input', demoUi: true },
+      ],
+    }],
+  };
+  assert.equal(stripUnresolvedDemoUi(document), 2);
+  assert.equal(document.clips[0].items[0].demoUi, undefined);
+  const kept = document.clips[0].items[1].demoUi;
+  assert.equal(kept && typeof kept === 'object' ? kept.htmlFile : '', 'demo/clip-01-item-02.html');
+  assert.equal(document.clips[0].items[2].demoUi, undefined);
 });
 
 test('each clip MP3 is delayed to its own start and mixed without normalization', () => {

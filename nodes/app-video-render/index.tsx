@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { NodeModule, NodeModuleEditorProps } from '@/App/types.node-module';
 import { api } from '@/App/utils/api';
 import { DEFAULT_APP_VIDEO_RENDER_CONFIG } from './config';
-import { parseJsonObject, toRendererDocument } from './document.ts';
+import { parseJsonObject, toRendererDocument, narrationTimingFromManifest } from './document.ts';
 import { InteractivePlayer } from './renderer/InteractivePlayer';
 import { RenderEntrypoint } from './renderer/RenderEntrypoints';
 import type { ClipsDocument } from './renderer/clipTypes';
@@ -56,8 +56,8 @@ function parseManifest(output: unknown): RenderManifest | null {
 }
 
 /** Convert a full storyboard or a legacy summary into a preview document. */
-function toPreviewDocument(value: unknown): ClipsDocument | null {
-  const rendered = toRendererDocument(value);
+function toPreviewDocument(value: unknown, timing?: ReturnType<typeof narrationTimingFromManifest>): ClipsDocument | null {
+  const rendered = toRendererDocument(value, timing?.length ? { timing } : {});
   if (rendered) return rendered as ClipsDocument;
 
   const parsed = parseJsonObject(value);
@@ -107,34 +107,40 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
   const [openingRenderTerminal, setOpeningRenderTerminal] = useState(false);
   const [renderTerminalError, setRenderTerminalError] = useState<string | null>(null);
   const manifest = useMemo(() => parseManifest(node.output), [node.output]);
+  const narrationManifest = useMemo(() => {
+    const narrationNode = allNodes.find((n) => (
+      (n.type === 'fish-audio-narration' || n.type === 'local-tts-narration') && n.output
+    ));
+    return parseManifest(narrationNode?.output);
+  }, [allNodes]);
+  const narrationTiming = useMemo(() => {
+    const fromNarration = narrationTimingFromManifest(narrationManifest);
+    return fromNarration.length ? fromNarration : narrationTimingFromManifest(manifest);
+  }, [manifest, narrationManifest]);
 
   // Prefer the render manifest's embedded document. This is essential for
   // historical single-node runs where upstream execution records are absent.
   const upstreamDocument = useMemo<ClipsDocument | null>(() => {
-    const embeddedDocument = toPreviewDocument(manifest?.document);
+    const embeddedDocument = toPreviewDocument(manifest?.document, narrationTiming);
     if (embeddedDocument) return embeddedDocument;
 
     // Search for a full storyboard first.
     const storyboardNode = allNodes.find((n) => n.type === 'clip-storyboard' && n.output);
-    const storyboardDocument = toPreviewDocument(storyboardNode?.output);
+    const storyboardDocument = toPreviewDocument(storyboardNode?.output, narrationTiming);
     if (storyboardDocument) return storyboardDocument;
 
     // A few legacy runs only retained a generic manifest on the render node.
     // Its clips are still enough to build a lightweight preview.
-    const renderDocument = toPreviewDocument(manifest);
+    const renderDocument = toPreviewDocument(manifest, narrationTiming);
     if (renderDocument) return renderDocument;
 
     return null;
-  }, [manifest, allNodes]);
+  }, [manifest, allNodes, narrationTiming]);
 
   const narrationUrl = useMemo(() => {
     if (manifest?.narrationUrl) return manifest.narrationUrl;
-    const narrationNode = allNodes.find((n) => (
-      (n.type === 'fish-audio-narration' || n.type === 'local-tts-narration') && n.output
-    ));
-    const narrationManifest = parseManifest(narrationNode?.output);
     return narrationManifest?.combinedUrl || null;
-  }, [allNodes, manifest]);
+  }, [manifest, narrationManifest]);
 
   const canOpenRenderTerminal = Boolean(runId && node.output && node.status !== 'running');
 
@@ -159,7 +165,7 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('preview')}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
               activeTab === 'preview'
                 ? 'bg-surface-elevated text-ink border border-hairline'
                 : 'text-muted hover:text-ink'
@@ -171,7 +177,7 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('mp4')}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
               activeTab === 'mp4'
                 ? 'bg-surface-elevated text-ink border border-hairline'
                 : 'text-muted hover:text-ink'
@@ -192,7 +198,7 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
             disabled={openingRenderTerminal}
             onClick={() => void openRenderTerminal()}
             title="Open a terminal and run the MP4 render script"
-            className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors cursor-pointer"
           >
             {openingRenderTerminal ? (
               <>
@@ -214,14 +220,14 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
       </div>
 
       {renderTerminalError ? (
-        <div className="rounded-lg border border-semantic-error/30 bg-semantic-error/5 px-3 py-2 text-xs text-semantic-error">
+        <div className="rounded-md border border-semantic-error/30 bg-semantic-error/5 px-3 py-2 text-xs text-semantic-error">
           Could not open the render terminal: {renderTerminalError}
         </div>
       ) : null}
 
       {/* Tab 1: Interactive Motion Preview */}
       {activeTab === 'preview' && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
           {upstreamDocument ? (
             <InteractivePlayer
               document={upstreamDocument}
@@ -240,9 +246,9 @@ const RenderCustomView: React.FC<NodeModuleEditorProps> = ({
 
       {/* Tab 2: Exported Video Player */}
       {activeTab === 'mp4' && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
           {manifest?.videoUrl ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <video controls preload="metadata" src={manifest.videoUrl} className="w-full rounded-xl bg-black" />
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                 <span>{manifest.width ?? 1920}×{manifest.height ?? 1080}</span>

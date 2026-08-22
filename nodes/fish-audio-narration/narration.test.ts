@@ -76,6 +76,16 @@ test('word boundaries map to character offsets even when a word repeats', () => 
   assert.deepEqual(offsets, [0, 5, 8, 12, 17]);
 });
 
+test('Fish Audio alignment tokens still match spoken contractions', () => {
+  const plain = "I've missed hearing your voice.";
+  const offsets = boundaryOffsets(plain, [
+    { text: 'Ive', offsetSeconds: 0, durationSeconds: 0.24 },
+    { text: 'missed', offsetSeconds: 0.24, durationSeconds: 0.4 },
+  ]);
+  assert.deepEqual(offsets, [0, 5]);
+  assert.equal(plain.slice(0, 5), "I've ");
+});
+
 test('anchor timing places the cut where the voice said the anchor', () => {
   const result = resolveClipTiming({
     speech: 'Ideas are everywhere. **Building** was the bottleneck.',

@@ -959,7 +959,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                           disabled={readOnly}
                           title={readOnly ? tag : `Manage global tags · ${tag}`}
                           onClick={() => setManagingTagsNodeId(node.id)}
-                          className="h-5 max-w-[62px] truncate rounded-md border px-1.5 text-[9px] font-medium leading-none shadow-2xs transition-transform enabled:hover:-translate-y-0.5 enabled:cursor-pointer disabled:cursor-default"
+                          className="h-5 max-w-[62px] truncate rounded-sm border px-1.5 text-[9px] font-medium leading-none shadow-2xs transition-transform enabled:hover:-translate-y-0.5 enabled:cursor-pointer disabled:cursor-default"
                           style={{
                             backgroundColor: colors.background,
                             borderColor: colors.border,
@@ -976,7 +976,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                         disabled={readOnly}
                         onClick={() => setManagingTagsNodeId(node.id)}
                         title={`${hiddenTagCount} more tag${hiddenTagCount === 1 ? '' : 's'}`}
-                        className="h-5 rounded-md border px-1.5 text-[9px] font-medium leading-none shadow-2xs enabled:cursor-pointer disabled:cursor-default"
+                        className="h-5 rounded-sm border px-1.5 text-[9px] font-medium leading-none shadow-2xs enabled:cursor-pointer disabled:cursor-default"
                         style={{
                           backgroundColor: getNodeTagColors(visibleTags[visibleTags.length - 1] || 'tag').background,
                           borderColor: getNodeTagColors(visibleTags[visibleTags.length - 1] || 'tag').border,
@@ -992,7 +992,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
                         onClick={() => setManagingTagsNodeId(node.id)}
                         title="Manage global operation tags"
                         aria-label={`Manage global operation tags for ${node.title}`}
-                        className="h-5 min-w-5 rounded-md bg-surface-card px-1 text-[9px] text-muted shadow-2xs transition-colors hover:border-hairline-strong hover:text-ink cursor-pointer inline-flex items-center justify-center gap-1"
+                        className="h-5 min-w-5 rounded-sm bg-surface-card px-1 text-[9px] text-muted shadow-2xs transition-colors hover:border-hairline-strong hover:text-ink cursor-pointer inline-flex items-center justify-center gap-1"
                       >
                         {selectedTags.length === 0 && <Tags className="w-2.5 h-2.5" />}
                         <Plus className="w-2.5 h-2.5" />
@@ -1015,7 +1015,7 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
           onPointerMove={handleMinimapPointerMove}
           onPointerUp={handleMinimapPointerUp}
           style={{ width: `${minimapWidth}px`, height: `${minimapHeight}px` }}
-          className="hidden sm:block relative rounded-lg bg-surface-canvas border  overflow-hidden cursor-crosshair select-none touch-none"
+          className="hidden sm:block relative rounded-md bg-surface-canvas border  overflow-hidden cursor-crosshair select-none touch-none"
         >
           {/* Miniature Step Column Dividers */}
           {Array.from({ length: columnCount }).map((_, i) => {
@@ -1075,21 +1075,21 @@ export const FlowCanvas: React.FC<FlowCanvasProps> = ({
             <button
               onClick={() => setZoom((z) => Math.min(1.8, Math.round((z + 0.1) * 10) / 10))}
               title="Zoom In"
-              className="p-1.5 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors cursor-pointer"
+              className="p-1.5 rounded-md bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors cursor-pointer"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setZoom((z) => Math.max(0.4, Math.round((z - 0.1) * 10) / 10))}
               title="Zoom Out"
-              className="p-1.5 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors cursor-pointer"
+              className="p-1.5 rounded-md bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors cursor-pointer"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={resetView}
               title="Reset Zoom & Pan"
-              className="px-2 py-1 rounded-lg bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors font-mono text-[10px] cursor-pointer"
+              className="px-2 py-1 rounded-md bg-surface-canvas-soft hover:bg-surface-card text-muted hover:text-ink border  transition-colors font-mono text-[10px] cursor-pointer"
             >
               {Math.round(zoom * 100)}%
             </button>

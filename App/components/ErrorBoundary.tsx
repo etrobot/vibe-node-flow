@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 space-y-1">
+        <div className="p-2 rounded-md bg-red-50 border border-red-200 text-xs text-red-700 space-y-1">
           <div className="font-semibold flex items-center gap-1">
             <span>⚠️</span> Render Error
           </div>

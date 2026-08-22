@@ -1046,7 +1046,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm cursor-pointer"
+              className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm cursor-pointer"
             >
               Refresh Page
             </button>
@@ -1128,7 +1128,7 @@ export default function App() {
             />
           </div>
 
-          <div className="max-sm:w-0 max-sm:shrink-0 max-sm:overflow-visible">
+          <div className="shrink-0 max-sm:w-0 max-sm:overflow-visible">
           <NodeInspector
             node={selectedNode}
             allNodes={nodes}

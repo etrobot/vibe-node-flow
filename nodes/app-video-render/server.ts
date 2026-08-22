@@ -12,6 +12,7 @@ import {
   isSafeDemoFile,
   listDemoUiCandidates,
   normalizeDemoHtml,
+  stripUnresolvedDemoUi,
   validateDemoHtml,
   type DemoUiTarget,
   type WorkflowCanvasGraph,
@@ -297,7 +298,9 @@ async function preflight(
   }
 
   const demoItems = (document?.clips as any[] | undefined)?.flatMap((clip: any) => (
-    Array.isArray(clip?.items) ? clip.items.filter((item: any) => item?.demoUi) : []
+    Array.isArray(clip?.items)
+      ? clip.items.filter((item: any) => isSafeDemoFile(String(item?.demoUi?.htmlFile ?? '').trim()))
+      : []
   )) || [];
   for (const item of demoItems) {
     const htmlFile = String(item.demoUi?.htmlFile ?? '').trim();
@@ -402,19 +405,33 @@ export async function executeAppVideoRender(
       facts.workflowMermaidMaterials,
     );
   }
+  let droppedDemoUi = 0;
+  if (facts.document) {
+    droppedDemoUi = stripUnresolvedDemoUi(facts.document);
+  }
   // Persist the same flat document the preview and Playwright paths render, so
   // global-components are not lost and cards never fall back to hardcoded defaults.
   let hydratedReferences = false;
+  let alignedToNarration = false;
   if (facts.document) {
-    const rendered = toRendererDocument(facts.document);
+    const rendered = toRendererDocument(facts.document, { timing: facts.timing });
     if (rendered) {
       facts.document = rendered;
       hydratedReferences = true;
+      alignedToNarration = facts.timing.length > 0;
     }
   }
   const { problems, notes } = await (services.preflight ?? preflight)(assetDir, slug, facts.document);
+  if (droppedDemoUi) {
+    notes.push(`Dropped ${droppedDemoUi} Demo UI marker(s) that had no generated HTML file.`);
+  }
   if (hydratedReferences) {
     notes.push('Hydrated storyboard references into renderer-flat clip items.');
+  }
+  if (alignedToNarration) {
+    notes.push(
+      `Aligned visual item durations to ${facts.timing.length} measured narration clip(s).`,
+    );
   }
 
   if (facts.document && facts.narrationClips.length && hasCompleteItemTiming(facts.document)) {

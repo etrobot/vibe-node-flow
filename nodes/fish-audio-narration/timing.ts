@@ -3,9 +3,9 @@
  *
  * The storyboard no longer guesses how long a shot lasts. It marks where the
  * picture should change — `"Ideas are everywhere. **Building** was the
- * bottleneck."`. Providers with word timings can place that cut exactly.
- * Fish Audio's speech endpoint returns audio only, so its fallback maps the
- * anchor's position in the spoken text onto the measured MP3 duration.
+ * bottleneck."`. Fish Audio's timestamp stream supplies word boundaries, so
+ * the cut lands on the spoken word. If a clip arrives without alignments, the
+ * fallback maps the anchor's character position onto the measured MP3 duration.
  *
  * The mapping is positional, not textual: word boundaries arrive in order, so
  * walking them with a cursor through the spoken string gives each one a
@@ -94,6 +94,46 @@ export function stripAnchors(speech: string): { plain: string; anchors: SpeechAn
   };
 }
 
+function isApostrophe(character: string): boolean {
+  return /[''`´‘’]/.test(character);
+}
+
+function foldToken(value: string): string {
+  return value
+    .replace(/[''`´‘’]/g, '')
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+    .toLowerCase();
+}
+
+function indexOfFolded(haystack: string, needle: string, from: number): { index: number; end: number } | null {
+  const foldedNeedle = foldToken(needle);
+  if (!foldedNeedle) return null;
+  let foldedFrom = 0;
+  for (let index = 0; index < from && index < haystack.length; index += 1) {
+    if (!isApostrophe(haystack[index])) foldedFrom += 1;
+  }
+  let foldedIndex = 0;
+  for (let index = 0; index < haystack.length; index += 1) {
+    if (isApostrophe(haystack[index])) continue;
+    if (foldedIndex >= foldedFrom) {
+      let cursor = index;
+      let matched = 0;
+      while (matched < foldedNeedle.length && cursor < haystack.length) {
+        if (isApostrophe(haystack[cursor])) {
+          cursor += 1;
+          continue;
+        }
+        if (haystack[cursor].toLowerCase() !== foldedNeedle[matched]) break;
+        cursor += 1;
+        matched += 1;
+      }
+      if (matched === foldedNeedle.length) return { index, end: cursor };
+    }
+    foldedIndex += 1;
+  }
+  return null;
+}
+
 /**
  * Character offset of every word boundary inside the spoken string. The cursor
  * only moves forward, so a repeated word resolves to the occurrence the voice
@@ -111,7 +151,18 @@ export function boundaryOffsets(plain: string, boundaries: WordBoundary[]): numb
       continue;
     }
     let index = plain.indexOf(word, cursor);
-    if (index === -1) index = lower.indexOf(word.toLowerCase(), cursor);
+    let end = index === -1 ? -1 : index + word.length;
+    if (index === -1) {
+      index = lower.indexOf(word.toLowerCase(), cursor);
+      end = index === -1 ? -1 : index + word.length;
+    }
+    if (index === -1) {
+      const folded = indexOfFolded(plain, word, cursor);
+      if (folded) {
+        index = folded.index;
+        end = folded.end;
+      }
+    }
     if (index === -1) {
       // Punctuation and normalization differences: hold position rather than
       // rewinding, so later boundaries keep their order. -1 is important:
@@ -121,7 +172,7 @@ export function boundaryOffsets(plain: string, boundaries: WordBoundary[]): numb
       continue;
     }
     offsets.push(index);
-    cursor = index + word.length;
+    cursor = Math.max(cursor, end);
   }
   return offsets;
 }

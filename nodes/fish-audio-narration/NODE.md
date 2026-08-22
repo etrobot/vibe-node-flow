@@ -9,9 +9,10 @@ S2.1 Pro Free and a fixed official voice. Its persisted node type is
 The implementation calls:
 
 ```text
-POST https://api.fish.audio/v1/tts
+POST https://api.fish.audio/v1/tts/stream/with-timestamp
 Authorization: Bearer $FISH_API_KEY
 Content-Type: application/json
+Accept: text/event-stream
 model: s2.1-pro-free
 
 {
@@ -20,30 +21,40 @@ model: s2.1-pro-free
   "format": "mp3",
   "sample_rate": 44100,
   "mp3_bitrate": 128,
+  "latency": "normal",
   "prosody": { "speed": 1 }
 }
 ```
 
-The endpoint returns raw `audio/mpeg` bytes. Each storyboard clip is synthesized in its
-own request so the narrator can finish a thought and pause before the next clip or
-chapter. Every request includes the same `reference_id`, pins `sample_rate` to 44100,
-and locks `prosody.speed` to 1. A single clip longer than 8000 characters is still
-split internally; those MP3 parts are decoded to PCM and re-encoded rather than
-byte-concatenated. Optional `narration.mp3` stitches every clip MP3 the same way.
-Transient 429 and 5xx responses are retried with bounded backoff. The old Edge
-`voice`, `rate`, `volume`, and `pitch` settings are intentionally absent.
+The endpoint returns `text/event-stream`. Each SSE `data:` payload carries a
+base64 audio chunk and, when ready, a cumulative `alignment` snapshot for that
+`chunk_seq`. Audio chunks are concatenated in arrival order; alignment snapshots
+replace the previous snapshot for the same chunk. `start`/`end` are seconds from
+the start of that text chunk; `chunk_audio_offset_sec` shifts them onto the full
+clip. Each storyboard clip is synthesized in its own request so the narrator can
+finish a thought and pause before the next clip or chapter. Every request includes
+the same `reference_id`, pins `sample_rate` to 44100, locks `prosody.speed` to 1,
+and uses `latency: normal` so the take is stable rather than first-audio-fast.
+A single clip longer than 8000 characters is still split internally; those MP3
+parts are decoded to PCM and re-encoded rather than byte-concatenated. Optional
+`narration.mp3` stitches every clip MP3 the same way. Transient 429 and 5xx
+responses are retried with bounded backoff. The old Edge `voice`, `rate`,
+`volume`, and `pitch` settings are intentionally absent.
 
 ## Timing
 
 - MP3 duration is measured by parsing MPEG frame headers and summing their sample
   counts. This works for constant- and variable-bitrate output and does not require
   `ffprobe`.
-- Fish Audio's speech endpoint does not return word boundaries. `**anchors**` are
-  stripped before synthesis, then their character positions in the spoken text are
-  mapped onto the measured clip duration. These per-item splits are marked
-  `measured: false`; the clip and total audio durations remain measured values.
-- If a clip has the wrong number of anchors or cannot satisfy `minItemSeconds`, the
-  existing even-split fallback is used.
+- Word timestamps come from `alignment.segments`. `**anchors**` are stripped before
+  synthesis, then matched onto those segments so each shot cut lands on the spoken
+  word. Segment clocks are scaled to the measured MP3 duration when the two clocks
+  disagree. These per-item splits are marked `measured: true` when every anchor
+  hits a timestamp.
+- If Fish Audio sends audio but no alignments, or a clip has the wrong number of
+  anchors, or `minItemSeconds` cannot be satisfied, the existing character-offset
+  or even-split fallback is used and recorded in logs. That is not treated as a
+  silent success.
 
 ## Inputs and outputs
 

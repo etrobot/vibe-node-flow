@@ -56,7 +56,7 @@ function MermaidBlock({ source }: { source: string }) {
 
   if (error) {
     return (
-      <pre className="overflow-x-auto rounded-lg border border-hairline-soft bg-surface-canvas-soft p-3 font-mono text-[11px] leading-relaxed text-ink">
+      <pre className="overflow-x-auto rounded-md border border-hairline-soft bg-surface-canvas-soft p-2 font-mono text-[11px] leading-relaxed text-ink">
         {source}
       </pre>
     );
@@ -65,20 +65,20 @@ function MermaidBlock({ source }: { source: string }) {
   return (
     <div
       ref={containerRef}
-      className="overflow-x-auto rounded-lg border border-hairline-soft bg-surface-canvas-soft p-3 [&_svg]:mx-auto"
+      className="overflow-x-auto rounded-md border border-hairline-soft bg-surface-canvas-soft p-2 [&_svg]:mx-auto"
     />
   );
 }
 
 function CodeBlock({ language, source }: { language: string; source: string }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-hairline-soft bg-surface-canvas-soft">
+    <div className="overflow-hidden rounded-md border border-hairline-soft bg-surface-canvas-soft">
       {language ? (
         <div className="border-b border-hairline-soft px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-muted">
           {language}
         </div>
       ) : null}
-      <pre className="overflow-x-auto p-3 font-mono text-[11px] leading-relaxed text-ink">
+      <pre className="overflow-x-auto p-2 font-mono text-[11px] leading-relaxed text-ink">
         <code>{source}</code>
       </pre>
     </div>
@@ -240,8 +240,8 @@ export const NodeDocModal: React.FC<NodeDocModalProps> = ({
     >
       <div className="flex h-[min(80vh,720px)] w-full max-w-2xl flex-col overflow-hidden card-panel">
         <div className="panel-header shrink-0">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="rounded-lg border border-hairline bg-surface-canvas p-2.5 text-primary-text">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="rounded-md border border-hairline bg-surface-canvas p-2.5 text-primary-text">
               <BookOpen className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0">

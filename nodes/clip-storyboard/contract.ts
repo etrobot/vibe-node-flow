@@ -533,6 +533,7 @@ export function sanitizeStoryboard(
               if (!item.title) item.title = oldType;
               if (!item.icon) item.icon = 'Sparkles';
               delete item.prompt;
+              delete item.demoUi;
               changes.push(`${iLabel}: Demoted extra Demo UI HTML placeholder ${oldType} -> ui-icon-text`);
             }
           }

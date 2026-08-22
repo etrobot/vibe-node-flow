@@ -34,7 +34,7 @@ export const renderLucideIcon = (iconName: string, className = "w-5 h-5") => {
 
 export const IconPicker: React.FC<IconPickerProps> = ({ selectedIcon, onSelectIcon }) => {
   return (
-    <div className="grid grid-cols-6 gap-2 p-2 border border-hairline-strong rounded-lg">
+    <div className="grid grid-cols-6 gap-2 p-2 border border-hairline-strong rounded-md">
       {ICON_LIST.map((iconName) => {
         const isSelected = selectedIcon === iconName;
         return (
@@ -43,7 +43,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({ selectedIcon, onSelectIc
             type="button"
             onClick={() => onSelectIcon(iconName)}
             title={iconName}
-            className={`p-2 rounded-lg flex items-center justify-center transition-all ${
+            className={`p-2 rounded-md flex items-center justify-center transition-all ${
               isSelected
                 ? 'bg-primary text-on-primary ring-2 ring-primary ring-offset-2 ring-offset-black scale-105'
                 : 'text-muted-soft hover:text-ink hover:bg-surface-card'

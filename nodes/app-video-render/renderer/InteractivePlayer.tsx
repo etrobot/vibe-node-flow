@@ -388,7 +388,7 @@ export const InteractivePlayer = ({
     : 1;
 
   return (
-    <div ref={playerRef} className="flex w-full flex-col gap-3 text-ink" style={themeStyle}>
+    <div ref={playerRef} className="flex w-full flex-col gap-2 text-ink" style={themeStyle}>
       {audioSrc ? <audio ref={audioRef} preload="auto" src={audioSrc} aria-label="Video narration" className="hidden" /> : null}
       <div
         ref={previewViewportRef}
@@ -453,9 +453,9 @@ export const InteractivePlayer = ({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-hairline bg-surface-canvas p-3 shadow-lg sm:p-4">
+      <div className="flex flex-col gap-2 rounded-xl border border-hairline bg-surface-canvas p-2 shadow-lg sm:p-4">
         {/* Main Grid Layout: Left 1/8 stacked controls, Right 7/8 stacked (Timeline, Chapters, Clips) */}
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-2">
           {/* Left Column (~1/8): Playback & Audio Controls Stacked + Render MP4 Button */}
           <div className="flex w-28 shrink-0 flex-col gap-2 pt-0.5 sm:w-32">
             {/* Top: Play/Pause button + Current Time / Total Time */}
@@ -505,7 +505,7 @@ export const InteractivePlayer = ({
                 disabled={!canRenderMp4 || isRenderingMp4}
                 onClick={onRenderMp4}
                 title={canRenderMp4 ? 'Open a terminal and run render-video.sh to export MP4' : 'Run the workflow first to create a render context'}
-                className="mt-1 flex w-full items-center justify-center gap-1 rounded-md bg-[var(--theme-accent)] px-2 py-1 text-[10px] font-semibold text-black shadow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                className="mt-1 flex w-full items-center justify-center gap-1 rounded-sm bg-[var(--theme-accent)] px-2 py-1 text-[10px] font-semibold text-black shadow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
               >
                 {isRenderingMp4 ? (
                   <>
@@ -575,7 +575,7 @@ export const InteractivePlayer = ({
                       title={`${chapter.title} (${formatTime(chapter.duration)})${chapter.summary ? ` — ${chapter.summary}` : ''}`}
                       onClick={() => seek(chapter.start)}
                       style={{flexGrow: Math.max(chapter.duration, 1)}}
-                      className={`relative min-w-[110px] max-w-[220px] flex-1 overflow-hidden rounded-lg border px-2 py-1 text-left transition ${
+                      className={`relative min-w-[110px] max-w-[220px] flex-1 overflow-hidden rounded-md border px-2 py-1 text-left transition ${
                         isActive
                           ? 'border-[var(--theme-accent)]/60 bg-[var(--theme-accent)]/10 text-ink shadow-[0_0_18px_var(--theme-glow)]'
                           : 'border-hairline bg-surface-canvas-soft text-muted hover:border-hairline-strong hover:text-ink'
@@ -606,7 +606,7 @@ export const InteractivePlayer = ({
                     type="button"
                     onClick={() => seek(start)}
                     style={{flexGrow: Math.max(duration, 0.1)}}
-                    className={`relative min-w-[70px] flex-1 overflow-hidden rounded-lg border p-1.5 text-left transition ${
+                    className={`relative min-w-[70px] flex-1 overflow-hidden rounded-md border p-1.5 text-left transition ${
                       isActive
                         ? 'z-10 scale-[1.02] border-[var(--theme-primary)]/70 bg-surface-elevated shadow-[0_0_18px_var(--theme-glow)]'
                         : 'border-hairline bg-surface-canvas-soft hover:border-hairline-strong'

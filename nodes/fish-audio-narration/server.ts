@@ -258,7 +258,7 @@ async function execute({
   const log = createNodeLogger(onLog);
   log.push(
     `Synthesizing ${source.clips.length} clip(s) with Fish Audio ${FISH_AUDIO_TTS_MODEL} `
-    + `(one request per clip, concurrency ${config.concurrency}).`,
+    + `(timestamp stream, one request per clip, concurrency ${config.concurrency}).`,
     `Fixed voice: ${FISH_AUDIO_REFERENCE_ID}. Each clip is its own take so chapter boundaries can breathe.`,
   );
   if (proxyUrl) log.push(`Routing Fish Audio TTS through proxy ${proxyUrl}.`);
@@ -268,7 +268,10 @@ async function execute({
     synthesized = await mapWithConcurrency(source.clips, config.concurrency, async (clip, index) => {
       const plain = stripAnchors(clip.speech).plain;
       const words = plain.split(/\s+/).filter(Boolean).length;
-      log.push(`Clip ${index + 1}: ${plain.length} characters, ${words} word(s).`);
+      log.push(
+        `Clip ${index + 1}: ${plain.length} characters, ${words} word(s)`
+        + `; Fish Audio timestamp stream.`,
+      );
       return synthesizeSpeech({
         text: plain,
         apiKey,
@@ -315,13 +318,23 @@ async function execute({
     const timing = resolveClipTiming({
       speech: clip.speech,
       itemCount: clip.itemCount,
-      // Fish Audio's speech endpoint returns audio only, without word timings.
-      boundaries: [],
+      boundaries: result.boundaries,
       audioSeconds: result.durationSeconds,
       minItemSeconds: config.minItemSeconds,
       label: `Clip ${index + 1}`,
     });
     warnings.push(...timing.warnings);
+    if (!result.boundaries.length && clip.itemCount > 1) {
+      warnings.push(
+        `Clip ${index + 1} timestamp stream returned no word alignments; `
+        + 'shot cuts were estimated from character offsets.',
+      );
+    } else if (result.boundaries.length && !timing.measured && clip.itemCount > 1 && !timing.warnings.length) {
+      warnings.push(
+        `Clip ${index + 1} had Fish Audio word timestamps but they did not cover every shot cut; `
+        + 'character-offset placement was used.',
+      );
+    }
     if (timing.measured) measuredClips += 1;
     timeline.push({
       clipIndex: index,
@@ -341,7 +354,7 @@ async function execute({
       plannedSeconds: clip.plannedSeconds ? Number(clip.plannedSeconds.toFixed(3)) : null,
       startSeconds: Number(startSeconds.toFixed(3)),
       items: timing.items,
-      words: [],
+      words: result.boundaries,
       requests: result.requests,
       generationIds: result.generationIds,
     });
@@ -397,7 +410,7 @@ async function execute({
   );
   log.push(
     `Measured MP3 duration for ${entries.length} clip(s); `
-    + `${measuredClips}/${entries.length} clip timeline(s) needed no estimated anchor placement.`,
+    + `${measuredClips}/${entries.length} clip timeline(s) used Fish Audio word timestamps.`,
   );
 
   await fs.writeFile(

@@ -279,7 +279,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                 type="button"
                 onClick={prevDay}
                 title="Previous day"
-                className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline"
+                className="p-1.5 rounded-sm text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
               </button>
@@ -294,7 +294,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                 <span className="whitespace-nowrap">{dateLabel}</span>
               </button>
               {datePickerOpen && (
-                <div className="absolute right-0 top-full mt-2 z-40 card-panel p-3 w-72 shadow-lg">
+                <div className="absolute right-0 top-full mt-2 z-40 card-panel p-2 w-72 shadow-lg">
                   <div className="grid grid-cols-2 gap-1.5">
                     {presets.map((preset) => (
                       <button
@@ -365,7 +365,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                 type="button"
                 onClick={() => applyRange(null, null)}
                 title="Clear date range"
-                className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline"
+                className="p-1.5 rounded-sm text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -376,7 +376,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                 onClick={nextDay}
                 disabled={(fromDate ? addDays(fromDate, 1) : '') > TODAY}
                 title="Next day"
-                className="p-1.5 rounded-md text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline disabled:opacity-40 disabled:cursor-not-allowed"
+                className="p-1.5 rounded-sm text-muted hover:text-ink hover:bg-surface-canvas-soft border border-hairline disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
@@ -422,7 +422,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
       </section>
 
       {error && (
-        <div className="card-panel p-4 border-semantic-error/30 bg-semantic-error/5 flex items-center justify-between gap-3 text-xs text-semantic-error">
+        <div className="card-panel p-4 border-semantic-error/30 bg-semantic-error/5 flex items-center justify-between gap-2 text-xs text-semantic-error">
           <span className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" />{error}</span>
           <button onClick={() => void loadRuns()} className="btn-pill border border-semantic-error/30 text-semantic-error hover:bg-semantic-error/10">Retry</button>
         </div>
@@ -430,12 +430,12 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
 
       <section className="card-panel overflow-hidden">
         {loading ? (
-          <div className="p-10 flex flex-col items-center justify-center text-muted text-xs gap-3">
+          <div className="p-10 flex flex-col items-center justify-center text-muted text-xs gap-2">
             <Loader2 className="w-6 h-6 animate-spin" />
             Loading run records...
           </div>
         ) : visibleRuns.length === 0 ? (
-          <div className="p-10 flex flex-col items-center justify-center text-muted text-xs gap-3">
+          <div className="p-10 flex flex-col items-center justify-center text-muted text-xs gap-2">
             <Clock className="w-8 h-8" />
             <span>{runs.length === 0 ? 'No run records yet. Run a workflow and records will appear here.' : 'No records match the current filters.'}</span>
           </div>
@@ -475,7 +475,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                     <td className="py-2 px-2.5">
                       <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="p-1 rounded-md border shrink-0 flex items-center justify-center"
+                          className="p-1 rounded-sm border shrink-0 flex items-center justify-center"
                           style={{
                             backgroundColor: `${resolveWorkflowAppearance(run).color}15`,
                             borderColor: `${resolveWorkflowAppearance(run).color}35`,
@@ -501,7 +501,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
                           type="button"
                           onClick={(event) => void handleDelete(run.id, event)}
                           title="Delete record"
-                          className="p-1.5 rounded-md text-muted hover:text-semantic-error hover:bg-semantic-error/5 transition-colors"
+                          className="p-1.5 rounded-sm text-muted hover:text-semantic-error hover:bg-semantic-error/5 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -549,7 +549,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
 
   if (embedded) {
     return (
-      <div className="h-full overflow-y-auto custom-scrollbar p-2 lg:p-3">
+      <div className="h-full overflow-y-auto custom-scrollbar p-2 lg:p-2">
         {renderContent()}
       </div>
     );
@@ -558,15 +558,15 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
   return (
     <div className="w-screen h-screen flex flex-col bg-surface-canvas text-body font-sans overflow-hidden">
       <header className="h-12 px-4 lg:px-6 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={onBack}
-            className="rounded-md p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1.5 text-xs shrink-0"
+            className="rounded-sm p-1 bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline flex items-center gap-1.5 text-xs shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{backLabel || 'Back'}</span>
           </button>
-          <div className="p-2 rounded-lg bg-primary shrink-0"><History className="w-4 h-4" /></div>
+          <div className="p-2 rounded-md bg-primary shrink-0"><History className="w-4 h-4" /></div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="font-medium text-sm text-ink tracking-tight">Run History</h1>
@@ -587,7 +587,7 @@ export const RunHistoryPage: React.FC<RunHistoryPageProps> = ({
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar p-2 lg:p-3">
+      <main className="flex-1 overflow-y-auto custom-scrollbar p-2 lg:p-2">
         {renderContent()}
       </main>
     </div>

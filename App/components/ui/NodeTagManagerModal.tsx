@@ -63,8 +63,8 @@ export const NodeTagManagerModal: React.FC<NodeTagManagerModalProps> = ({
     >
       <div className="w-full max-w-md card-panel overflow-hidden flex flex-col">
         <div className="panel-header">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2.5 rounded-lg border border-hairline bg-surface-canvas text-primary-text">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-2.5 rounded-md border border-hairline bg-surface-canvas text-primary-text">
               <Tags className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0">
@@ -88,7 +88,7 @@ export const NodeTagManagerModal: React.FC<NodeTagManagerModalProps> = ({
               <label className="text-xs font-medium text-ink">Available tags</label>
               <span className="text-[10px] font-mono text-muted">{selectedTags.length} selected</span>
             </div>
-            <div className="flex flex-wrap gap-2 rounded-xl border border-hairline bg-surface-canvas p-3">
+            <div className="flex flex-wrap gap-2 rounded-xl border border-hairline bg-surface-canvas p-2">
               {catalog.map((tag) => {
                 const colors = getNodeTagColors(tag);
                 const isSelected = selectedKeys.has(tag.toLocaleLowerCase());
@@ -100,7 +100,7 @@ export const NodeTagManagerModal: React.FC<NodeTagManagerModalProps> = ({
                       onClick={() => onToggleTag(tag)}
                       title={isSelected ? `Remove ${tag} from this node` : `Add ${tag} to this node`}
                       className={`h-8 inline-flex items-center gap-1.5 px-2.5 border text-[11px] font-medium transition-all cursor-pointer ${
-                        isBuiltIn ? 'rounded-lg' : 'rounded-l-lg'
+                        isBuiltIn ? 'rounded-md' : 'rounded-l-lg'
                       } ${isSelected ? 'ring-2 ring-black/10 shadow-2xs' : 'opacity-70 hover:opacity-100'}`}
                       style={{
                         backgroundColor: colors.background,

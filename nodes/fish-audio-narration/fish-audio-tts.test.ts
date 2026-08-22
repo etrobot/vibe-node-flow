@@ -8,9 +8,12 @@ import {
   FISH_AUDIO_TTS_URL,
   FishAudioTtsError,
   MAX_CHUNK_CHARS,
+  collectTimestampStream,
   mp3DurationSeconds,
+  parseSseDataLines,
   resolveFishAudioApiKey,
   resolveProxyUrl,
+  scaleWordBoundaries,
   speechRequestBody,
   splitMp3ByDurations,
   splitTextForSynthesis,
@@ -37,6 +40,49 @@ function arrayBuffer(buffer: Buffer): ArrayBuffer {
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
 }
 
+function sseBody(events: unknown[]): string {
+  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('');
+}
+
+function timestampEvent(audio: Buffer, extra: {
+  content?: string;
+  chunkSeq?: number;
+  offset?: number;
+  segments?: Array<{ text: string; start: number; end: number }>;
+  alignment?: object | null;
+} = {}) {
+  const segments = extra.segments ?? [{ text: 'Hello', start: 0, end: 0.4 }];
+  return {
+    audio_base64: audio.toString('base64'),
+    content: extra.content ?? 'Hello',
+    chunk_seq: extra.chunkSeq ?? 0,
+    chunk_audio_offset_sec: extra.offset ?? 0,
+    alignment: extra.alignment === undefined
+      ? {
+        audio_duration: segments[segments.length - 1]?.end ?? 0,
+        segments,
+      }
+      : extra.alignment,
+  };
+}
+
+function sseResponse(options: {
+  events: unknown[];
+  generationId?: string;
+  status?: number;
+}): SpeechResponseLike {
+  const body = sseBody(options.events);
+  const headers = new Map<string, string>([['content-type', 'text/event-stream']]);
+  if (options.generationId) headers.set('x-generation-id', options.generationId);
+  return {
+    ok: (options.status ?? 200) >= 200 && (options.status ?? 200) < 300,
+    status: options.status ?? 200,
+    headers: { get: (name) => headers.get(name.toLowerCase()) ?? null },
+    async arrayBuffer() { return arrayBuffer(Buffer.from(body)); },
+    async text() { return body; },
+  };
+}
+
 function response(options: {
   status: number;
   contentType?: string;
@@ -58,17 +104,19 @@ function response(options: {
   };
 }
 
-test('speech request fixes the Fish Audio model, voice, sample rate, and speaking speed', () => {
+test('speech request fixes the Fish Audio model, voice, sample rate, latency, and speaking speed', () => {
   assert.deepEqual(speechRequestBody('Hello world'), {
     text: 'Hello world',
     reference_id: FISH_AUDIO_REFERENCE_ID,
     format: 'mp3',
     sample_rate: FISH_AUDIO_SAMPLE_RATE,
     mp3_bitrate: FISH_AUDIO_MP3_BITRATE,
+    latency: 'normal',
     prosody: { speed: 1 },
   });
   assert.equal(FISH_AUDIO_TTS_MODEL, 's2.1-pro-free');
   assert.equal(FISH_AUDIO_SAMPLE_RATE, 44_100);
+  assert.equal(FISH_AUDIO_TTS_URL, 'https://api.fish.audio/v1/tts/stream/with-timestamp');
 });
 
 test('a typical explainer stays in one provider request instead of being split mid-narration', () => {
@@ -134,6 +182,50 @@ test('API key and proxy resolution use Fish Audio environment names', () => {
   );
 });
 
+test('timestamp SSE keeps latest alignment per chunk and concatenates audio in order', () => {
+  const first = mp3Frames(4);
+  const second = mp3Frames(3);
+  const third = mp3Frames(2);
+  const raw = sseBody([
+    timestampEvent(first, {
+      chunkSeq: 0,
+      segments: [{ text: 'Hello', start: 0, end: 0.2 }],
+    }),
+    timestampEvent(second, {
+      chunkSeq: 0,
+      segments: [
+        { text: 'Hello', start: 0, end: 0.4 },
+        { text: 'world', start: 0.4, end: 0.8 },
+      ],
+    }),
+    timestampEvent(third, {
+      chunkSeq: 1,
+      offset: 0.8,
+      alignment: null,
+    }),
+    timestampEvent(Buffer.alloc(0), {
+      chunkSeq: 1,
+      offset: 0.8,
+      segments: [{ text: 'again', start: 0, end: 0.3 }],
+    }),
+  ]);
+  const collected = collectTimestampStream(raw);
+  assert.deepEqual(collected.audio, Buffer.concat([first, second, third]));
+  assert.deepEqual(collected.boundaries, [
+    { text: 'Hello', offsetSeconds: 0, durationSeconds: 0.4 },
+    { text: 'world', offsetSeconds: 0.4, durationSeconds: 0.4 },
+    { text: 'again', offsetSeconds: 0.8, durationSeconds: 0.3 },
+  ]);
+  assert.deepEqual(parseSseDataLines('data: {"a":1}\n\ndata: [DONE]\n\n'), ['{"a":1}', '[DONE]']);
+  assert.deepEqual(
+    scaleWordBoundaries(
+      [{ text: 'Hello', offsetSeconds: 0, durationSeconds: 0.5 }],
+      1,
+    ),
+    [{ text: 'Hello', offsetSeconds: 0, durationSeconds: 1 }],
+  );
+});
+
 test('synthesis sends bearer auth, returns MP3 duration, and records generation IDs', async () => {
   const audio = mp3Frames(20);
   let seenUrl = '';
@@ -145,10 +237,8 @@ test('synthesis sends bearer auth, returns MP3 duration, and records generation 
     fetcher: async (url, init) => {
       seenUrl = url;
       seenInit = init;
-      return response({
-        status: 200,
-        contentType: 'audio/mpeg',
-        audio,
+      return sseResponse({
+        events: [timestampEvent(audio, { segments: [{ text: 'A', start: 0, end: 0.2 }] })],
         generationId: 'gen_test',
       });
     },
@@ -156,11 +246,13 @@ test('synthesis sends bearer auth, returns MP3 duration, and records generation 
 
   assert.equal(seenUrl, FISH_AUDIO_TTS_URL);
   assert.equal((seenInit.headers as Record<string, string>).Authorization, 'Bearer test-key');
+  assert.equal((seenInit.headers as Record<string, string>).Accept, 'text/event-stream');
   assert.deepEqual(JSON.parse(String(seenInit.body)), speechRequestBody('A short narration.'));
   assert.deepEqual(result.audio, audio);
   assert.ok(result.durationSeconds > 0);
   assert.equal(result.requests, 1);
   assert.deepEqual(result.generationIds, ['gen_test']);
+  assert.equal(result.boundaries[0].text, 'A');
 });
 
 test('retryable Fish Audio responses are retried and provider errors stay readable', async () => {
@@ -180,17 +272,20 @@ test('retryable Fish Audio responses are retried and provider errors stay readab
           retryAfter: '0',
         });
       }
-      return response({ status: 200, contentType: 'audio/mpeg', audio });
+      return sseResponse({ events: [timestampEvent(audio)] });
     },
   });
   assert.equal(calls, 2);
   assert.ok(result.durationSeconds > 0);
+  assert.ok(result.boundaries.length > 0);
 
   await assert.rejects(
     synthesizeSpeech({
       text: 'No key.',
       apiKey: '',
-      fetcher: async () => response({ status: 200, contentType: 'audio/mpeg', audio }),
+      fetcher: async () => sseResponse({
+        events: [timestampEvent(mp3Frames(5))],
+      }),
     }),
     (error: unknown) => error instanceof FishAudioTtsError && /FISH_API_KEY/.test(error.message),
   );
@@ -207,5 +302,19 @@ test('retryable Fish Audio responses are retried and provider errors stay readab
       }),
     }),
     /Fish Audio TTS HTTP 401: invalid key/,
+  );
+
+  await assert.rejects(
+    synthesizeSpeech({
+      text: 'Raw audio is not a timestamp stream.',
+      apiKey: 'test-key',
+      maxAttempts: 1,
+      fetcher: async () => response({
+        status: 200,
+        contentType: 'audio/mpeg',
+        audio: mp3Frames(5),
+      }),
+    }),
+    /instead of a timestamp SSE stream/,
   );
 });

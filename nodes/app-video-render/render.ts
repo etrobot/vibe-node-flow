@@ -16,6 +16,7 @@ import {
   CLIP_BACKGROUNDS,
   CLIP_ITEM_TYPES,
 } from './renderer/clipTypes.ts';
+import { narrationTimingFromManifest, type ClipTiming } from './hydrate.ts';
 
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,48}$/;
 
@@ -60,6 +61,8 @@ export interface UpstreamFacts {
   /** Directory holding the clip MP3s reported by `fish-audio-narration`. */
   audioDir: string | null;
   narrationClips: NarrationClipRef[];
+  /** Measured clip/item seconds from the narration manifest, when present. */
+  timing: ClipTiming[];
   generatedDemos: GeneratedDemoHtml[];
   /** Exact graph contract carried by a workflow-canvas UI manifest. */
   workflowGraph: WorkflowCanvasGraph | null;
@@ -261,6 +264,7 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
     document: null,
     audioDir: null,
     narrationClips: [],
+    timing: [],
     generatedDemos: [],
     workflowGraph: null,
     workflowMermaidMaterials: [],
@@ -405,6 +409,7 @@ export function mergeUpstreamManifests(input: Record<string, string>): UpstreamF
           };
         })
         .sort((left: NarrationClipRef, right: NarrationClipRef) => left.index - right.index);
+      if (!facts.timing.length) facts.timing = narrationTimingFromManifest(parsed);
     } else if (isNarrationManifest) {
       recognized = true;
     }
