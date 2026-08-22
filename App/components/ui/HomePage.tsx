@@ -6,6 +6,8 @@ import { WorkflowListHome } from './WorkflowListHome';
 import { History, Workflow } from 'lucide-react';
 
 import { ThemeSelector } from './ThemeSelector';
+import { LayoutToggle } from './LayoutToggle';
+import type { WorkspaceLayout } from '../../utils/workspace-layout';
 
 interface HomePageProps {
   workflows: WorkflowItem[];
@@ -16,10 +18,12 @@ interface HomePageProps {
   onDuplicateWorkflow: (id: string) => void;
   onDeleteWorkflow: (id: string) => void;
   onEditWorkflowMeta: (
-    id: string, name: string, description: string, icon: string, color: string
+    id: string, name: string, description: string, icon: string, color: string, tags: string[]
   ) => void;
   onOpenRun: (runId: string, context?: RunHistoryContext) => void;
   onChangeTab?: (tab: 'history' | 'workflows', workflowId?: string | null) => void;
+  workspaceLayout?: WorkspaceLayout;
+  onWorkspaceLayoutChange?: (layout: WorkspaceLayout) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -33,6 +37,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   onEditWorkflowMeta,
   onOpenRun,
   onChangeTab,
+  workspaceLayout = 'canvas',
+  onWorkspaceLayoutChange,
 }) => {
   const [activeTab, setActiveTab] = useState<'history' | 'workflows'>(
     initialTab || 'history'
@@ -91,7 +97,12 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3"><ThemeSelector /></div>
+        <div className="flex items-center gap-3">
+          {onWorkspaceLayoutChange && (
+            <LayoutToggle layout={workspaceLayout} onChange={onWorkspaceLayoutChange} />
+          )}
+          <ThemeSelector />
+        </div>
       </header>
 
       {/* Tab Content */}

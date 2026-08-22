@@ -20,9 +20,11 @@ function nodePluginVite() {
       for (const diagnostic of discovered.diagnostics) {
         this.warn(`[node-plugin] ${diagnostic.dirName}: ${diagnostic.message}`);
       }
-      const imports = discovered.plugins.map(
-        (plugin, index) => `import * as p${index} from ${JSON.stringify(plugin.clientPath)};`,
-      );
+      const imports = discovered.plugins.map((plugin, index) => (
+        plugin.clientPath
+          ? `import * as p${index} from ${JSON.stringify(plugin.clientPath)};`
+          : `const p${index} = { default: null };`
+      ));
       const values = discovered.plugins.map((plugin, index) => {
         const docPath = path.join(plugin.dir, 'NODE.md');
         let nodeDoc: string | null = null;
@@ -32,7 +34,8 @@ function nodePluginVite() {
         return `({
         dirName: ${JSON.stringify(plugin.dirName)},
         expectedType: ${JSON.stringify(plugin.type)},
-        module: p${index}.default ?? p${index},
+        module: p${index}.default ?? p${index} ?? null,
+        manifest: ${JSON.stringify(plugin.manifest)},
         nodeDoc: ${JSON.stringify(nodeDoc)}
       })`;
       });

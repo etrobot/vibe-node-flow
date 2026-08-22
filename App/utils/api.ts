@@ -53,12 +53,13 @@ export const api = {
     name: string,
     description: string,
     icon?: string,
-    color?: string
+    color?: string,
+    tags?: string[],
   ) =>
     fetch(`/api/workflows/${id}`, {
       method: 'PATCH',
       headers: jsonHeaders,
-      body: JSON.stringify({ name, description, icon, color }),
+      body: JSON.stringify({ name, description, icon, color, tags }),
     }).then((r) => parse<WorkflowItem>(r)),
 
   deleteWorkflow: (id: string) =>

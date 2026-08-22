@@ -1,4 +1,4 @@
-import type { NodeType } from './types';
+import type { FlowNode, NodeType } from './types';
 import type { NodeModule } from './types.node-module';
 import externalNodeModules from 'virtual:genno-node-modules';
 import React from 'react';
@@ -18,41 +18,70 @@ const missingNodeModule: NodeModule = {
   createConfig: () => ({}),
 };
 
+function nodeModuleFromManifest(manifest: {
+  type: string;
+  label?: string;
+  menuLabel?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  menuOrder?: number;
+  availableInMenu?: boolean;
+}): NodeModule {
+  return {
+    type: manifest.type,
+    label: manifest.label ?? manifest.type,
+    menuLabel: manifest.menuLabel,
+    description: manifest.description,
+    icon: manifest.icon,
+    color: manifest.color,
+    menuOrder: manifest.menuOrder,
+    availableInMenu: manifest.availableInMenu,
+    createConfig: () => ({}),
+  };
+}
+
 const pluginModules: NodeModule[] = [];
 const claimedTypes = new Set<NodeType>();
 
 for (const external of externalNodeModules) {
-  const module = external?.module;
-  const valid = module
-    && typeof module === 'object'
-    && typeof module.type === 'string'
-    && typeof module.label === 'string';
+  const clientModule = external?.module;
+  const manifest = external?.manifest;
+  const hasClientModule = clientModule
+    && typeof clientModule === 'object'
+    && typeof clientModule.type === 'string'
+    && typeof clientModule.label === 'string';
 
-  if (!valid) {
-    console.error(`[node-plugin] ${external?.dirName || 'unknown'} client.tsx is not a valid NodeModule`);
+  const resolved = hasClientModule
+    ? clientModule
+    : (manifest?.type ? nodeModuleFromManifest(manifest) : null);
+
+  if (!resolved) {
+    console.error(`[node-plugin] ${external?.dirName || 'unknown'}: no client.tsx and invalid node.json manifest`);
     continue;
   }
-  if (module.type !== external.expectedType) {
-    console.error(`[node-plugin] nodes/${external.dirName} client.tsx type "${module.type}" does not match node.json "${external.expectedType}"`);
+  if (resolved.type !== external.expectedType) {
+    const source = hasClientModule ? 'client.tsx' : 'node.json';
+    console.error(`[node-plugin] nodes/${external.dirName} ${source} type "${resolved.type}" does not match node.json "${external.expectedType}"`);
     continue;
   }
-  if (claimedTypes.has(module.type)) {
-    console.error(`[node-plugin] Node type ${module.type} is duplicate, ignored nodes/${external.dirName}`);
+  if (claimedTypes.has(resolved.type)) {
+    console.error(`[node-plugin] Node type ${resolved.type} is duplicate, ignored nodes/${external.dirName}`);
     continue;
   }
 
   // Fill default fallback values for optional metadata
   const normalizedModule: NodeModule = {
-    ...module,
-    menuLabel: module.menuLabel ?? module.label,
-    description: module.description ?? '',
-    icon: module.icon ?? 'Puzzle',
-    color: module.color ?? '#64748b',
-    badge: module.badge,
-    createConfig: module.createConfig ?? (() => ({})),
+    ...resolved,
+    menuLabel: resolved.menuLabel ?? resolved.label,
+    description: resolved.description ?? '',
+    icon: resolved.icon ?? 'Puzzle',
+    color: resolved.color ?? '#64748b',
+    badge: resolved.badge,
+    createConfig: resolved.createConfig ?? (() => ({})),
   };
 
-  claimedTypes.add(module.type);
+  claimedTypes.add(resolved.type);
   pluginModules.push(normalizedModule);
 }
 
@@ -69,7 +98,7 @@ const BY_TYPE = new Map<NodeType, NodeModule>(NODE_MODULES.map((module) => [modu
 const DOC_BY_TYPE = new Map<NodeType, string>();
 for (const external of externalNodeModules) {
   const doc = external?.nodeDoc;
-  const type = external?.module?.type;
+  const type = external?.manifest?.type ?? external?.module?.type;
   if (typeof type === 'string' && typeof doc === 'string' && doc.trim()) {
     DOC_BY_TYPE.set(type, doc);
   }
@@ -81,6 +110,15 @@ export function getModule(type: NodeType): NodeModule {
 
 export function getNodeDoc(type: NodeType): string | null {
   return DOC_BY_TYPE.get(type) ?? null;
+}
+
+/** CustomView / RenderPage always count. OutputView only counts when the node has output. */
+export function nodeHasCustomPanel(node: FlowNode | null | undefined): boolean {
+  if (!node) return false;
+  const nodeModule = getModule(node.type);
+  if (nodeModule.CustomView || nodeModule.RenderPage) return true;
+  if (!nodeModule.OutputView) return false;
+  return node.output != null && node.output !== '';
 }
 
 export function getRenderPage(): React.FC | null {

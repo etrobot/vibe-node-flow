@@ -32,6 +32,9 @@ NODE_ENV=production npm start
 
 The model client reads `BASE_URL`, `API_KEY`, and `LLM_MODEL` from `.env`. Credentials are server-only and are never stored in workflow JSON or browser state.
 
+Scheduled workflow failures are logged as warnings. To also receive Telegram
+notifications, set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`.
+
 ### Single Executable Deployment (Recommended)
 
 ```sh

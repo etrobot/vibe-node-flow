@@ -1,14 +1,52 @@
 import cron, { type ScheduledTask } from "node-cron";
-import type { WorkflowScheduleStatus } from "../App/types";
+import type { RunRecord, WorkflowScheduleStatus } from "../App/types";
 import * as storage from "./storage";
 import { getActiveFullWorkflowRun, startWorkflowRun } from "./run-service";
 import {
   ensureWorkflowScheduleFile,
   readWorkflowSchedule,
 } from "./schedule-config";
+import { sendTelegramMessage } from "./telegram";
 
 const scheduledTasks = new Map<string, ScheduledTask>();
 let started = false;
+
+function summarizeRunFailure(result: RunRecord): string {
+  const failures = result.nodes
+    .filter((node) => node.status === "error" || node.status === "warning")
+    .map((node) => `${node.nodeTitle}: ${node.error || "failed without an error message"}`);
+  return failures.length ? failures.join("\n") : "The workflow executor returned an error without node details.";
+}
+
+async function notifyCronFailure(
+  workflowId: string,
+  workflowName: string,
+  runId: string | undefined,
+  reason: string,
+): Promise<void> {
+  console.warn(
+    `[scheduler] ${workflowId} cron run failed${runId ? ` (run ${runId})` : ""}: ${reason}`,
+  );
+
+  const message = [
+    "⚠️ Cron workflow failed",
+    `Workflow: ${workflowName} (${workflowId})`,
+    ...(runId ? [`Run: ${runId}`] : []),
+    `Time: ${new Date().toISOString()}`,
+    `Error: ${reason}`,
+  ].join("\n");
+
+  try {
+    if (await sendTelegramMessage(message)) {
+      console.log(`[scheduler] Telegram failure notification sent for ${workflowId}`);
+    }
+  } catch (error) {
+    console.error(
+      `[scheduler] Telegram failure notification could not be sent for ${workflowId}:`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
 
 async function destroyTask(workflowId: string): Promise<void> {
   const existing = scheduledTasks.get(workflowId);
@@ -45,10 +83,20 @@ export async function syncWorkflowSchedule(workflowId: string): Promise<void> {
         console.log(
           `[scheduler] ${workflowId} finished ${result.id} with ${result.status}`,
         );
+        if (result.status === "error") {
+          await notifyCronFailure(
+            workflowId,
+            workflow.name,
+            result.id,
+            summarizeRunFailure(result),
+          );
+        }
       } catch (error) {
-        console.error(
-          `[scheduler] ${workflowId} failed to start:`,
-          error instanceof Error ? error.message : error,
+        await notifyCronFailure(
+          workflowId,
+          workflow.name,
+          undefined,
+          error instanceof Error ? error.message : String(error),
         );
       }
     },

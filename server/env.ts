@@ -17,6 +17,10 @@ export interface EnvConfig {
   IMAGE_MODEL: string;
   /** Maximum nodes allowed in one workflow. Empty means the default (10). */
   MAX_FLOW_NODES: string;
+  /** Telegram Bot API token used for scheduled-run failure notifications. */
+  TELEGRAM_BOT_TOKEN: string;
+  /** Telegram chat id that receives scheduled-run failure notifications. */
+  TELEGRAM_CHAT_ID: string;
 }
 
 export type EnvKey = keyof EnvConfig;
@@ -30,6 +34,8 @@ export function getEnv(): EnvConfig {
     VL_MODEL: process.env.VL_MODEL || "",
     IMAGE_MODEL: process.env.IMAGE_MODEL || "",
     MAX_FLOW_NODES: process.env.MAX_FLOW_NODES || "",
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || "",
+    TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || "",
   };
 }
 

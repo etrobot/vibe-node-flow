@@ -9,6 +9,7 @@ import {
   DEFAULT_WORKFLOW_ICON,
 } from './types';
 import { api } from './utils/api';
+import { isMobileViewport } from './utils/viewport';
 import { hasUpstreamData, nodeOutputToText, resolveUpstreamInput } from './utils/upstream';
 import { ManualInputModal } from './components/ui/ManualInputModal';
 import type { NodeTextInput } from '../lib/node-io';
@@ -18,6 +19,7 @@ import { RunDetailPage } from './components/ui/RunDetailPage';
 import type { RunHistoryContext } from './components/ui/RunHistoryPage';
 import { FlowCanvas } from './FlowCanvas';
 import { NodeInspector } from './NodeInspector';
+import { AppLayoutView } from './components/ui/AppLayoutView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   DEFAULT_NODE_TAG_CATALOG,
@@ -25,9 +27,15 @@ import {
   mergeNodeTagCatalog,
   normalizeNodeTag,
   uniqueNodeTags,
+  uniqueWorkflowTags,
 } from '../lib/workflow-tags';
 import { columnIndexOf, columnX, snapY, effectiveLaneLabel, findLaneLabelConflict } from '../lib/canvas-layout';
 import { AppRoute, absoluteRouteUrl, parseRoute, routePath } from './utils/routes';
+import {
+  readWorkspaceLayout,
+  writeWorkspaceLayout,
+  type WorkspaceLayout,
+} from './utils/workspace-layout';
 
 const initialRoute = parseRoute(window.location);
 
@@ -63,16 +71,18 @@ type WorkflowMetaSnapshot = {
   description: string;
   icon: string;
   color: string;
+  tags: string[];
 };
 
 function workflowMetaSnapshot(
-  wf: Pick<WorkflowItem, 'name' | 'description' | 'icon' | 'color'>,
+  wf: Pick<WorkflowItem, 'name' | 'description' | 'icon' | 'color' | 'tags'>,
 ): WorkflowMetaSnapshot {
   return {
     name: wf.name,
     description: wf.description ?? '',
     icon: wf.icon ?? DEFAULT_WORKFLOW_ICON,
     color: wf.color ?? DEFAULT_WORKFLOW_COLOR,
+    tags: uniqueWorkflowTags(wf.tags),
   };
 }
 
@@ -203,7 +213,8 @@ export default function App() {
 
   // Inspector & Layout state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState<boolean>(false);
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState<boolean>(() => isMobileViewport());
+  const [workspaceLayout, setWorkspaceLayout] = useState<WorkspaceLayout>(readWorkspaceLayout);
 
   // Execution state
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -223,6 +234,7 @@ export default function App() {
     description: '',
     icon: DEFAULT_WORKFLOW_ICON,
     color: DEFAULT_WORKFLOW_COLOR,
+    tags: [],
   });
   const [isSaving, setIsSaving] = useState(false);
   const nodesRef = useRef<FlowNode[]>([]);
@@ -662,13 +674,16 @@ export default function App() {
     name: string,
     description: string,
     icon: string,
-    color: string
+    color: string,
+    tags: string[],
   ) => {
+    const nextTags = uniqueWorkflowTags(tags);
+    console.log('[App] handleEditWorkflowMeta', { id, name, tags: nextTags });
     setWorkflows((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, name, description, icon, color } : w))
+      prev.map((w) => (w.id === id ? { ...w, name, description, icon, color, tags: nextTags } : w))
     );
     try {
-      await api.updateMeta(id, name, description, icon, color);
+      await api.updateMeta(id, name, description, icon, color, nextTags);
     } catch (e) {
       console.error('Failed to update workflow info:', e);
     }
@@ -963,6 +978,20 @@ export default function App() {
     void executeSingleNode(nodeId);
   };
 
+  const handleWorkspaceLayoutChange = useCallback((layout: WorkspaceLayout) => {
+    setWorkspaceLayout((current) => {
+      if (current === layout) return current;
+      console.log('[workspace-layout] switch', { from: current, to: layout, view: currentView });
+      writeWorkspaceLayout(layout);
+      return layout;
+    });
+  }, [currentView]);
+
+  const handleSelectNode = useCallback((id: string | null) => {
+    setSelectedNodeId(id);
+    if (id && !isMobileViewport()) setIsInspectorCollapsed(false);
+  }, []);
+
   const activeWorkflow = workflows.find((w) => w.id === activeWorkflowId);
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
   const manualInputPromptNode = manualInputPromptNodeId
@@ -983,6 +1012,8 @@ export default function App() {
           onEditWorkflowMeta={handleEditWorkflowMeta}
           onOpenRun={handleOpenRunDetail}
           onChangeTab={handleHomeTabChange}
+          workspaceLayout={workspaceLayout}
+          onWorkspaceLayoutChange={handleWorkspaceLayoutChange}
         />
       </>
     );
@@ -994,6 +1025,8 @@ export default function App() {
         runId={selectedRunId}
         onBack={handleBackFromRunDetail}
         onOpenWorkflow={(workflowId) => void handleOpenWorkflow(workflowId)}
+        workspaceLayout={workspaceLayout}
+        onWorkspaceLayoutChange={handleWorkspaceLayoutChange}
       />
     );
   }
@@ -1038,21 +1071,48 @@ export default function App() {
           onReset={handleReset}
           isDirty={isDirty}
           isSaving={isSaving}
+          workspaceLayout={workspaceLayout}
+          onWorkspaceLayoutChange={handleWorkspaceLayoutChange}
         />
 
-        {/* Main Split Screen Area (Canvas + Node Inspector) */}
-        <div className="flex-1 flex overflow-hidden relative">
-          <div className="flex-1 h-full relative overflow-hidden">
+        {/* Main Split Screen Area (Canvas + Node Inspector, or App layout) */}
+        {workspaceLayout === 'app' ? (
+          <AppLayoutView
+            nodes={nodes}
+            edges={edges}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={handleSelectNode}
+            onUpdateNode={handleUpdateNode}
+            onRunSingleNode={handleRunSingleNode}
+            workflowId={activeWorkflowId || undefined}
+            runId={(selectedNodeId ? singleRunIds[selectedNodeId] : undefined) || fullRunId || undefined}
+            lastManualInput={selectedNodeId ? lastManualInputs[selectedNodeId] ?? null : null}
+            reuseOverwriteGeneratedAssets={reuseOverwriteGeneratedAssets}
+            onUpdateReuseOverwriteGeneratedAssets={(value) => {
+              console.log(
+                `[App] reuseOverwriteGeneratedAssets → ${value} workflowId=${activeWorkflowId}`,
+              );
+              setReuseOverwriteGeneratedAssets(value);
+              if (!activeWorkflowId) return;
+              setWorkflows((prev) =>
+                prev.map((workflow) => (
+                  workflow.id === activeWorkflowId
+                    ? { ...workflow, reuseOverwriteGeneratedAssets: value, updatedAt: nowLabel() }
+                    : workflow
+                ))
+              );
+            }}
+            isInspectorCollapsed={isInspectorCollapsed}
+            onToggleInspectorCollapse={() => setIsInspectorCollapsed((collapsed) => !collapsed)}
+          />
+        ) : (
+        <div className="relative z-10 flex-1 flex overflow-hidden">
+          <div className="relative z-10 flex-1 h-full overflow-hidden">
             <FlowCanvas
               nodes={nodes}
               edges={edges}
               selectedNodeId={selectedNodeId}
-              onSelectNode={(id) => {
-                setSelectedNodeId(id);
-                if (id) {
-                  setIsInspectorCollapsed(false);
-                }
-              }}
+              onSelectNode={handleSelectNode}
               onUpdateNodePosition={handleUpdateNodePosition}
               onConnect={handleConnect}
               onDeleteNode={handleDeleteNode}
@@ -1068,6 +1128,7 @@ export default function App() {
             />
           </div>
 
+          <div className="max-sm:w-0 max-sm:shrink-0 max-sm:overflow-visible">
           <NodeInspector
             node={selectedNode}
             allNodes={nodes}
@@ -1095,7 +1156,9 @@ export default function App() {
               );
             }}
           />
+          </div>
         </div>
+        )}
 
         {manualInputPromptNode && (
           <ManualInputModal

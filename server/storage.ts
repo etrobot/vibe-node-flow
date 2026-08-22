@@ -21,6 +21,7 @@ import {
   DEFAULT_NODE_TAG_CATALOG,
   mergeNodeTagCatalog,
   uniqueNodeTags,
+  uniqueWorkflowTags,
 } from "../lib/workflow-tags";
 import {
   ensureWorkflowScheduleFile,
@@ -166,6 +167,11 @@ function workflowTagCatalog(workflow: DiskWorkflow): string[] {
   );
 }
 
+function persistedWorkflowTags(tags?: string[]): string[] | undefined {
+  const next = uniqueWorkflowTags(tags);
+  return next.length > 0 ? next : undefined;
+}
+
 function readDiskWorkflow(id: string): DiskWorkflow | null {
   const file = path.join(workflowDir(id), "workflow.json");
   if (!fs.existsSync(file)) return null;
@@ -190,7 +196,7 @@ export function listWorkflows(): WorkflowItem[] {
       icon: dw.icon || DEFAULT_WORKFLOW_ICON,
       color: dw.color || DEFAULT_WORKFLOW_COLOR,
       tagCatalog: workflowTagCatalog(dw),
-      tags: dw.tags,
+      tags: uniqueWorkflowTags(dw.tags),
       laneLabels: dw.laneLabels,
       reuseOverwriteGeneratedAssets: Boolean(dw.reuseOverwriteGeneratedAssets),
       nodes: dw.nodes.map(summaryNode),
@@ -215,7 +221,7 @@ export function getWorkflow(id: string): WorkflowItem | null {
     icon: dw.icon || DEFAULT_WORKFLOW_ICON,
     color: dw.color || DEFAULT_WORKFLOW_COLOR,
     tagCatalog: workflowTagCatalog(dw),
-    tags: dw.tags,
+    tags: uniqueWorkflowTags(dw.tags),
     laneLabels: dw.laneLabels,
     reuseOverwriteGeneratedAssets: Boolean(dw.reuseOverwriteGeneratedAssets),
     nodes: dw.nodes.map((dn) => fromDiskNode(id, dn)),
@@ -268,7 +274,7 @@ export function saveWorkflow(item: WorkflowItem): WorkflowItem {
     icon: workflowIcon,
     color: workflowColor,
     tagCatalog: item.tagCatalog,
-    tags: item.tags,
+    tags: uniqueWorkflowTags(item.tags),
     laneLabels: item.laneLabels,
     reuseOverwriteGeneratedAssets: Boolean(item.reuseOverwriteGeneratedAssets),
     nodes: item.nodes.map((node) => ({
@@ -299,7 +305,7 @@ export function saveWorkflow(item: WorkflowItem): WorkflowItem {
       item.tagCatalog,
       normalized.nodes.flatMap((node) => node.tags ?? []),
     ),
-    tags: item.tags,
+    tags: persistedWorkflowTags(item.tags),
     laneLabels: normalized.laneLabels,
     reuseOverwriteGeneratedAssets: Boolean(item.reuseOverwriteGeneratedAssets),
     nodes: normalized.nodes.map((node) => toDiskNode({
@@ -371,6 +377,7 @@ export function duplicateWorkflow(id: string): WorkflowItem | null {
     icon: src.icon || DEFAULT_WORKFLOW_ICON,
     color: src.color || DEFAULT_WORKFLOW_COLOR,
     tagCatalog: src.tagCatalog,
+    tags: src.tags,
     laneLabels: src.laneLabels,
     reuseOverwriteGeneratedAssets: Boolean(src.reuseOverwriteGeneratedAssets),
     nodes,
@@ -392,7 +399,8 @@ export function updateWorkflowMeta(
   name?: string,
   description?: string,
   icon?: string,
-  color?: string
+  color?: string,
+  tags?: string[],
 ): WorkflowItem | null {
   const dw = readDiskWorkflow(id);
   if (!dw) return null;
@@ -400,7 +408,17 @@ export function updateWorkflowMeta(
   if (description !== undefined) dw.description = description;
   if (icon !== undefined) dw.icon = icon || DEFAULT_WORKFLOW_ICON;
   if (color !== undefined) dw.color = color || DEFAULT_WORKFLOW_COLOR;
+  if (tags !== undefined) {
+    const next = uniqueWorkflowTags(tags);
+    if (next.length > 0) dw.tags = next;
+    else delete dw.tags;
+  }
   dw.updatedAt = nowIso();
+  console.error('[storage] updateWorkflowMeta', {
+    id,
+    name: dw.name,
+    tags: dw.tags ?? [],
+  });
   fs.writeFileSync(
     path.join(workflowDir(id), "workflow.json"),
     JSON.stringify(dw, null, 2),

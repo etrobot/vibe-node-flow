@@ -1,3 +1,9 @@
 {
-  "type": "fish-audio-narration"
+  "type": "fish-audio-narration",
+  "label": "Fish Audio Narration",
+  "menuLabel": "Fish Audio Narration",
+  "description": "Synthesize per-clip MP3 narration with Fish Audio S2 Pro using a fixed official voice.",
+  "icon": "AudioLines",
+  "color": "#15803d",
+  "menuOrder": 40
 }

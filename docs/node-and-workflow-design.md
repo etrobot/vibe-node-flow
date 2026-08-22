@@ -54,7 +54,7 @@ Data moves `upstream output -> edge -> receiving node`, and the receiving node i
 | Standalone application | Given explicit configuration and input, runs with its own validation, output, errors, logs, resources, and side-effect boundary — exposed through an API, CLI, dedicated page, or single-node run. |
 | Workflow node | Accepts upstream input, follows the text edge protocol, returns node status and output, consumes run context, and participates in DAG waves, assets, and history. |
 
-Both modes share the same domain core and validators; only the boundary adapter differs. Never maintain two business implementations. A capability with no useful meaning outside its parent node stays an internal module. Single-node run is the minimum standalone implementation; a fuller end-user application belongs in the node directory, never in host business logic.
+Both modes share the same domain core and validators; only the boundary adapter differs. Never maintain two business implementations. A capability with no useful meaning outside its parent node stays an internal module. Single-node run is the minimum standalone implementation; a fuller end-user application belongs in the node directory, never in host business logic. The host **app layout** is chrome only — an execution-order icon rail, the node's own middle pane, and the unified inspector — it does not become a second place to put domain UI.
 
 ### 6. Persist shared content; keep edge output LLM-lean
 
@@ -120,7 +120,7 @@ The brief text lives at `<run>/assets/source-brief.md`. A downstream Demo UI nod
 2. **Set the node boundary.** Input, output, resources, permissions, failure modes, standalone entry point.
 3. **Implement the node core.** Parsing, domain logic, input/output validation, and diagnostics — all inside the node directory.
 4. **Prove standalone execution first.** Valid, invalid, empty, and boundary input, without a complete workflow.
-5. **Add the host adapters.** The `server.ts` plugin and the `client.tsx` editing/observation UI. The host only orchestrates and persists.
+5. **Add the host adapters.** The required `server.ts` plugin and, only when needed, an optional `client.tsx` for custom editing or preview UI. Server-only nodes use `node.json` metadata and the host's unified inspector panel. The host only orchestrates and persists.
 6. **Compose the workflow.** Start with a linear chain; add parallel branches and joins only when a real boundary requires them — and only after node contracts are stable.
 7. **Validate the graph.** After every node add, delete, or config/type change, re-check the full edge set before saving or running: remove dangling edges, confirm each `fromNodeId`/`toNodeId` still exists, verify upstream output still matches downstream input contracts, and check cycles, installed types, node count, input reachability, failed branches, and resource lifecycles.
 
@@ -128,7 +128,7 @@ The brief text lives at `<run>/assets/source-brief.md`. A downstream Demo UI nod
 
 ### Responsibility boundary
 
-A node owns configuration and defaults; input parsing, semantic validation, and missing-input behavior; business logic, model calls, external tools, and retries; output shape, output validation, and actionable diagnostics; its own editing, preview, and run-state UI; any executable the host may launch for it; and its asset and run-output path rules.
+A node owns configuration and defaults; input parsing, semantic validation, and missing-input behavior; business logic, model calls, external tools, and retries; output shape, output validation, and actionable diagnostics; optional custom editing, preview, and run-state UI (via `client.tsx` when the unified panel is not enough); any executable the host may launch for it; and its asset and run-output path rules.
 
 The host discovers plugins, checks graph structure, schedules execution, persists run history, and serves diagnostics. It never parses domain JSON, prompts, or business schemas, and never decides whether node input is valid.
 
@@ -147,27 +147,32 @@ Each node is a removable and distributable directory under `nodes/<name>/`:
 
 ```text
 nodes/<name>/
-  node.json       node type and discovery metadata
-  client.tsx      editor, preview, and run-observation UI
-  server.ts       server-side execution plugin
-  NODE.md         contract, configuration, and failure documentation
+  node.json       required: type and UI/discovery metadata
+  server.ts       required: server-side execution plugin
+  NODE.md         recommended: contract, configuration, and failure documentation
+  client.tsx      optional: custom editor, preview, or run-observation UI
   <script>        optional node-owned executable
 ```
 
-`node.json`, `client.tsx`, and `server.ts` must declare the same globally unique `type`, matching `^[A-Za-z0-9][A-Za-z0-9._:/-]*$`. The directory name only affects discovery; directories beginning with `.` or `_` are ignored. Adding a node means adding this directory — never changes to the host `package.json`, build configuration, or source code. Deleting the directory removes the node. Restart `npm run dev` to rediscover plugins during development.
+Each node directory must contain `node.json` and `server.ts`. `client.tsx` is optional.
 
-`client.tsx` owns editing and presentation, never secrets or server behavior, and default-exports a `NodeModule`:
+`node.json` declares the globally unique `type`, matching `^[A-Za-z0-9][A-Za-z0-9._:/-]*$`. For server-only nodes it also carries the UI metadata the host uses at registration time:
 
-```tsx
-import type { NodeModule } from '@/App/types.node-module';
-
-export default {
-  type: 'acme.uppercase',
-  label: 'Uppercase',
-  icon: 'CaseUpper',
-  createConfig: () => ({ prefix: '' }),
-} satisfies NodeModule;
+```json
+{
+  "type": "acme.uppercase",
+  "label": "Uppercase",
+  "menuLabel": "Uppercase",
+  "description": "Convert upstream text to uppercase.",
+  "icon": "CaseUpper",
+  "color": "#64748b",
+  "menuOrder": 50
+}
 ```
+
+If `label` is omitted, the host derives one from the directory name (`fish-audio-narration` → `Fish Audio Narration`). The directory name only affects discovery; directories beginning with `.` or `_` are ignored. Adding a node means adding this directory — never changes to the host `package.json`, build configuration, or source code. Deleting the directory removes the node. Restart `pnpm dev` to rediscover plugins during development.
+
+`server.ts` must export the same `type` as `node.json`. When present, `client.tsx` must match that type too.
 
 `server.ts` default-exports `{ type, execute }`. `execute` receives the current node, upstream text input, accepted previous outputs, workflow identity, the runtime asset directories, and the host database path; it returns `{ output, logs? }` and may return a diagnostic warning:
 
@@ -212,6 +217,39 @@ export default {
   },
 };
 ```
+
+### Optional client UI (`client.tsx`)
+
+Server-only nodes rely on the host's unified inspector for configuration, input, output, logs, and resource access. Add `client.tsx` only when that panel is insufficient — for example a custom `OutputView`, `CustomView`, `RenderPage`, or non-default `createConfig`. It owns editing and presentation, never secrets or server behavior, and default-exports a `NodeModule`:
+
+```tsx
+import type { NodeModule } from '@/App/types.node-module';
+
+export default {
+  type: 'acme.uppercase',
+  label: 'Uppercase',
+  icon: 'CaseUpper',
+  createConfig: () => ({ prefix: '' }),
+} satisfies NodeModule;
+```
+
+### Host presentation: canvas vs app layout
+
+The host can show a workflow as a **canvas** (graph + inspector) or an **app layout** (icon rail in execution order, node-owned middle pane, inspector on the right). Switching layouts does not change contracts, validation, or `execute`. It only chooses which existing node surface fills the middle pane:
+
+| Surface | Add it when | App-layout middle pane |
+| --- | --- | --- |
+| `CustomView` | Editing or interactive preview the unified inspector cannot express | Always, if present |
+| `RenderPage` | A dedicated full-page application | If there is no `CustomView` |
+| `OutputView` | A real post-run preview (audio, video, structured result) | Only when the node already has output |
+| `NODE.md` | Recommended on every node | Default when none of the above apply |
+
+Rules for node authors:
+
+1. **Do not ship an empty custom panel.** A `CustomView` or `OutputView` whose only content is “run this node to see results” is not a panel. Omit it. The inspector already shows run state; app layout will fall through to `NODE.md`.
+2. **`OutputView` is for results, not placeholders.** The host treats `OutputView` as a custom panel only after the node has output. Before that, the node is a contract page (`NODE.md`), not an empty preview shell.
+3. **Write `NODE.md` for an operator.** In app layout it is the default application page for server-only nodes. Cover configuration, input, output, resources, side effects, and how to repair failures — including asset paths for anything shared across nodes.
+4. **Keep application UI inside the node.** `CustomView` / `RenderPage` / `OutputView` stay in `client.tsx`. The host must not grow per-type middle panes, and app layout must not become a reason to move domain UI into host code.
 
 ### Logs and resource audit
 
@@ -345,9 +383,9 @@ A minimal valid graph definition:
   "color": "#1e293b",
   "laneLabels": ["Research", "Generation"],
   "nodes": [
-    { "id": "node-abc1234", "type": "content-brief", "title": "Research Brief",
+    { "id": "node-abc1234", "type": "workflow-json-brief", "title": "Workflow Brief",
       "lane": "Research", "x": 400, "y": 200,
-      "config": { "topic": "...", "audience": "..." } },
+      "config": { "sourceWorkflowPath": "workflows/app-launch-video-en/workflow.json" } },
     { "id": "node-def5678", "type": "clip-storyboard", "title": "Storyboard",
       "lane": "Generation", "x": 760, "y": 200, "config": {} }
   ],
@@ -430,7 +468,7 @@ workflow-json-brief -> clip-storyboard
 | --- | --- | --- |
 | [`workflow-json-brief`](../nodes/workflow-json-brief/NODE.md) | Workflow JSON | Read and validate a real `workflow.json`, then emit a grounded explainer brief without a generative repair loop. |
 | [`clip-storyboard`](../nodes/clip-storyboard/NODE.md) | Storyboard JSON | Convert a brief into validated clip JSON, reusable structures, and narration anchors; write `source-brief.md` once and return `sourceBriefPath`. |
-| [`fish-audio-narration`](../nodes/fish-audio-narration/NODE.md) | Parallel Assets | Convert clip narration to MP3 and measure the shot timeline. |
+| [`fish-audio-narration`](../nodes/fish-audio-narration/NODE.md) | Parallel Assets | Convert clip narration to MP3 and measure the shot timeline. Server-only: `node.json` + `server.ts`, no `client.tsx`. |
 | [`mermaid-en-html`](../nodes/mermaid-en-html/NODE.md) | Parallel Assets | Read `sourceBriefPath`, render workflow/Mermaid Demo UI HTML, and validate each offline document independently. |
 | [`app-video-render`](../nodes/app-video-render/NODE.md) | Video Preview | Join timeline, narration, and Demo UI into preview and MP4 preparation; ships `render-video.sh`. |
 
@@ -442,7 +480,7 @@ The MP4 path requires local `ffmpeg` and a Chromium-family browser. Fish Audio c
 
 1. The node runs independently against valid, empty, boundary, and invalid input.
 2. It validates input before expensive work and validates output before returning it.
-3. `NODE.md` documents configuration, input, output, resources, side effects, and failure behavior — including asset paths for anything shared across nodes.
+3. `NODE.md` documents configuration, input, output, resources, side effects, and failure behavior — including asset paths for anything shared across nodes. It is also the default app-layout page when the node has no `CustomView`, `RenderPage`, or post-run `OutputView`.
 4. The workflow expresses only dependencies and parallelism — no business rules in edges or host code.
 5. The same result cannot be expressed with fewer nodes without losing a real audit or execution boundary.
 6. Run history contains enough detail to diagnose warnings, errors, retries, and generated assets.

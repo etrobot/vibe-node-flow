@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 
 import { ThemeSelector } from './ThemeSelector';
+import { LayoutToggle } from './LayoutToggle';
+import type { WorkspaceLayout } from '../../utils/workspace-layout';
 
 interface HeaderProps {
   onRunWorkflow: () => void;
@@ -34,6 +36,8 @@ interface HeaderProps {
   onReset?: () => void;
   isDirty?: boolean;
   isSaving?: boolean;
+  workspaceLayout?: WorkspaceLayout;
+  onWorkspaceLayoutChange?: (layout: WorkspaceLayout) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -51,6 +55,8 @@ export const Header: React.FC<HeaderProps> = ({
   onReset,
   isDirty = false,
   isSaving = false,
+  workspaceLayout = 'canvas',
+  onWorkspaceLayoutChange,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState(activeWorkflowName || '');
@@ -69,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="h-14 px-3 sm:px-5 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md z-30">
+      <header className="relative z-50 h-14 px-3 sm:px-5 bg-surface-canvas/90 border-b border-hairline flex items-center justify-between shrink-0 backdrop-blur-md">
         {/* Left: Back button & Brand / Title */}
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
           {onBackToHome && (
@@ -127,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
               <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-semibold bg-surface-canvas-soft text-muted border border-hairline rounded-pill shrink-0">
-                Canvas
+                {workspaceLayout === 'app' ? 'App' : 'Canva'}
               </span>
               {isDirty && (
                 <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 rounded-pill flex items-center gap-1 shrink-0">
@@ -142,6 +148,9 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Tools: Save/Reset + Run Workflow */}
         <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
+          {onWorkspaceLayoutChange && (
+            <LayoutToggle layout={workspaceLayout} onChange={onWorkspaceLayoutChange} />
+          )}
           <ThemeSelector />
           {/* Run History */}
           {onOpenHistory && (
@@ -202,18 +211,19 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onStopWorkflow}
               disabled={!onStopWorkflow}
               title="Stop workflow"
-              className="btn-pill flex items-center gap-1.5 text-xs px-3 sm:px-4 bg-semantic-error hover:bg-semantic-error/85 text-white border border-semantic-error cursor-pointer disabled:cursor-wait disabled:opacity-70"
+              className="btn-pill flex items-center gap-1.5 text-xs px-2.5 sm:px-4 bg-semantic-error hover:bg-semantic-error/85 text-white border border-semantic-error cursor-pointer disabled:cursor-wait disabled:opacity-70"
             >
               <CircleStop className="w-4 h-4" />
-              <span>Stop</span>
+              <span className="hidden sm:inline">Stop</span>
             </button>
           ) : (
             <button
               onClick={onRunWorkflow}
-              className="btn-pill flex items-center gap-1.5 text-xs px-3 sm:px-4 bg-primary hover:bg-primary-active text-on-primary active:scale-97 border border-primary"
+              title="Run workflow"
+              className="btn-pill flex items-center gap-1.5 text-xs px-2.5 sm:px-4 bg-primary hover:bg-primary-active text-on-primary active:scale-97 border border-primary"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span><span className="hidden sm:inline">Run </span>Workflow</span>
+              <span className="hidden sm:inline">Run Workflow</span>
             </button>
           )}
         </div>

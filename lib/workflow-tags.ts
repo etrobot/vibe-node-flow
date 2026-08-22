@@ -47,6 +47,24 @@ export function uniqueNodeTags(tags: readonly string[] | undefined): string[] {
   return result;
 }
 
+/** Workflow discovery tags reuse the same trim / length / case-insensitive uniqueness rules. */
+export const uniqueWorkflowTags = uniqueNodeTags;
+export const normalizeWorkflowTag = normalizeNodeTag;
+
+export function workflowHasTag(tags: readonly string[] | undefined, tag: string): boolean {
+  const key = normalizeWorkflowTag(tag).toLocaleLowerCase();
+  if (!key) return false;
+  return uniqueWorkflowTags(tags).some((candidate) => candidate.toLocaleLowerCase() === key);
+}
+
+export function workflowHasAnyTag(
+  tags: readonly string[] | undefined,
+  selectedTags: readonly string[],
+): boolean {
+  if (selectedTags.length === 0) return true;
+  return selectedTags.some((tag) => workflowHasTag(tags, tag));
+}
+
 export function mergeNodeTagCatalog(
   catalog?: readonly string[],
   selectedTags?: readonly string[],

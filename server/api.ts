@@ -128,7 +128,15 @@ export function registerApiRoutes(app: Express): void {
   app.get(
     "/api/workflows",
     wrap(async (_req, res) => {
-      res.json(storage.listWorkflows());
+      // Schedules live beside workflow.json, so include their runtime status
+      // in the list response; otherwise an enabled cron job is invisible until
+      // the user opens its schedule dialog.
+      res.json(
+        storage.listWorkflows().map((workflow) => ({
+          ...workflow,
+          schedule: getWorkflowScheduleStatus(workflow.id),
+        })),
+      );
     })
   );
 
@@ -167,17 +175,29 @@ export function registerApiRoutes(app: Express): void {
     })
   );
 
-  // Lightweight metadata edit (name/description/icon/color) from list or editor.
+  // Lightweight metadata edit (name/description/icon/color/tags) from list or editor.
   app.patch(
     "/api/workflows/:id",
     wrap(async (req, res) => {
-      const { name, description, icon, color } = req.body || {};
+      const { name, description, icon, color, tags } = req.body || {};
+      if (tags !== undefined && !Array.isArray(tags)) {
+        return res.status(400).json({ error: "tags must be an array of strings" });
+      }
+      const nextTags = tags === undefined
+        ? undefined
+        : tags.map((tag: unknown) => String(tag));
+      console.log('[api] PATCH /api/workflows/:id meta', {
+        id: req.params.id,
+        name,
+        tags: nextTags,
+      });
       const wf = storage.updateWorkflowMeta(
         req.params.id,
         name === undefined ? undefined : String(name),
         description === undefined ? undefined : String(description),
         icon === undefined ? undefined : String(icon),
-        color === undefined ? undefined : String(color)
+        color === undefined ? undefined : String(color),
+        nextTags,
       );
       if (!wf) return res.status(404).json({ error: "Workflow not found" });
       res.json(wf);

@@ -1,12 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import type { FlowEdge, FlowNode, RunNodeRecord, RunRecord, RunWorkflowSnapshot, WorkflowItem } from '../../types';
 import { DEFAULT_WORKFLOW_ICON, DEFAULT_WORKFLOW_COLOR } from '../../types';
 import { api } from '../../utils/api';
+import { isMobileViewport } from '../../utils/viewport';
 import { getModule } from '@/App/registry';
 import { FlowCanvas } from '@/App/FlowCanvas';
 import { NodeInspector } from '@/App/NodeInspector';
 import { renderLucideIcon } from './IconPicker';
 import { ThemeSelector } from './ThemeSelector';
+import { LayoutToggle } from './LayoutToggle';
+import { AppLayoutView } from './AppLayoutView';
+import type { WorkspaceLayout } from '../../utils/workspace-layout';
 import {
   AlertCircle,
   ArrowLeft,
@@ -24,6 +28,8 @@ interface RunDetailPageProps {
   runId: string;
   onBack: () => void;
   onOpenWorkflow?: (workflowId: string) => void;
+  workspaceLayout?: WorkspaceLayout;
+  onWorkspaceLayoutChange?: (layout: WorkspaceLayout) => void;
 }
 
 const formatTime = (iso: string): string => {
@@ -67,11 +73,13 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
   runId,
   onBack,
   onOpenWorkflow,
+  workspaceLayout = 'canvas',
+  onWorkspaceLayoutChange,
 }) => {
   const [record, setRecord] = useState<RunRecord | null>(null);
   const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowItem | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(() => isMobileViewport());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -185,6 +193,11 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
   const selectedModule = selectedNode ? getModule(selectedNode.type) : null;
 
+  const handleSelectNode = useCallback((nodeId: string | null) => {
+    setSelectedNodeId(nodeId);
+    if (nodeId && !isMobileViewport()) setIsInspectorCollapsed(false);
+  }, []);
+
   /** Resolve the workflow icon and color from the live workflow (or default). */
   const workflowAppearance = useMemo(() => {
     if (currentWorkflow?.icon) return { icon: currentWorkflow.icon, color: currentWorkflow.color || DEFAULT_WORKFLOW_COLOR };
@@ -248,6 +261,9 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
+          {onWorkspaceLayoutChange && (
+            <LayoutToggle layout={workspaceLayout} onChange={onWorkspaceLayoutChange} />
+          )}
           <ThemeSelector />
           <div className="hidden lg:flex items-center gap-3 text-[11px] text-muted mr-1">
             <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{formatTime(record.startedAt)}</span>
@@ -270,16 +286,32 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
         </div>
       </header>
 
+      {workspaceLayout === 'app' ? (
+        <AppLayoutView
+          nodes={nodes}
+          edges={edges}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={handleSelectNode}
+          onUpdateNode={() => undefined}
+          onRunSingleNode={() => undefined}
+          readOnly
+          workflowId={record.workflowId}
+          runId={record.id}
+          reuseOverwriteGeneratedAssets={Boolean(
+            record.workflowSnapshot?.reuseOverwriteGeneratedAssets
+            ?? currentWorkflow?.reuseOverwriteGeneratedAssets,
+          )}
+          isInspectorCollapsed={isInspectorCollapsed}
+          onToggleInspectorCollapse={() => setIsInspectorCollapsed((collapsed) => !collapsed)}
+        />
+      ) : (
       <div className="flex-1 flex overflow-hidden relative">
         <div className="flex-1 h-full relative overflow-hidden">
           <FlowCanvas
             nodes={nodes}
             edges={edges}
             selectedNodeId={selectedNodeId}
-            onSelectNode={(nodeId) => {
-              setSelectedNodeId(nodeId);
-              if (nodeId) setIsInspectorCollapsed(false);
-            }}
+            onSelectNode={handleSelectNode}
             onUpdateNodePosition={() => undefined}
             onConnect={() => undefined}
             onDeleteNode={() => undefined}
@@ -290,6 +322,7 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
           />
         </div>
 
+        <div className="max-sm:w-0 max-sm:shrink-0 max-sm:overflow-visible">
         <NodeInspector
           node={selectedNode}
           allNodes={nodes}
@@ -306,7 +339,9 @@ export const RunDetailPage: React.FC<RunDetailPageProps> = ({
             ?? currentWorkflow?.reuseOverwriteGeneratedAssets,
           )}
         />
+        </div>
       </div>
+      )}
 
       {selectedNode && selectedModule?.RunOverlay && (
         <selectedModule.RunOverlay

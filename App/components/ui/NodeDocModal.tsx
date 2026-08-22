@@ -102,7 +102,7 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   });
 }
 
-function SimpleMarkdown({ source }: { source: string }) {
+export function SimpleMarkdown({ source }: { source: string }) {
   const lines = source.replace(/\r\n/g, '\n').split('\n');
   const blocks: React.ReactNode[] = [];
   let listItems: string[] = [];

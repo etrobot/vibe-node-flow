@@ -75,6 +75,8 @@ export interface WorkflowItem {
   icon?: string;
   /** Hex theme color used by the workflow icon. */
   color?: string;
+  /** Schedule status returned with workflow list items; never persisted in workflow.json. */
+  schedule?: WorkflowScheduleStatus;
   nodes: FlowNode[];
   edges: FlowEdge[];
   /** Reusable catalog for node-level global-operation tags. */

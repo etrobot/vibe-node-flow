@@ -5,7 +5,7 @@ import { renderLucideIcon } from '@/App/components/ui/IconPicker';
 import { IconPickerModal } from '@/App/components/ui/IconPickerModal';
 import { NodeDocModal } from '@/App/components/ui/NodeDocModal';
 import { ErrorBoundary } from '@/App/components/ErrorBoundary';
-import { getModule, getNodeDoc } from './registry';
+import { getModule, getNodeDoc, nodeHasCustomPanel } from './registry';
 import { resolveUpstreamInput } from '@/App/utils/upstream';
 import {
   ChevronRight,
@@ -46,6 +46,11 @@ interface NodeInspectorProps {
   /** Workflow-level: overwrite shared generated assets instead of per-run folders. */
   reuseOverwriteGeneratedAssets?: boolean;
   onUpdateReuseOverwriteGeneratedAssets?: (value: boolean) => void;
+  /**
+   * `drawer` is the canvas inspector (collapsible, may overlay on mobile).
+   * `column` is the app-layout right pane (collapsible, no custom-panel chrome).
+   */
+  variant?: 'drawer' | 'column';
 }
 
 type LogCategory = 'input' | 'output' | 'logs' | NodeResourceKind | 'error';
@@ -72,6 +77,7 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   lastManualInput = null,
   reuseOverwriteGeneratedAssets = false,
   onUpdateReuseOverwriteGeneratedAssets,
+  variant = 'drawer',
 }) => {
   const [filterCategory, setFilterCategory] = useState<LogCategory>('logs');
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,21 +92,24 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
 
   const activeModule = node ? getModule(node.type) : null;
   const nodeDoc = node ? getNodeDoc(node.type) : null;
-  const hasCustomPanel = Boolean(
-    activeModule?.CustomView || activeModule?.OutputView || activeModule?.RenderPage,
-  );
+  const hasCustomPanel = nodeHasCustomPanel(node);
 
   // Read/Save "openPanelOnClickNode" state in node.config
   const openPanelOnClickNode = Boolean(node?.config?.openPanelOnClickNode ?? false);
 
-  // Auto-open full panel modal when node selection changes if openPanelOnClickNode is enabled
+  // Auto-open full panel modal when node selection changes if openPanelOnClickNode is enabled.
+  // App layout already shows the custom panel in the middle column, so skip it there.
   useEffect(() => {
+    if (variant === 'column') {
+      setShowFullPanelModal(false);
+      return;
+    }
     if (node && hasCustomPanel && openPanelOnClickNode) {
       setShowFullPanelModal(true);
     } else {
       setShowFullPanelModal(false);
     }
-  }, [node?.id, hasCustomPanel, openPanelOnClickNode]);
+  }, [node?.id, hasCustomPanel, openPanelOnClickNode, variant]);
 
   // ESC key listener for Full Panel Modal
   useEffect(() => {
@@ -506,28 +515,34 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
         type="button"
         onClick={onToggleCollapse}
         title="Expand details panel"
-        className="absolute right-4 top-3.5 z-30 p-2 rounded-lg bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
+        className="absolute right-4 top-3.5 z-40 p-2 rounded-lg bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-medium"
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
     );
   }
 
+  const mobilePanelOverlay = 'max-sm:fixed max-sm:inset-x-0 max-sm:top-14 max-sm:bottom-0 max-sm:w-full max-sm:min-w-0 max-sm:max-w-none';
+
+  const panelClassName = variant === 'column'
+    ? `relative z-40 w-full sm:w-[min(420px,42vw)] sm:min-w-[280px] sm:max-w-[560px] h-full bg-surface-canvas border-l border-hairline-strong flex flex-col shrink-0 max-sm:border-l-0 ${mobilePanelOverlay}`
+    : `relative z-40 w-full sm:w-[420px] md:w-1/3 sm:min-w-[380px] sm:max-w-[600px] h-full bg-surface-canvas border-t sm:border-t-0 sm:border-l border-hairline-strong flex flex-col shrink-0 max-sm:min-w-0 max-sm:max-w-none ${mobilePanelOverlay} sm:relative sm:inset-auto`;
+
   return (
     <>
-      <div className="w-full sm:w-[420px] md:w-1/3 sm:min-w-[380px] max-w-[600px] h-1/2 sm:h-full bg-surface-canvas border-t sm:border-t-0 sm:border-l border-hairline-strong flex flex-col shrink-0 z-30 fixed inset-x-0 bottom-0 sm:relative sm:inset-auto">
-        {/* Collapse Button (Outside panel top-left for desktop, top for mobile) */}
+      <div className={panelClassName}>
+        {/* Collapse button — desktop only; mobile uses the header close button */}
         <button
           type="button"
           onClick={onToggleCollapse}
           title="Collapse details panel"
-          className="absolute -top-10 right-4 sm:top-3.5 sm:-left-10 sm:right-auto z-30 p-2 rounded-lg bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-sm transition-all cursor-pointer"
+          className="absolute top-3.5 -left-10 z-40 hidden sm:grid place-items-center p-2 rounded-lg bg-surface-card hover:bg-surface-canvas-soft text-ink border border-hairline shadow-sm transition-all cursor-pointer"
         >
-          <ChevronRight className="w-4 h-4 rotate-90 sm:rotate-0" />
+          <ChevronRight className="w-4 h-4" />
         </button>
 
         {/* Header */}
-        <div className="h-14 px-4 border-b border-hairline-soft flex items-center justify-between shrink-0 bg-surface-canvas/90 backdrop-blur-md gap-3">
+        <div className="relative h-14 px-4 border-b border-hairline-soft flex items-center justify-between shrink-0 bg-surface-canvas/90 backdrop-blur-md gap-3">
           {node && activeModule ? (
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <button
@@ -605,8 +620,17 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2 min-w-0 flex-1">
               <span className="font-medium text-xs text-ink">Node Details & Logs</span>
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                title="Close panel"
+                aria-label="Close panel"
+                className="sm:hidden grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
 
@@ -636,9 +660,19 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
                   className="btn-pill border text-xs flex items-center gap-1.5 active:scale-97 cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
-                  Run
+                  <span className="hidden sm:inline">Run</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                title="Close panel"
+                aria-label="Close panel"
+                className="sm:hidden grid h-7 w-7 place-items-center rounded-lg border border-hairline bg-surface-card text-muted transition-colors hover:bg-surface-canvas-soft hover:text-ink cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           )}
         </div>
@@ -651,14 +685,16 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
             <div>
               <h4 className="text-sm font-medium text-ink">No node selected</h4>
               <p className="text-xs text-muted mt-1 max-w-xs">
-                Click a node on the canvas to view its latest execution logs, input/output, and custom UI.
+                {variant === 'column'
+                  ? 'Select a node from the left sidebar to view its latest execution logs, input/output, and settings.'
+                  : 'Click a node on the canvas to view its latest execution logs, input/output, and custom UI.'}
               </p>
             </div>
           </div>
         ) : (
           <>
-          {/* Custom Panel Link Line */}
-          {hasCustomPanel && (
+          {/* Custom Panel Link Line — hidden in app layout, where the panel already fills the middle column */}
+          {hasCustomPanel && variant === 'drawer' && (
               <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b border-hairline-soft">
                 <label className={`flex items-center gap-1.5 text-xs select-none ${readOnly ? 'text-muted' : 'hover:text-ink cursor-pointer'}`}>
                   <input

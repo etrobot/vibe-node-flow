@@ -1,12 +1,20 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   WorkflowItem,
+  WorkflowScheduleStatus,
   DEFAULT_WORKFLOW_COLOR,
   DEFAULT_WORKFLOW_ICON,
 } from '../../types';
 import { api } from '../../utils/api';
 import { renderLucideIcon } from './IconPicker';
 import { IconPickerModal } from './IconPickerModal';
+import {
+  getNodeTagColors,
+  MAX_NODE_TAG_LENGTH,
+  normalizeWorkflowTag,
+  uniqueWorkflowTags,
+  workflowHasAnyTag,
+} from '@/lib/workflow-tags';
 import {
   Search,
   Copy,
@@ -20,6 +28,8 @@ import {
   History,
   CalendarClock,
   Loader2,
+  Plus,
+  Tags,
 } from 'lucide-react';
 
 interface WorkflowListHomeProps {
@@ -32,7 +42,8 @@ interface WorkflowListHomeProps {
     name: string,
     description: string,
     icon: string,
-    color: string
+    color: string,
+    tags: string[]
   ) => void;
   onOpenHistory: (workflowId: string | null) => void;
   /** When true, renders without the outer wrapper and header — for embedding in a tabbed layout. */
@@ -57,6 +68,56 @@ const formatTimestamp = (value?: string): string => {
 
 const localTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
+function tagKey(tag: string): string {
+  return tag.toLocaleLowerCase();
+}
+
+const WorkflowTagChip: React.FC<{
+  tag: string;
+  selected?: boolean;
+  count?: number;
+  onClick?: (event: React.MouseEvent) => void;
+  onRemove?: (event: React.MouseEvent) => void;
+  title?: string;
+}> = ({ tag, selected = false, count, onClick, onRemove, title }) => {
+  const colors = getNodeTagColors(tag);
+  return (
+    <span className="inline-flex items-stretch max-w-full">
+      <button
+        type="button"
+        title={title || tag}
+        onClick={onClick}
+        className={`h-5 max-w-[112px] truncate border px-1.5 text-[10px] font-medium leading-none transition-all cursor-pointer ${
+          onRemove ? 'rounded-l-md' : 'rounded-md'
+        } ${selected ? 'ring-2 ring-black/10 shadow-2xs' : 'opacity-90 hover:opacity-100'}`}
+        style={{
+          backgroundColor: colors.background,
+          borderColor: colors.border,
+          color: colors.foreground,
+        }}
+      >
+        {tag}
+        {count !== undefined && <span className="ml-1 opacity-70">{count}</span>}
+      </button>
+      {onRemove && (
+        <button
+          type="button"
+          title={`Remove ${tag}`}
+          onClick={onRemove}
+          className="h-5 px-1 rounded-r-md border border-l-0 cursor-pointer hover:brightness-95"
+          style={{
+            backgroundColor: colors.background,
+            borderColor: colors.border,
+            color: colors.foreground,
+          }}
+        >
+          <X className="w-2.5 h-2.5" />
+        </button>
+      )}
+    </span>
+  );
+};
+
 export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
   workflows,
   onOpenWorkflow,
@@ -67,6 +128,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
   embedded = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
 
   // Edit Meta Modal
   const [editingMetaId, setEditingMetaId] = useState<string | null>(null);
@@ -74,6 +136,8 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
   const [editDesc, setEditDesc] = useState('');
   const [editIcon, setEditIcon] = useState(DEFAULT_WORKFLOW_ICON);
   const [editColor, setEditColor] = useState(DEFAULT_WORKFLOW_COLOR);
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [newTagInput, setNewTagInput] = useState('');
   const [isEditAppearanceOpen, setIsEditAppearanceOpen] = useState(false);
 
   // Server-owned cron schedule modal
@@ -86,12 +150,26 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
   const [isScheduleLoading, setIsScheduleLoading] = useState(false);
   const [isScheduleSaving, setIsScheduleSaving] = useState(false);
   const scheduleRequestId = useRef(0);
+  const [scheduleStatuses, setScheduleStatuses] = useState<Record<string, WorkflowScheduleStatus>>({});
 
   // Delete Confirm Modal
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // The list endpoint provides schedule status alongside each workflow. Keep
+  // a local copy so saving the schedule updates the visible row immediately.
+  useEffect(() => {
+    setScheduleStatuses((previous) => {
+      const next: Record<string, WorkflowScheduleStatus> = {};
+      for (const workflow of workflows) {
+        const schedule = workflow.schedule || previous[workflow.id];
+        if (schedule) next[workflow.id] = schedule;
+      }
+      return next;
+    });
+  }, [workflows]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -101,11 +179,57 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
   };
 
   // Filtered Workflows
-  const filteredWorkflows = workflows.filter(
-    (w) =>
-      w.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      w.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const availableTags = useMemo(() => {
+    const counts = new Map<string, { tag: string; count: number }>();
+    for (const workflow of workflows) {
+      for (const tag of uniqueWorkflowTags(workflow.tags)) {
+        const key = tagKey(tag);
+        const current = counts.get(key);
+        if (current) current.count += 1;
+        else counts.set(key, { tag, count: 1 });
+      }
+    }
+    return [...counts.values()].sort((a, b) => a.tag.localeCompare(b.tag, undefined, { sensitivity: 'base' }));
+  }, [workflows]);
+
+  const suggestedEditTags = useMemo(
+    () => availableTags
+      .map((item) => item.tag)
+      .filter((tag) => !editTags.some((selected) => tagKey(selected) === tagKey(tag))),
+    [availableTags, editTags],
   );
+
+  const filteredWorkflows = workflows.filter((w) => {
+    const query = searchQuery.toLowerCase();
+    const matchesSearch =
+      !query ||
+      w.name.toLowerCase().includes(query) ||
+      w.description.toLowerCase().includes(query) ||
+      uniqueWorkflowTags(w.tags).some((tag) => tag.toLowerCase().includes(query));
+    return matchesSearch && workflowHasAnyTag(w.tags, selectedFilterTags);
+  });
+
+  const toggleFilterTag = (tag: string) => {
+    const key = tagKey(tag);
+    setSelectedFilterTags((previous) => {
+      if (previous.some((item) => tagKey(item) === key)) {
+        return previous.filter((item) => tagKey(item) !== key);
+      }
+      return uniqueWorkflowTags([...previous, tag]);
+    });
+  };
+
+  const addEditTag = (rawTag: string) => {
+    const tag = normalizeWorkflowTag(rawTag);
+    if (!tag) return;
+    setEditTags((previous) => uniqueWorkflowTags([...previous, tag]));
+    setNewTagInput('');
+  };
+
+  const removeEditTag = (tag: string) => {
+    const key = tagKey(tag);
+    setEditTags((previous) => previous.filter((item) => tagKey(item) !== key));
+  };
 
   const handleStartEditMeta = (w: WorkflowItem) => {
     setEditingMetaId(w.id);
@@ -113,25 +237,36 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
     setEditDesc(w.description);
     setEditIcon(w.icon || DEFAULT_WORKFLOW_ICON);
     setEditColor(w.color || DEFAULT_WORKFLOW_COLOR);
+    setEditTags(uniqueWorkflowTags(w.tags));
+    setNewTagInput('');
   };
 
   const handleCloseEditMeta = () => {
     setEditingMetaId(null);
     setIsEditAppearanceOpen(false);
+    setNewTagInput('');
   };
 
   const handleSaveEditMeta = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingMetaId || !editName.trim()) return;
+    const tags = uniqueWorkflowTags([...editTags, newTagInput]);
+    console.log('[WorkflowListHome] save workflow meta', {
+      id: editingMetaId,
+      name: editName.trim(),
+      tags,
+    });
     onEditWorkflowMeta(
       editingMetaId,
       editName.trim(),
       editDesc.trim(),
       editIcon,
-      editColor
+      editColor,
+      tags,
     );
     setEditingMetaId(null);
     setIsEditAppearanceOpen(false);
+    setNewTagInput('');
     showToast('Workflow info updated');
   };
 
@@ -165,6 +300,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
       setScheduleCron(schedule.cron);
       setScheduleTimezone(schedule.timezone);
       setScheduleNextRunAt(schedule.nextRunAt);
+      setScheduleStatuses((previous) => ({ ...previous, [workflow.id]: schedule }));
     } catch (error) {
       if (requestId !== scheduleRequestId.current) return;
       setScheduleError((error as Error).message);
@@ -192,6 +328,10 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
         timezone: scheduleTimezone,
       });
       setScheduleNextRunAt(schedule.nextRunAt);
+      setScheduleStatuses((previous) => ({
+        ...previous,
+        [schedulingWorkflow.id]: schedule,
+      }));
       setSchedulingWorkflow(null);
       showToast(schedule.enabled ? 'Server schedule enabled' : 'Schedule disabled');
     } catch (error) {
@@ -201,10 +341,58 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
     }
   };
 
+  const formatNextRun = (value: string): string => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? value
+      : date.toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const renderScheduleStatus = (workflow: WorkflowItem) => {
+    const schedule = scheduleStatuses[workflow.id] || workflow.schedule;
+    if (!schedule?.enabled) return null;
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-pill bg-semantic-success/10 text-semantic-success border border-semantic-success/20 text-[10px] font-medium">
+        <CalendarClock className="w-3 h-3" />
+        <span>Cron enabled</span>
+        <span className="text-semantic-success/70">· {schedule.nextRunAt ? `Next ${formatNextRun(schedule.nextRunAt)}` : schedule.cron}</span>
+      </span>
+    );
+  };
+
+  const renderWorkflowTags = (workflow: WorkflowItem) => {
+    const tags = uniqueWorkflowTags(workflow.tags);
+    return (
+      <div
+        className="flex flex-wrap items-center gap-1 mt-1.5"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {tags.map((tag) => (
+          <WorkflowTagChip
+            key={tagKey(tag)}
+            tag={tag}
+            selected={selectedFilterTags.some((item) => tagKey(item) === tagKey(tag))}
+            title={`Filter by ${tag}`}
+            onClick={() => toggleFilterTag(tag)}
+          />
+        ))}
+        <button
+          type="button"
+          title="Add workflow tags"
+          onClick={() => handleStartEditMeta(workflow)}
+          className="h-5 inline-flex items-center gap-0.5 rounded-md border border-dashed border-hairline px-1.5 text-[10px] font-medium text-muted hover:text-ink hover:border-hairline-strong cursor-pointer"
+        >
+          <Plus className="w-2.5 h-2.5" />
+          {tags.length === 0 ? 'Tag' : ''}
+        </button>
+      </div>
+    );
+  };
+
   const renderContent = () => (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-4 sm:space-y-6">
-      {/* Toolbar: search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 card-panel p-3 sm:p-3.5">
+      {/* Toolbar: search + tag filters */}
+      <div className="card-panel p-3 sm:p-3.5 space-y-3">
         {/* Search Box */}
         <div className="relative flex-1 max-w-full sm:max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -212,7 +400,7 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search workflow name or description..."
+            placeholder="Search workflow name, description, or tag..."
             className="input-pill pl-9"
           />
           {searchQuery && (
@@ -224,6 +412,37 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
             </button>
           )}
         </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted font-semibold mr-1">
+            <Tags className="w-3 h-3" />
+            Tags
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedFilterTags([])}
+            className={`h-6 px-2 rounded-md border text-[10px] font-medium cursor-pointer ${
+              selectedFilterTags.length === 0
+                ? 'bg-primary text-on-primary border-primary'
+                : 'bg-surface-canvas text-muted border-hairline hover:text-ink'
+            }`}
+          >
+            All
+          </button>
+          {availableTags.map(({ tag, count }) => (
+            <WorkflowTagChip
+              key={tagKey(tag)}
+              tag={tag}
+              count={count}
+              selected={selectedFilterTags.some((item) => tagKey(item) === tagKey(tag))}
+              title={`Filter by ${tag}`}
+              onClick={() => toggleFilterTag(tag)}
+            />
+          ))}
+          {availableTags.length === 0 && (
+            <span className="text-[11px] text-muted">Edit a workflow to add tags, then filter here.</span>
+          )}
+        </div>
       </div>
 
       {/* Empty State */}
@@ -233,11 +452,11 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
             <Search className="w-8 h-8" />
           </div>
           <h3 className="text-sm font-medium text-ink">
-            {searchQuery ? 'No matching workflows found' : 'No workflows yet'}
+            {searchQuery || selectedFilterTags.length > 0 ? 'No matching workflows found' : 'No workflows yet'}
           </h3>
           <p className="text-xs text-muted max-w-sm">
-            {searchQuery
-              ? 'Try different search keywords'
+            {searchQuery || selectedFilterTags.length > 0
+              ? 'Try different search keywords or tags'
               : 'Workflows are created by Coding Agent. Once they appear here, you can open, run, and debug them.'}
           </p>
         </div>
@@ -277,6 +496,8 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                           <span className="text-muted-soft italic">No description</span>
                         )}
                       </div>
+                      {renderWorkflowTags(workflow)}
+                      <div className="mt-1.5">{renderScheduleStatus(workflow)}</div>
                     </div>
                   </div>
 
@@ -387,6 +608,8 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                               <span className="text-muted-soft italic">No description</span>
                             )}
                           </div>
+                          {renderWorkflowTags(workflow)}
+                          <div className="mt-1.5">{renderScheduleStatus(workflow)}</div>
                         </div>
                       </div>
                     </td>
@@ -583,6 +806,65 @@ export const WorkflowListHome: React.FC<WorkflowListHomeProps> = ({
                   onChange={(e) => setEditDesc(e.target.value)}
                   className="input-rounded"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-ink mb-1">
+                  Tags
+                </label>
+                <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-hairline bg-surface-canvas p-2.5 min-h-[42px]">
+                  {editTags.map((tag) => (
+                    <WorkflowTagChip
+                      key={tagKey(tag)}
+                      tag={tag}
+                      onRemove={(event) => {
+                        event.preventDefault();
+                        removeEditTag(tag);
+                      }}
+                    />
+                  ))}
+                  {editTags.length === 0 && (
+                    <span className="text-[11px] text-muted">No tags yet</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="text"
+                    value={newTagInput}
+                    maxLength={MAX_NODE_TAG_LENGTH}
+                    onChange={(e) => setNewTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addEditTag(newTagInput);
+                      }
+                    }}
+                    placeholder="Add a tag, then press Enter"
+                    className="input-pill flex-1"
+                  />
+                  <button
+                    type="button"
+                    disabled={!normalizeWorkflowTag(newTagInput)}
+                    onClick={() => addEditTag(newTagInput)}
+                    className="btn-pill text-xs border inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add
+                  </button>
+                </div>
+                {suggestedEditTags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[10px] text-muted">Existing:</span>
+                    {suggestedEditTags.map((tag) => (
+                      <WorkflowTagChip
+                        key={tagKey(tag)}
+                        tag={tag}
+                        title={`Add ${tag}`}
+                        onClick={() => addEditTag(tag)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2">
